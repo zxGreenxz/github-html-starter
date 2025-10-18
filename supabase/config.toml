@@ -1,1 +1,10 @@
 project_id = "xneoovjmwhzzphwlwojc"
+
+[functions.fetch-facebook-orders]
+verify_jwt = false
+
+[functions.fetch-tpos-products]
+verify_jwt = false
+
+[functions.refresh-tpos-token]
+verify_jwt = false
