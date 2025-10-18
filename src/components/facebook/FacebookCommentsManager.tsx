@@ -521,8 +521,32 @@ export function FacebookCommentsManager({
         },
       );
 
+      console.log('🚀 [FRONTEND] Edge function called');
+      console.log('📦 [FRONTEND] Request payload:', {
+        comment: {
+          id: comment.id,
+          message: comment.message,
+          from: comment.from
+        },
+        video: video.objectId,
+        commentType
+      });
+
       const responseData = await response.json();
+
+      console.log('📨 [FRONTEND] Response received:', response.status);
+      console.log('📊 [FRONTEND] Response data:', responseData);
+
+      // Log chi tiết nếu có live_products/live_orders info
+      if (responseData.live_products_created) {
+        console.log('✅ [FRONTEND] Live products created:', responseData.live_products_created);
+      }
+      if (responseData.live_orders_created) {
+        console.log('✅ [FRONTEND] Live orders created:', responseData.live_orders_created);
+      }
+
       if (!response.ok) {
+        console.error('❌ [FRONTEND] Error response:', responseData);
         throw new Error(JSON.stringify(responseData));
       }
 

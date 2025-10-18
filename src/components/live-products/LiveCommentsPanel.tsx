@@ -394,8 +394,28 @@ export function LiveCommentsPanel({
         }
       );
 
+      console.log('🚀 [LIVE PANEL] Edge function called');
+      console.log('📦 [LIVE PANEL] Comment:', {
+        id: comment.id,
+        from: comment.from,
+        message: comment.message
+      });
+      console.log('🎥 [LIVE PANEL] Video ID:', videoId);
+
       const responseData = await response.json();
+
+      console.log('📨 [LIVE PANEL] Response:', response.status);
+      console.log('📊 [LIVE PANEL] Data:', responseData);
+
+      if (responseData.live_products_created) {
+        console.log('✅ [LIVE PANEL] Live products:', responseData.live_products_created);
+      }
+      if (responseData.live_orders_created) {
+        console.log('✅ [LIVE PANEL] Live orders:', responseData.live_orders_created);
+      }
+
       if (!response.ok) {
+        console.error('❌ [LIVE PANEL] Error:', responseData);
         throw new Error(JSON.stringify(responseData));
       }
 
