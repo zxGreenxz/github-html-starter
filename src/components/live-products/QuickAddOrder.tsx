@@ -332,14 +332,14 @@ export function QuickAddOrder({
             const pdfDataUri = pdf.output('datauristring');
             console.log('✅ PDF generated, converting to bitmap...');
             
-            // Get configurable threshold from localStorage (default: 128)
-            const threshold = parseInt(localStorage.getItem('printThreshold') || '128');
+            // Get configurable threshold from localStorage (default: 115)
+            const threshold = parseInt(localStorage.getItem('printThreshold') || '115');
             
             // Print via Canvas API (no pdftoppm dependency)
             const printResult = await printPDFViaCanvas(activePrinter, pdfDataUri, {
               threshold,
-              width: 576,  // 80mm @ 203 DPI
-              dpi: 203
+              width: 944,  // 80mm @ 300 DPI
+              dpi: 300
             });
             
             if (printResult.success) {

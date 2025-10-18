@@ -52,6 +52,49 @@ async function pdfToCanvas(pdfDataUri: string, dpi: number, width: number): Prom
 }
 
 /**
+ * Enhance Canvas: Apply contrast and sharpening
+ */
+function enhanceCanvas(canvas: HTMLCanvasElement, contrastFactor: number = 1.3): void {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  // Step 1: Increase contrast
+  const factor = (259 * (contrastFactor * 255 + 255)) / (255 * (259 - contrastFactor * 255));
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = factor * (data[i] - 128) + 128;     // R
+    data[i + 1] = factor * (data[i + 1] - 128) + 128; // G
+    data[i + 2] = factor * (data[i + 2] - 128) + 128; // B
+  }
+
+  // Step 2: Apply simple sharpening kernel (3x3)
+  const width = canvas.width;
+  const height = canvas.height;
+  const original = new Uint8ClampedArray(data);
+
+  // Sharpening kernel: [0, -1, 0], [-1, 5, -1], [0, -1, 0]
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      for (let c = 0; c < 3; c++) { // RGB only, skip alpha
+        const idx = (y * width + x) * 4 + c;
+        const sharpened = 
+          5 * original[idx] -
+          original[((y - 1) * width + x) * 4 + c] -
+          original[((y + 1) * width + x) * 4 + c] -
+          original[(y * width + (x - 1)) * 4 + c] -
+          original[(y * width + (x + 1)) * 4 + c];
+        
+        data[idx] = Math.max(0, Math.min(255, sharpened));
+      }
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
+/**
  * Convert Canvas to Monochrome Bitmap with threshold
  */
 function canvasToMonochrome(canvas: HTMLCanvasElement, threshold: number): ImageData {
@@ -134,9 +177,9 @@ export async function pdfToBitmapForXC80(
   options: BitmapOptions = {}
 ): Promise<Uint8Array> {
   const {
-    dpi = 203,
-    threshold = 128,
-    width = 576 // 80mm @ 203 DPI
+    dpi = 300,
+    threshold = 115,
+    width = 944 // 80mm @ 300 DPI
   } = options;
 
   console.log('Converting PDF to bitmap with options:', { dpi, threshold, width });
@@ -145,11 +188,15 @@ export async function pdfToBitmapForXC80(
   const canvas = await pdfToCanvas(pdfDataUri, dpi, width);
   console.log('PDF rendered to canvas:', canvas.width, 'x', canvas.height);
 
-  // Step 2: Canvas → Monochrome
+  // Step 2: Enhance Canvas
+  enhanceCanvas(canvas, 1.3);
+  console.log('Enhanced canvas with contrast=1.3 and sharpening');
+
+  // Step 3: Canvas → Monochrome
   const monochromeData = canvasToMonochrome(canvas, threshold);
   console.log('Converted to monochrome with threshold:', threshold);
 
-  // Step 3: Monochrome → ESC/POS
+  // Step 4: Monochrome → ESC/POS
   const escposData = encodeToESCPOS(monochromeData);
   console.log('Encoded to ESC/POS bitmap:', escposData.length, 'bytes');
 
