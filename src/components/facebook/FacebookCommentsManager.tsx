@@ -396,13 +396,6 @@ export function FacebookCommentsManager({
       const fetchId = Math.random().toString(36).substring(7);
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
-      console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
-        videoId: selectedVideo.objectId,
-        pageId,
-        timestamp: nowVietnamISO()
-      });
-      const startTime = Date.now();
-
       // ========================================================================
       // READ FROM facebook_comments_archive (NOT from TPOS directly)
       // ========================================================================
@@ -420,7 +413,6 @@ export function FacebookCommentsManager({
       }
 
       // 🔥 Deduplicate comments by ID to prevent duplicate display
-      console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
       const seenIds = new Set<string>();
       const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
         if (!seenIds.has(c.facebook_comment_id)) {
@@ -437,22 +429,11 @@ export function FacebookCommentsManager({
             is_deleted_by_tpos: c.is_deleted_by_tpos || false,
             deleted_at: c.updated_at,
           });
-        } else {
-          console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
         }
         return acc;
       }, []) || [];
 
-      const elapsed = Date.now() - startTime;
-      console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
-        uniqueCount: formattedComments.length,
-        totalCount: archivedComments?.length,
-        firstCommentId: formattedComments[0]?.id,
-        lastCommentId: formattedComments[formattedComments.length - 1]?.id,
-        elapsed: `${elapsed}ms`
-      });
-
-      return { 
+      return {
         data: formattedComments, 
         paging: {},
         fromArchive: true 
@@ -694,8 +675,6 @@ export function FacebookCommentsManager({
       isCheckingNewCommentsRef.current = true;
 
       try {
-        console.log(`[Realtime Check] Calling Edge Function to process comments for video ${selectedVideo.objectId}`);
-        
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -715,16 +694,9 @@ export function FacebookCommentsManager({
         
         const result = await response.json();
         
-        console.log(`[Realtime Check] ✅ Edge Function completed`, {
-          newComments: result?.comments?.length || 0,
-          status: response.status
-        });
-        
         // 🔥 FALLBACK: Invalidate query if new comments are returned
         // This ensures UI updates even if Postgres Realtime doesn't trigger
         if (result?.comments?.length > 0) {
-          console.log(`[Realtime Check] 🔄 Fallback invalidating query (${result.comments.length} new comments)`);
-          
           queryClient.invalidateQueries({
             queryKey: getCommentsQueryKey(
               pageId,
