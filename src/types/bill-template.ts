@@ -40,7 +40,7 @@ export const DEFAULT_BILL_TEMPLATE: BillTemplate = {
     { id: '7', key: 'createdTime', order: 7, visible: true, fontSize: 12, fontWeight: 'normal', align: 'center' },
   ],
   styles: {
-    fontFamily: 'Arial',
+    fontFamily: 'Helvetica',
     lineSpacing: 1.2,
     padding: { top: 5, right: 5, bottom: 5, left: 5 }
   }

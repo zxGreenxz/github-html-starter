@@ -256,6 +256,43 @@ async function sendToPrinter(printerIp, printerPort, data) {
 // ============================================
 
 /**
+ * Bitmap printing endpoint (ESC/POS bitmap format)
+ */
+app.post('/print/bitmap', async (req, res) => {
+  try {
+    const { printerIp, printerPort, bitmapData } = req.body;
+
+    if (!printerIp || !printerPort || !bitmapData) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: printerIp, printerPort, bitmapData' 
+      });
+    }
+
+    console.log(`📄 Printing ESC/POS bitmap to ${printerIp}:${printerPort}`);
+    console.log(`Bitmap size: ${bitmapData.length} bytes`);
+
+    // Convert array back to Uint8Array
+    const uint8Data = new Uint8Array(bitmapData);
+
+    // Send to printer
+    await sendToPrinter(printerIp, printerPort, uint8Data);
+
+    res.json({ 
+      success: true, 
+      message: 'ESC/POS bitmap sent to printer',
+      bytesTransferred: uint8Data.length
+    });
+
+  } catch (error) {
+    console.error('❌ Bitmap print error:', error.message);
+    res.status(500).json({ 
+      error: error.message,
+      details: 'Failed to print ESC/POS bitmap'
+    });
+  }
+});
+
+/**
  * Health check
  */
 app.get("/health", (req, res) => {

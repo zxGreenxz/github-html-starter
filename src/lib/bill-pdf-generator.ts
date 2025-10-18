@@ -29,7 +29,7 @@ export const generateBillPDF = (
   });
 
   // Set font
-  doc.setFont(template.styles.fontFamily.toLowerCase());
+  doc.setFont('helvetica');
 
   let yPosition = template.styles.padding.top;
 
@@ -45,7 +45,7 @@ export const generateBillPDF = (
     // Apply font settings
     doc.setFontSize(field.fontSize);
     doc.setFont(
-      template.styles.fontFamily.toLowerCase(),
+      'helvetica',
       field.fontWeight === 'bold' ? 'bold' : 'normal'
     );
 

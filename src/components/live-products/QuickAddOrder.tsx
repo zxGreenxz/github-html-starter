@@ -10,7 +10,7 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
+import { getActivePrinter, printPDFViaCanvas } from '@/lib/printer-utils';
 import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
@@ -332,11 +332,18 @@ export function QuickAddOrder({
             const pdfDataUri = pdf.output('datauristring');
             console.log('✅ PDF generated, converting to bitmap...');
             
-            // Print via bitmap conversion (automated, no user interaction)
-            const printResult = await printPDFToXC80(activePrinter, pdfDataUri);
+            // Get configurable threshold from localStorage (default: 128)
+            const threshold = parseInt(localStorage.getItem('printThreshold') || '128');
+            
+            // Print via Canvas API (no pdftoppm dependency)
+            const printResult = await printPDFViaCanvas(activePrinter, pdfDataUri, {
+              threshold,
+              width: 576,  // 80mm @ 203 DPI
+              dpi: 203
+            });
             
             if (printResult.success) {
-              console.log("✅ Bill printed successfully");
+              console.log("✅ Bill printed successfully via Canvas API");
             } else {
               throw new Error(printResult.error);
             }
