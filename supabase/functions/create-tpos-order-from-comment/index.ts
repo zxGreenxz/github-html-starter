@@ -490,7 +490,6 @@ serve(async (req) => {
           console.error('Error updating comment archive:', archiveUpdateError);
         }
       }
-
       } else {
         // Insert new record with count = 1
         console.log(`➕ Creating new order with count: 1`);
@@ -540,6 +539,7 @@ serve(async (req) => {
         if (archiveUpdateError) {
           console.error('Error updating comment archive:', archiveUpdateError);
         }
+      }
       }
 
       // ========================================================================
@@ -853,7 +853,6 @@ serve(async (req) => {
       console.log('🏁 [CREATE LIVE PRODUCTS] Finished processing all products');
       console.log('═══════════════════════════════════════════════════════════════');
 
-      }
     } catch (dbError) {
       console.error('Exception saving to database:', dbError);
     }
