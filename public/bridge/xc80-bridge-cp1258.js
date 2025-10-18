@@ -80,140 +80,151 @@ function convertToCP1258(text) {
 }
 
 /**
- * Convert PDF thành hình ảnh PNG sử dụng pdftoppm
+ * Convert PDF to ESC/POS bitmap using pdftoppm + sharp
+ * @param {Buffer} pdfBuffer - PDF file buffer
+ * @param {Object} options - Conversion options
+ * @param {number} options.dpi - DPI (default: 300)
+ * @param {number} options.threshold - Threshold 0-255 (default: 115)
+ * @param {number} options.width - Width in pixels (default: 944 for 80mm @ 300 DPI)
+ * @returns {Promise<Buffer>} ESC/POS bitmap commands
  */
-async function convertPdfToImage(pdfBuffer, dpi = 203) {
+async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
+  const { dpi = 300, threshold = 115, width = 944 } = options;
+  
   const timestamp = Date.now();
   const pdfPath = path.join(TEMP_DIR, `temp_${timestamp}.pdf`);
   const outputPrefix = path.join(TEMP_DIR, `output_${timestamp}`);
-
+  
   try {
-    // Lưu PDF buffer vào file
+    // Step 1: Save PDF buffer to file
     fs.writeFileSync(pdfPath, pdfBuffer);
-
-    // Convert PDF sang PNG với pdftoppm (grayscale)
-    // -png: output PNG
-    // -gray: grayscale mode
-    // -r: resolution (DPI)
-    // -singlefile: chỉ convert page đầu tiên
-    const command = `pdftoppm -png -gray -r ${dpi} -singlefile "${pdfPath}" "${outputPrefix}"`;
     
+    // Step 2: Convert PDF to grayscale using pdftoppm
+    console.log(`🔄 Converting PDF to grayscale (DPI: ${dpi})...`);
+    const command = `pdftoppm -r ${dpi} -gray "${pdfPath}" "${outputPrefix}"`;
     await execAsync(command);
-
-    // Đọc file PNG vừa tạo
-    const pngPath = `${outputPrefix}.png`;
-    const imageBuffer = fs.readFileSync(pngPath);
-
+    
+    // Step 3: Find generated PGM file
+    const pgmPath = `${outputPrefix}-1.pgm`;
+    if (!fs.existsSync(pgmPath)) {
+      throw new Error('PDF conversion failed - no output file generated');
+    }
+    
+    // Step 4: Load and enhance image with sharp
+    console.log(`🔄 Processing image (width: ${width}px, threshold: ${threshold})...`);
+    let img = sharp(pgmPath);
+    
+    // Get metadata
+    const metadata = await img.metadata();
+    console.log(`📐 Original size: ${metadata.width}x${metadata.height}px`);
+    
+    // Resize if necessary
+    if (metadata.width > width) {
+      img = img.resize(width, null, {
+        kernel: 'lanczos3',
+        fit: 'inside'
+      });
+    }
+    
+    // Enhance and convert to monochrome
+    const processedBuffer = await img
+      .greyscale()
+      .sharpen({ sigma: 1.2, m1: 0.5, m2: 0.5 })
+      .normalise()
+      .threshold(threshold)
+      .toFormat('png')
+      .toBuffer();
+    
+    // Step 5: Get raw pixel data
+    const { data: imageData, info } = await sharp(processedBuffer)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    
+    console.log(`✅ Final size: ${info.width}x${info.height}px`);
+    
+    // Step 6: Convert to ESC/POS format
+    const escposData = encodeImageToESCPOS(imageData, info.width, info.height);
+    
     // Cleanup temp files
-    fs.unlinkSync(pdfPath);
-    fs.unlinkSync(pngPath);
-
-    return imageBuffer;
+    try {
+      fs.unlinkSync(pdfPath);
+      fs.unlinkSync(pgmPath);
+    } catch (e) {
+      console.warn('Warning: Could not delete temp files:', e.message);
+    }
+    
+    return escposData;
+    
   } catch (error) {
     // Cleanup on error
     try {
       if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+      const pgmPath = `${outputPrefix}-1.pgm`;
+      if (fs.existsSync(pgmPath)) fs.unlinkSync(pgmPath);
     } catch (e) {}
-    throw error;
+    
+    throw new Error(`PDF to ESC/POS conversion failed: ${error.message}`);
   }
 }
 
 /**
- * Convert hình ảnh thành monochrome bitmap cho thermal printer
+ * Encode image buffer to ESC/POS bitmap commands (GS v 0 format)
  */
-async function convertToMonochrome(imageBuffer, width = 576, threshold = 128) {
-  try {
-    // Resize và convert sang grayscale
-    let image = sharp(imageBuffer);
-    const metadata = await image.metadata();
-
-    // Resize để fit với độ rộng máy in (576px cho 80mm @ 203dpi)
-    if (metadata.width > width) {
-      image = image.resize(width, null, {
-        fit: "inside",
-        withoutEnlargement: false,
-      });
-    }
-
-    // Convert sang grayscale và threshold để tạo ảnh đen trắng
-    const processedBuffer = await image
-      .grayscale()
-      .threshold(threshold)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    return {
-      data: processedBuffer.data,
-      width: processedBuffer.info.width,
-      height: processedBuffer.info.height,
-    };
-  } catch (error) {
-    throw new Error(`Image processing error: ${error.message}`);
-  }
-}
-
-/**
- * Tạo ESC/POS bitmap commands từ monochrome image data
- */
-function createBitmapCommands(imageData, width, height) {
+function encodeImageToESCPOS(imageData, width, height) {
   const commands = [];
-
-  // ESC @ - Initialize printer
-  commands.push(Buffer.from([0x1B, 0x40]));
-
-  // Chia hình ảnh thành các dải 24 pixel height
-  const sliceHeight = 24;
-  const numSlices = Math.ceil(height / sliceHeight);
-
-  for (let slice = 0; slice < numSlices; slice++) {
-    const startY = slice * sliceHeight;
-    const endY = Math.min(startY + sliceHeight, height);
-    const actualHeight = endY - startY;
-
-    // ESC * m nL nH d1...dk
-    // m = 33 (24-dot double-density)
-    const nL = width & 0xff;
-    const nH = (width >> 8) & 0xff;
-
-    const header = Buffer.from([0x1B, 0x2A, 0x21, nL, nH]);
-    commands.push(header);
-
-    // Tạo bitmap data cho slice này
-    const sliceData = [];
-    for (let x = 0; x < width; x++) {
-      // Mỗi cột có 3 bytes (24 bits)
-      const bytes = [0, 0, 0];
-
-      for (let y = 0; y < sliceHeight; y++) {
-        const actualY = startY + y;
-        if (actualY >= height) break;
-
-        const pixelIndex = actualY * width + x;
-        const pixelValue = imageData[pixelIndex];
-
-        // Nếu pixel đen (0), set bit tương ứng
-        if (pixelValue === 0) {
-          const byteIndex = Math.floor(y / 8);
-          const bitIndex = y % 8;
-          bytes[byteIndex] |= 1 << (7 - bitIndex);
+  
+  // Initialize printer
+  commands.push(Buffer.from([0x1B, 0x40])); // ESC @ - Initialize
+  
+  // Center alignment
+  commands.push(Buffer.from([0x1B, 0x61, 0x01])); // ESC a 1 - Center
+  
+  // Calculate bitmap dimensions
+  const widthBytes = Math.ceil(width / 8);
+  const xL = widthBytes & 0xFF;
+  const xH = (widthBytes >> 8) & 0xFF;
+  const yL = height & 0xFF;
+  const yH = (height >> 8) & 0xFF;
+  
+  // GS v 0 - Print raster bitmap
+  commands.push(Buffer.from([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]));
+  
+  // Convert pixels to bitmap (1 bit per pixel)
+  const bitmapData = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < widthBytes; x++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const pixelX = x * 8 + bit;
+        if (pixelX < width) {
+          // For grayscale/RGB, take first channel
+          const pixelIndex = (y * width + pixelX) * (imageData.length / (width * height));
+          const pixelValue = imageData[Math.floor(pixelIndex)];
+          
+          // Black pixel = 1, White pixel = 0
+          if (pixelValue < 128) {
+            byte |= (1 << (7 - bit));
+          }
         }
       }
-
-      sliceData.push(...bytes);
+      bitmapData.push(byte);
     }
-
-    commands.push(Buffer.from(sliceData));
-
-    // Line feed
-    commands.push(Buffer.from([0x0A]));
   }
-
-  // Feed thêm giấy và cut
-  commands.push(Buffer.from([0x1B, 0x64, 0x03])); // Feed 3 lines
-  commands.push(Buffer.from([0x1D, 0x56, 0x00])); // Full cut
-
+  
+  commands.push(Buffer.from(bitmapData));
+  
+  // Left align for next commands
+  commands.push(Buffer.from([0x1B, 0x61, 0x00])); // ESC a 0 - Left
+  
+  // Feed paper
+  commands.push(Buffer.from([0x1B, 0x64, 3])); // ESC d 3 - Feed 3 lines
+  
+  // Cut paper
+  commands.push(Buffer.from([0x1D, 0x56, 0x00])); // GS V 0 - Full cut
+  
   return Buffer.concat(commands);
 }
+
 
 /**
  * Gửi data đến máy in qua network
@@ -305,54 +316,47 @@ app.get("/health", (req, res) => {
 });
 
 /**
- * POST /print/pdf - In file PDF trắng đen
+ * POST /print/pdf - In file PDF trắng đen (pdftoppm + sharp)
  * Body: {
  *   printerIp: "192.168.1.100",
  *   printerPort: 9100,
- *   pdf: "base64_encoded_pdf_data",
- *   width: 576 (optional, default 576px for 80mm),
- *   dpi: 203 (optional, default 203),
- *   threshold: 128 (optional, 0-255, default 128)
+ *   pdfBase64: "base64_encoded_pdf_data",
+ *   dpi: 300 (optional, default 300),
+ *   threshold: 115 (optional, 0-255, default 115),
+ *   width: 944 (optional, default 944px for 80mm @ 300 DPI)
  * }
  */
 app.post("/print/pdf", async (req, res) => {
   try {
-    const { printerIp, printerPort = 9100, pdf, width = 576, dpi = 203, threshold = 128 } = req.body;
+    const { 
+      printerIp, 
+      printerPort = 9100, 
+      pdfBase64, 
+      dpi = 300, 
+      threshold = 115, 
+      width = 944 
+    } = req.body;
 
-    if (!printerIp || !pdf) {
+    if (!printerIp || !pdfBase64) {
       return res.status(400).json({
-        error: "Missing required fields: printerIp, pdf",
+        error: "Missing required fields: printerIp, pdfBase64",
       });
     }
 
     console.log(`\n📄 [PDF Print Request]`);
     console.log(`   Printer: ${printerIp}:${printerPort}`);
-    console.log(`   Width: ${width}px, DPI: ${dpi}, Threshold: ${threshold}`);
+    console.log(`   Settings: DPI=${dpi}, Threshold=${threshold}, Width=${width}px`);
 
     // Decode base64 PDF
-    const pdfBuffer = Buffer.from(pdf, "base64");
+    const pdfBuffer = Buffer.from(pdfBase64, "base64");
     console.log(`   PDF size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
 
-    // Step 1: Convert PDF to PNG
-    console.log(`   🔄 Converting PDF to image...`);
-    const imageBuffer = await convertPdfToImage(pdfBuffer, dpi);
-    console.log(`   ✅ Image created`);
+    // Convert PDF to ESC/POS bitmap
+    console.log(`   🔄 Converting PDF to ESC/POS bitmap...`);
+    const escposData = await pdfToESCPOSBitmap(pdfBuffer, { dpi, threshold, width });
+    console.log(`   ✅ ESC/POS data: ${escposData.length} bytes`);
 
-    // Step 2: Convert to monochrome
-    console.log(`   🔄 Processing image to monochrome...`);
-    const { data, width: imgWidth, height: imgHeight } = await convertToMonochrome(
-      imageBuffer,
-      width,
-      threshold
-    );
-    console.log(`   ✅ Monochrome image: ${imgWidth}x${imgHeight}px`);
-
-    // Step 3: Create ESC/POS commands
-    console.log(`   🔄 Creating ESC/POS bitmap commands...`);
-    const escposData = createBitmapCommands(data, imgWidth, imgHeight);
-    console.log(`   ✅ Commands created: ${escposData.length} bytes`);
-
-    // Step 4: Send to printer
+    // Send to printer
     console.log(`   📤 Sending to printer...`);
     await sendToPrinter(printerIp, printerPort, escposData);
     console.log(`   ✅ Print job sent successfully\n`);
@@ -361,8 +365,8 @@ app.post("/print/pdf", async (req, res) => {
       success: true,
       message: "PDF printed successfully",
       details: {
-        imageSize: `${imgWidth}x${imgHeight}`,
         dataSize: escposData.length,
+        settings: { dpi, threshold, width }
       },
     });
   } catch (error) {
@@ -427,51 +431,6 @@ app.post("/print/text", async (req, res) => {
   }
 });
 
-/**
- * POST /print/bitmap - In bitmap từ canvas
- */
-app.post("/print/bitmap", async (req, res) => {
-  try {
-    const { printerIp, printerPort = 9100, bitmap, width, height, threshold = 128 } = req.body;
-
-    if (!printerIp || !bitmap || !width || !height) {
-      return res.status(400).json({
-        error: "Missing required fields: printerIp, bitmap, width, height",
-      });
-    }
-
-    console.log(`\n🖼️  [Bitmap Print Request]`);
-    console.log(`   Printer: ${printerIp}:${printerPort}`);
-    console.log(`   Size: ${width}x${height}px`);
-
-    // Convert base64 bitmap to buffer
-    const imageBuffer = Buffer.from(bitmap, "base64");
-
-    // Process image
-    const { data, width: imgWidth, height: imgHeight } = await convertToMonochrome(
-      imageBuffer,
-      width,
-      threshold
-    );
-
-    // Create ESC/POS commands
-    const escposData = createBitmapCommands(data, imgWidth, imgHeight);
-
-    // Send to printer
-    await sendToPrinter(printerIp, printerPort, escposData);
-    console.log(`   ✅ Bitmap printed successfully\n`);
-
-    res.json({
-      success: true,
-      message: "Bitmap printed successfully",
-    });
-  } catch (error) {
-    console.error(`   ❌ Error: ${error.message}\n`);
-    res.status(500).json({
-      error: error.message,
-    });
-  }
-});
 
 // ============================================
 // START SERVER

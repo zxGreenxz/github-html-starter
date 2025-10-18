@@ -8,8 +8,6 @@ export interface NetworkPrinter {
   createdAt: string;
 }
 
-// Import the PDF to bitmap converter
-import { pdfToBitmapForXC80 } from './pdf-to-bitmap-canvas';
 
 /**
  * Lấy máy in đang active từ localStorage
@@ -30,80 +28,37 @@ export const getActivePrinter = (): NetworkPrinter | null => {
   }
 };
 
-/**
- * Print PDF to XC80 via Canvas API (optimized, no pdftoppm dependency)
- * @param printer Thông tin máy in
- * @param pdfDataUri PDF data URI (data:application/pdf;base64,...)
- * @param options Tùy chọn in (threshold, width, dpi)
- * @returns Promise với kết quả in
- */
-export const printPDFViaCanvas = async (
-  printer: NetworkPrinter,
-  pdfDataUri: string,
-  options: { threshold?: number; width?: number; dpi?: number } = {}
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    console.log('📄 Printing PDF via Canvas API to:', printer.name);
-
-    // Convert PDF to ESC/POS bitmap using Canvas API
-    const bitmapData = await pdfToBitmapForXC80(pdfDataUri, {
-      threshold: options.threshold || 128,
-      width: options.width || 576, // 80mm @ 203 DPI
-      dpi: options.dpi || 203
-    });
-
-    console.log(`📦 Sending ${bitmapData.length} bytes to ${printer.bridgeUrl}/print/bitmap`);
-
-    // Send to bridge
-    const response = await fetch(`${printer.bridgeUrl}/print/bitmap`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        printerIp: printer.ipAddress,
-        printerPort: printer.port,
-        bitmapData: Array.from(bitmapData) // Convert Uint8Array to regular array for JSON
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Bridge error: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Print via Canvas successful:', result);
-    return { success: true };
-
-  } catch (error) {
-    console.error('❌ Print via Canvas error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
-};
 
 /**
- * In PDF lên máy in XC80 qua /print/pdf endpoint
+ * In PDF lên máy in XC80 qua /print/pdf endpoint (pdftoppm + sharp)
  * @param printer Thông tin máy in
  * @param pdfDataUri PDF data URI (data:application/pdf;base64,...)
+ * @param options Print quality settings (dpi, threshold, width)
  * @returns Promise với kết quả in
  */
 export const printPDFToXC80 = async (
   printer: NetworkPrinter,
-  pdfDataUri: string
+  pdfDataUri: string,
+  options: {
+    dpi?: number;
+    threshold?: number;
+    width?: number;
+  } = {}
 ): Promise<{ success: boolean; error?: string }> => {
+  const { dpi = 300, threshold = 115, width = 944 } = options;
+  
   try {
-    console.log('📄 Printing PDF via /print/pdf endpoint...');
+    console.log('📄 Printing PDF via pdftoppm + sharp...');
+    console.log('⚙️  Settings:', { dpi, threshold, width });
     
-    // Extract base64 from data URI (supports both with and without filename parameter)
+    // Extract base64 from data URI
     const base64Match = pdfDataUri.match(/^data:application\/pdf;[^,]*base64,(.+)$/);
     if (!base64Match) {
       throw new Error('Invalid PDF data URI format');
     }
-    const base64Pdf = base64Match[1];
+    const pdfBase64 = base64Match[1];
     
-    console.log(`📦 Sending PDF to bridge: ${printer.bridgeUrl}/print/pdf`);
+    console.log(`📦 Sending to bridge: ${printer.bridgeUrl}/print/pdf`);
     
     // Send to bridge /print/pdf endpoint
     const response = await fetch(`${printer.bridgeUrl}/print/pdf`, {
@@ -112,20 +67,20 @@ export const printPDFToXC80 = async (
       body: JSON.stringify({
         printerIp: printer.ipAddress,
         printerPort: printer.port,
-        pdf: base64Pdf,
-        width: 576,      // 80mm @ 203dpi
-        dpi: 203,        // Standard thermal printer DPI
-        threshold: 128   // Black/white threshold
+        pdfBase64,
+        dpi,
+        threshold,
+        width
       })
     });
     
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`Bridge error: ${errorText}`);
     }
     
     const result = await response.json();
-    console.log('✅ Print result:', result);
+    console.log('✅ Print successful:', result);
     
     return { success: true };
     

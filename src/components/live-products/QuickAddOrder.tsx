@@ -10,7 +10,7 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printPDFViaCanvas } from '@/lib/printer-utils';
+import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
 import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
@@ -310,16 +310,10 @@ export function QuickAddOrder({
           try {
             console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
             
-            // Load saved template from localStorage
-            const savedTemplate = localStorage.getItem('billTemplate');
-            const { DEFAULT_BILL_TEMPLATE } = await import('@/types/bill-template');
+            // Generate PDF using jsPDF (no template needed)
             const { generateBillPDF } = await import('@/lib/bill-pdf-generator');
-            const template = savedTemplate 
-              ? JSON.parse(savedTemplate) 
-              : DEFAULT_BILL_TEMPLATE;
             
-            // Generate PDF
-            const pdf = generateBillPDF(template, {
+            const pdf = generateBillPDF({
               sessionIndex: billData.sessionIndex,
               phone: billData.phone,
               customerName: billData.customerName,
@@ -330,20 +324,28 @@ export function QuickAddOrder({
             });
             
             const pdfDataUri = pdf.output('datauristring');
-            console.log('✅ PDF generated, converting to bitmap...');
+            console.log('✅ PDF generated');
             
-            // Get configurable threshold from localStorage (default: 115)
-            const threshold = parseInt(localStorage.getItem('printThreshold') || '115');
+            // Get print settings from localStorage
+            const printDPI = parseInt(localStorage.getItem('printDPI') || '300');
+            const printThreshold = parseInt(localStorage.getItem('printThreshold') || '115');
+            const printWidth = parseInt(localStorage.getItem('printWidth') || '944');
             
-            // Print via Canvas API (no pdftoppm dependency)
-            const printResult = await printPDFViaCanvas(activePrinter, pdfDataUri, {
-              threshold,
-              width: 944,  // 80mm @ 300 DPI
-              dpi: 300
+            console.log('🖨️  Print settings:', { printDPI, printThreshold, printWidth });
+            
+            // Print via Bridge (pdftoppm + sharp)
+            const printResult = await printPDFToXC80(activePrinter, pdfDataUri, {
+              dpi: printDPI,
+              threshold: printThreshold,
+              width: printWidth
             });
             
             if (printResult.success) {
-              console.log("✅ Bill printed successfully via Canvas API");
+              console.log("✅ Bill printed successfully");
+              toast({
+                title: "✅ In thành công",
+                description: `Đã in bill cho đơn hàng #${billData.sessionIndex}`,
+              });
             } else {
               throw new Error(printResult.error);
             }

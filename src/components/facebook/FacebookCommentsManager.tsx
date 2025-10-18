@@ -565,11 +565,9 @@ export function FacebookCommentsManager({
       try {
         const [
           { getActivePrinter, printPDFToXC80 },
-          { DEFAULT_BILL_TEMPLATE },
           { generateBillPDF }
         ] = await Promise.all([
           import('@/lib/printer-utils'),
-          import('@/types/bill-template'),
           import('@/lib/bill-pdf-generator')
         ]);
 
@@ -583,9 +581,6 @@ export function FacebookCommentsManager({
         const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
         const productCode = productCodeMatch ? productCodeMatch[1] : '';
 
-        const templateJson = localStorage.getItem('billTemplate');
-        const template = templateJson ? JSON.parse(templateJson) : DEFAULT_BILL_TEMPLATE;
-
         const billData = {
           sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
           phone: data.response.Telephone || null,
@@ -596,10 +591,20 @@ export function FacebookCommentsManager({
           createdTime: variables.comment.created_time,
         };
 
-        const pdfDoc = generateBillPDF(template, billData);
+        const pdfDoc = generateBillPDF(billData);
         const pdfDataUri = pdfDoc.output('datauristring');
 
-        const printResult = await printPDFToXC80(printer, pdfDataUri);
+        // Get print settings from localStorage
+        const printDPI = parseInt(localStorage.getItem('printDPI') || '300');
+        const printThreshold = parseInt(localStorage.getItem('printThreshold') || '115');
+        const printWidth = parseInt(localStorage.getItem('printWidth') || '944');
+
+        const printResult = await printPDFToXC80(printer, pdfDataUri, {
+          dpi: printDPI,
+          threshold: printThreshold,
+          width: printWidth
+        });
+        
         if (printResult.success) {
           toast({
             title: "✅ In bill thành công",

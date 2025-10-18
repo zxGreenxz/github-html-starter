@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf';
-import { BillTemplate, BillField } from '@/types/bill-template';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
@@ -15,121 +14,79 @@ interface BillData {
   quantity?: number;
 }
 
-export const generateBillPDF = (
-  template: BillTemplate,
-  data: BillData
-): jsPDF => {
-  // Create PDF with paper width and height
-  const widthMm = template.paperWidth;
-  const heightMm = template.paperHeight;
+/**
+ * Generate simple bill PDF for thermal printer (80mm x 200mm)
+ * Using fixed layout optimized for readability
+ */
+export const generateBillPDF = (data: BillData): jsPDF => {
+  // Create PDF with 80mm x 200mm paper
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [widthMm, heightMm]
+    format: [80, 200]
   });
 
   // Set font
   doc.setFont('helvetica');
+  
+  let yPosition = 8;
 
-  let yPosition = template.styles.padding.top;
+  // 1. Session Index (Large, Bold, Center)
+  doc.setFontSize(32);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${data.sessionIndex}`, 40, yPosition, { align: 'center' });
+  yPosition += 12;
 
-  // Sort fields by order
-  const sortedFields = [...template.fields]
-    .filter(f => f.visible)
-    .sort((a, b) => a.order - b.order);
+  // 2. Phone (Bold, Center)
+  if (data.phone) {
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(data.phone, 40, yPosition, { align: 'center' });
+    yPosition += 10;
+  }
 
-  sortedFields.forEach((field) => {
-    const value = formatFieldValue(field, data);
-    if (!value) return;
+  // 3. Customer Name (Bold, Center)
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.customerName, 40, yPosition, { align: 'center' });
+  yPosition += 10;
 
-    // Apply font settings
-    doc.setFontSize(field.fontSize);
-    doc.setFont(
-      'helvetica',
-      field.fontWeight === 'bold' ? 'bold' : 'normal'
-    );
+  // 4. Product Code (Normal, Left)
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.productCode, 5, yPosition);
+  yPosition += 7;
 
-    // Calculate available width for text (accounting for padding)
-    const maxWidth = widthMm - template.styles.padding.left - template.styles.padding.right;
-    
-    // Split text into lines if it's too long
-    const lines = doc.splitTextToSize(value, maxWidth);
-    
-    // Calculate line height
-    const lineHeight = field.fontSize * template.styles.lineSpacing * 0.3527; // pt to mm
-
-    // Calculate x position based on alignment
-    let xPosition = template.styles.padding.left;
-    
-    if (field.align === 'center') {
-      xPosition = widthMm / 2;
-    } else if (field.align === 'right') {
-      xPosition = widthMm - template.styles.padding.right;
-    }
-
-    // Add text lines
-    lines.forEach((line: string, index: number) => {
-      doc.text(line, xPosition, yPosition + (index * lineHeight), { align: field.align });
-    });
-
-    // Move to next field (accounting for number of lines)
-    yPosition += (lines.length * lineHeight);
+  // 5. Product Name (Normal, Left, Wrap if long)
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'normal');
+  const cleanProductName = data.productName.replace(/^\d+\s+/, '');
+  const nameLines = doc.splitTextToSize(cleanProductName, 70);
+  nameLines.forEach((line: string) => {
+    doc.text(line, 5, yPosition);
+    yPosition += 6;
   });
 
+  // 6. Comment (Capitalize, Center)
+  if (data.comment) {
+    yPosition += 2;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    const capitalizedComment = data.comment.charAt(0).toUpperCase() + data.comment.slice(1).toLowerCase();
+    const commentLines = doc.splitTextToSize(capitalizedComment, 70);
+    commentLines.forEach((line: string) => {
+      doc.text(line, 40, yPosition, { align: 'center' });
+      yPosition += 5;
+    });
+  }
+
+  // 7. Created Time (Small, Center)
+  yPosition += 3;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  const zonedDate = toZonedTime(new Date(data.createdTime), 'Asia/Bangkok');
+  const timeStr = format(zonedDate, 'dd/MM/yyyy HH:mm');
+  doc.text(timeStr, 40, yPosition, { align: 'center' });
+
   return doc;
-};
-
-const formatFieldValue = (field: BillField, data: BillData): string => {
-  let value = '';
-
-  switch (field.key) {
-    case 'sessionIndex':
-      value = `#${data.sessionIndex}`;
-      break;
-    case 'phone':
-      value = data.phone || 'Chưa có SĐT';
-      break;
-    case 'customerName':
-      value = data.customerName;
-      break;
-    case 'productCode':
-      value = data.productCode;
-      break;
-    case 'productName':
-      value = data.productName.replace(/^\d+\s+/, '');
-      break;
-    case 'comment':
-      value = data.comment || '';
-      break;
-    case 'createdTime':
-      const zonedDate = toZonedTime(new Date(data.createdTime), 'Asia/Bangkok');
-      value = format(zonedDate, 'dd/MM/yyyy HH:mm');
-      break;
-    case 'price':
-      value = data.price ? `${data.price.toLocaleString('vi-VN')} đ` : '';
-      break;
-    case 'quantity':
-      value = data.quantity ? `SL: ${data.quantity}` : '';
-      break;
-  }
-
-  if (field.label) {
-    value = `${field.label}${value}`;
-  }
-
-  if (field.transform) {
-    switch (field.transform) {
-      case 'uppercase':
-        value = value.toUpperCase();
-        break;
-      case 'lowercase':
-        value = value.toLowerCase();
-        break;
-      case 'capitalize':
-        value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-        break;
-    }
-  }
-
-  return value;
 };
