@@ -42,7 +42,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useProcessPendingOrders } from "@/hooks/use-process-pending-orders";
 
 /**
  * Client-side multi-keyword product filter
@@ -179,9 +178,6 @@ const getHighestPriorityCustomerStatus = (orders: OrderWithProduct[]): string =>
 };
 export default function LiveProducts() {
   const isMobile = useIsMobile();
-
-  // Auto-process pending orders from Facebook Comments
-  useProcessPendingOrders();
 
   // Initialize states from localStorage
   const [selectedSession, setSelectedSession] = useState<string>(() => {

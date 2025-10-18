@@ -542,6 +542,163 @@ serve(async (req) => {
         }
       }
 
+      // ========================================================================
+      // 🔥 CREATE live_products + live_orders IMMEDIATELY (not background job)
+      // ========================================================================
+      console.log('🚀 [CREATE LIVE PRODUCTS] Starting immediate creation...');
+
+      try {
+        // Determine live_session_id and live_phase_id based on comment time
+        const commentTime = new Date(convertFacebookTimeToISO(comment.created_time));
+        const vietnamTime = new Date(commentTime.getTime() + 7 * 60 * 60 * 1000);
+        const dateStr = vietnamTime.toISOString().split('T')[0];
+        
+        // Determine phase_type from time (morning: 00:00-12:30, evening: 12:30-23:59)
+        const hour = vietnamTime.getUTCHours();
+        const minute = vietnamTime.getUTCMinutes();
+        const totalMinutes = hour * 60 + minute;
+        const phaseType = totalMinutes <= 750 ? 'morning' : 'evening'; // 12:30 = 750 minutes
+        
+        console.log('📅 [CREATE LIVE PRODUCTS] Comment time (Vietnam):', vietnamTime.toISOString());
+        console.log('📅 [CREATE LIVE PRODUCTS] Date:', dateStr, 'Phase:', phaseType);
+        
+        // Find matching live_phase
+        const { data: targetPhase, error: phaseError } = await supabase
+          .from('live_phases')
+          .select('id, live_session_id')
+          .eq('phase_date', dateStr)
+          .eq('phase_type', phaseType)
+          .maybeSingle();
+        
+        if (phaseError || !targetPhase) {
+          console.error('❌ [CREATE LIVE PRODUCTS] No live_phase found:', phaseError);
+        } else {
+          console.log('✅ [CREATE LIVE PRODUCTS] Found phase:', targetPhase.id);
+          
+          // Get TPOS token for product fetch
+          const { data: tposToken } = await supabase
+            .from('tpos_credentials')
+            .select('bearer_token')
+            .eq('token_type', 'tpos')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (!tposToken?.bearer_token) {
+            console.error('❌ [CREATE LIVE PRODUCTS] No TPOS token found');
+          } else {
+            // Process each product code
+            for (const productCode of productCodes) {
+              console.log(`🔍 [CREATE LIVE PRODUCTS] Processing: ${productCode}`);
+              
+              // Check if live_product already exists
+              const { data: existingProduct } = await supabase
+                .from('live_products')
+                .select('id, sold_quantity, prepared_quantity')
+                .eq('live_session_id', targetPhase.live_session_id)
+                .eq('live_phase_id', targetPhase.id)
+                .ilike('variant', `%${productCode}%`)
+                .maybeSingle();
+              
+              let liveProductId = existingProduct?.id;
+              let productData = existingProduct;
+              
+              // If not exists → fetch from TPOS and create
+              if (!existingProduct) {
+                console.log(`⚠️ [CREATE LIVE PRODUCTS] Product not found, fetching from TPOS...`);
+                
+                const tposUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=50&$orderby=DateCreated desc&$filter=(Active eq true) and (DefaultCode eq '${productCode}')&$count=true`;
+                
+                const tposResponse = await fetch(tposUrl, {
+                  headers: {
+                    'Authorization': `Bearer ${tposToken.bearer_token}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (tposResponse.ok) {
+                  const tposData = await tposResponse.json();
+                  const tposProduct = tposData.value?.[0];
+                  
+                  if (tposProduct) {
+                    console.log(`✅ [CREATE LIVE PRODUCTS] Found in TPOS: ${tposProduct.Name}`);
+                    
+                    // Create new live_product
+                    const { data: newProduct, error: createError } = await supabase
+                      .from('live_products')
+                      .insert({
+                        product_code: tposProduct.DefaultCode || productCode,
+                        product_name: tposProduct.Name,
+                        variant: tposProduct.Attributes || null,
+                        live_session_id: targetPhase.live_session_id,
+                        live_phase_id: targetPhase.id,
+                        product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
+                        prepared_quantity: 0,
+                        sold_quantity: 0,
+                        image_url: tposProduct.ImageURL || null
+                      })
+                      .select('id, sold_quantity, prepared_quantity')
+                      .single();
+                    
+                    if (createError) {
+                      console.error(`❌ [CREATE LIVE PRODUCTS] Error creating:`, createError);
+                    } else {
+                      console.log(`✅ [CREATE LIVE PRODUCTS] Created: ${newProduct.id}`);
+                      liveProductId = newProduct.id;
+                      productData = newProduct;
+                    }
+                  } else {
+                    console.error(`❌ [CREATE LIVE PRODUCTS] Product ${productCode} not found in TPOS`);
+                  }
+                } else {
+                  console.error(`❌ [CREATE LIVE PRODUCTS] TPOS API error:`, tposResponse.status);
+                }
+              } else {
+                console.log(`✅ [CREATE LIVE PRODUCTS] Product exists: ${existingProduct.id}`);
+                
+                // Update timestamp to push to top
+                await supabase
+                  .from('live_products')
+                  .update({ updated_at: new Date().toISOString() })
+                  .eq('id', existingProduct.id);
+              }
+              
+              // Create live_order if we have a product
+              if (liveProductId && productData) {
+                const isOversell = (productData.sold_quantity || 0) >= (productData.prepared_quantity || 0);
+                
+                const { error: orderError } = await supabase
+                  .from('live_orders')
+                  .insert({
+                    facebook_comment_id: comment.id,
+                    live_product_id: liveProductId,
+                    live_session_id: targetPhase.live_session_id,
+                    live_phase_id: targetPhase.id,
+                    order_code: data.Code || null,
+                    is_oversell: isOversell,
+                    tpos_order_id: data.Id?.toString() || null,
+                  });
+                
+                if (orderError) {
+                  console.error(`❌ [CREATE LIVE PRODUCTS] Error creating live_order:`, orderError);
+                } else {
+                  console.log(`✅ [CREATE LIVE PRODUCTS] Created live_order`);
+                  
+                  // Update sold_quantity
+                  await supabase
+                    .from('live_products')
+                    .update({ sold_quantity: (productData.sold_quantity || 0) + 1 })
+                    .eq('id', liveProductId);
+                }
+              }
+            }
+          }
+        }
+      } catch (liveError) {
+        console.error('❌ [CREATE LIVE PRODUCTS] Exception:', liveError);
+        // Don't throw - just log and continue
+      }
+
       }
     } catch (dbError) {
       console.error('Exception saving to database:', dbError);
