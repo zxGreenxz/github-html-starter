@@ -305,7 +305,6 @@ export function FacebookCommentsManager({
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
     new Set(),
   );
-  const [pendingSelections, setPendingSelections] = useState<Map<string, string[]>>(new Map());
 
   // Get scanned barcodes
   const { scannedBarcodes, removeScannedBarcode, addScannedBarcode } = useBarcodeScanner();
@@ -1253,35 +1252,11 @@ export function FacebookCommentsManager({
     });
   };
 
-  const extractProductCodesFromMessage = (message: string): string[] => {
-    const regex = /\[([^\]]+)\]/g;
-    const codes: string[] = [];
-    let match;
-    while ((match = regex.exec(message)) !== null) {
-      codes.push(match[1]);
-    }
-    return codes;
-  };
-
   const handleProductSelect = async (comment: CommentWithStatus, product: any) => {
-    const productCode = product.code || product.productInfo?.product_code || 'N/A';
-    
-    // 1. OPTIMISTIC UPDATE: Add to pending immediately
-    const currentPending = pendingSelections.get(comment.id) || [];
-    if (currentPending.includes(productCode)) {
-      console.log(`Product ${productCode} already pending, skipping`);
-      return;
-    }
-    
-    setPendingSelections(prev => {
-      const newMap = new Map(prev);
-      const current = newMap.get(comment.id) || [];
-      newMap.set(comment.id, [...current, productCode]);
-      return newMap;
-    });
-    
     try {
-      // 2. Get LATEST message from database to avoid race condition
+      const productCode = product.code || product.productInfo?.product_code || 'N/A';
+      
+      // Get current message from database to ensure we have the latest version
       const { data: currentComment } = await (supabase as any)
         .from('facebook_comments_archive')
         .select('comment_message')
@@ -1291,16 +1266,16 @@ export function FacebookCommentsManager({
       
       const currentMessage = currentComment?.comment_message || comment.message || '';
       
-      // 3. Check if already exists in DB (double check)
+      // Check if this product code is already in the message
       if (currentMessage.includes(`[${productCode}]`)) {
-        console.log(`Product ${productCode} already in DB message, skipping`);
+        console.log(`Product ${productCode} already in message, skipping`);
         return;
       }
       
-      // 4. Append product code to message
-      const updatedMessage = `${currentMessage} [${productCode}]`.trim();
+      // Append product code to comment message on same line
+      const updatedMessage = `${currentMessage} [${productCode}]`;
       
-      // 5. Update database
+      // Update comment in database
       const { error } = await (supabase as any)
         .from('facebook_comments_archive')
         .update({ 
@@ -1309,13 +1284,21 @@ export function FacebookCommentsManager({
         .eq('facebook_comment_id', comment.id)
         .eq('facebook_post_id', selectedVideo?.objectId || '');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating comment:', error);
+        toast({
+          variant: "destructive",
+          title: "❌ Lỗi",
+          description: "Không thể cập nhật comment",
+        });
+        return;
+      }
       
-      // 6. Update local comment state
+      // Update local comment state
       comment.message = updatedMessage;
       
-      // 7. Invalidate queries to refresh UI
-      await queryClient.invalidateQueries({
+      // Invalidate queries to refresh UI (debounced to avoid too many refreshes)
+      queryClient.invalidateQueries({
         queryKey: getCommentsQueryKey(
           pageId,
           selectedVideo?.objectId,
@@ -1327,33 +1310,22 @@ export function FacebookCommentsManager({
         title: "✅ Đã chọn sản phẩm",
         description: `${productCode} cho ${comment.from.name}`,
       });
-      
     } catch (error) {
       console.error('Error in handleProductSelect:', error);
-      
-      // ROLLBACK: Remove from pending if error
-      setPendingSelections(prev => {
-        const newMap = new Map(prev);
-        const current = newMap.get(comment.id) || [];
-        newMap.set(comment.id, current.filter(c => c !== productCode));
-        return newMap;
-      });
-      
       toast({
         variant: "destructive",
         title: "❌ Lỗi",
-        description: "Không thể cập nhật comment",
+        description: "Có lỗi xảy ra khi chọn sản phẩm",
       });
     } finally {
-      // Clear pending after short delay (for visual feedback)
+      // Auto-collapse selector after all products are added
       setTimeout(() => {
-        setPendingSelections(prev => {
-          const newMap = new Map(prev);
-          const current = newMap.get(comment.id) || [];
-          newMap.set(comment.id, current.filter(c => c !== productCode));
-          return newMap;
+        setExpandedCommentIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(comment.id);
+          return newSet;
         });
-      }, 1000);
+      }, 100);
     }
   };
 
@@ -2043,32 +2015,6 @@ export function FacebookCommentsManager({
                                   )}>
                                     {comment.message}
                                   </p>
-
-                                  {/* Product Selection Badges */}
-                                  {(pendingSelections.get(comment.id)?.length > 0 || extractProductCodesFromMessage(comment.message).length > 0) && (
-                                    <div className="flex flex-wrap gap-1.5 mt-2">
-                                      {/* Pending products (yellow, blinking) */}
-                                      {pendingSelections.get(comment.id)?.map((code) => (
-                                        <Badge 
-                                          key={`pending-${code}`} 
-                                          variant="outline" 
-                                          className="bg-yellow-100 text-yellow-800 border-yellow-300 animate-pulse"
-                                        >
-                                          ⏳ {code}
-                                        </Badge>
-                                      ))}
-                                      {/* Confirmed products (purple) */}
-                                      {extractProductCodesFromMessage(comment.message).map((code) => (
-                                        <Badge 
-                                          key={`confirmed-${code}`} 
-                                          variant="secondary" 
-                                          className="bg-purple-100 text-purple-800 border-purple-300"
-                                        >
-                                          ✓ {code}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  )}
 
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button
