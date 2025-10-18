@@ -84,6 +84,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
+import { InlineProductSelector } from "./InlineProductSelector";
+import { Package } from "lucide-react";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -298,6 +301,12 @@ export function FacebookCommentsManager({
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(
     new Set(),
   );
+  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Get scanned barcodes
+  const { scannedBarcodes, removeScannedBarcode, addScannedBarcode } = useBarcodeScanner();
 
   // ============================================================================
   // REFS
@@ -337,45 +346,35 @@ export function FacebookCommentsManager({
   const {
     data: videos = [],
     isLoading: videosLoading,
-    isError: videosError,
-    error: videosErrorMessage,
     refetch: refetchVideos,
   } = useQuery({
     queryKey: ["facebook-videos", pageId, limit],
     queryFn: async () => {
-      const { queryWithAutoRefresh } = await import('@/lib/query-with-auto-refresh');
-      
-      return queryWithAutoRefresh(async () => {
-        if (!pageId) return [];
+      if (!pageId) return [];
 
-        console.log(`[Videos] 🎬 Fetching videos for pageId: ${pageId}, limit: ${limit}`);
-        
-        const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+      const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-        });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error(`[Videos] ❌ Error ${response.status}:`, errorData);
-          throw new Error(errorData.error || errorData.details || `Failed to fetch videos (${response.status})`);
-        }
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch videos");
+      }
 
-        const result = await response.json();
-        const videosArray = (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
-        console.log(`[Videos] ✅ Fetched ${videosArray.length} videos`);
-        return videosArray;
-      }, 'facebook');
+      const result = await response.json();
+      return (
+        Array.isArray(result) ? result : result.data || []
+      ) as FacebookVideo[];
     },
     enabled: !!pageId,
-    retry: 1,
   });
 
   // Fetch comments with infinite scroll
@@ -393,74 +392,70 @@ export function FacebookCommentsManager({
       selectedVideo?.statusLive === 1
     ),
     queryFn: async ({ pageParam }) => {
-      const { queryWithAutoRefresh } = await import('@/lib/query-with-auto-refresh');
-      
-      return queryWithAutoRefresh(async () => {
-        const fetchId = Math.random().toString(36).substring(7);
-        if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
+      const fetchId = Math.random().toString(36).substring(7);
+      if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
-        console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
-          videoId: selectedVideo.objectId,
-          pageId,
-          timestamp: new Date().toISOString()
-        });
-        const startTime = Date.now();
+      console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
+        videoId: selectedVideo.objectId,
+        pageId,
+        timestamp: new Date().toISOString()
+      });
+      const startTime = Date.now();
 
-        // ========================================================================
-        // READ FROM facebook_comments_archive (NOT from TPOS directly)
-        // ========================================================================
+      // ========================================================================
+      // READ FROM facebook_comments_archive (NOT from TPOS directly)
+      // ========================================================================
 
-        const { data: archivedComments, error: dbError } = await supabase
-          .from('facebook_comments_archive' as any)
-          .select('*')
-          .eq('facebook_post_id', selectedVideo.objectId)
-          .order('comment_created_time', { ascending: false })
-          .limit(1000);
+      const { data: archivedComments, error: dbError } = await supabase
+        .from('facebook_comments_archive' as any)
+        .select('*')
+        .eq('facebook_post_id', selectedVideo.objectId)
+        .order('comment_created_time', { ascending: false })
+        .limit(1000);
 
-        if (dbError) {
-          console.error(`[QueryFn ${fetchId}] ❌ DB error:`, dbError);
-          return { data: [], paging: {} };
+      if (dbError) {
+        console.error(`[QueryFn ${fetchId}] ❌ DB error:`, dbError);
+        return { data: [], paging: {} };
+      }
+
+      // 🔥 Deduplicate comments by ID to prevent duplicate display
+      console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
+      const seenIds = new Set<string>();
+      const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
+        if (!seenIds.has(c.facebook_comment_id)) {
+          seenIds.add(c.facebook_comment_id);
+          acc.push({
+            id: c.facebook_comment_id,
+            message: c.comment_message || '',
+            from: {
+              name: c.facebook_user_name || 'Unknown',
+              id: c.facebook_user_id || '',
+            },
+            created_time: c.comment_created_time,
+            like_count: c.like_count || 0,
+            is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+            deleted_at: c.updated_at,
+          });
+        } else {
+          console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
         }
+        return acc;
+      }, []) || [];
 
-        // 🔥 Deduplicate comments by ID to prevent duplicate display
-        console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
-        const seenIds = new Set<string>();
-        const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
-          if (!seenIds.has(c.facebook_comment_id)) {
-            seenIds.add(c.facebook_comment_id);
-            acc.push({
-              id: c.facebook_comment_id,
-              message: c.comment_message || '',
-              from: {
-                name: c.facebook_user_name || 'Unknown',
-                id: c.facebook_user_id || '',
-              },
-              created_time: c.comment_created_time,
-              like_count: c.like_count || 0,
-              is_deleted_by_tpos: c.is_deleted_by_tpos || false,
-              deleted_at: c.updated_at,
-            });
-          } else {
-            console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
-          }
-          return acc;
-        }, []) || [];
+      const elapsed = Date.now() - startTime;
+      console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
+        uniqueCount: formattedComments.length,
+        totalCount: archivedComments?.length,
+        firstCommentId: formattedComments[0]?.id,
+        lastCommentId: formattedComments[formattedComments.length - 1]?.id,
+        elapsed: `${elapsed}ms`
+      });
 
-        const elapsed = Date.now() - startTime;
-        console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
-          uniqueCount: formattedComments.length,
-          totalCount: archivedComments?.length,
-          firstCommentId: formattedComments[0]?.id,
-          lastCommentId: formattedComments[formattedComments.length - 1]?.id,
-          elapsed: `${elapsed}ms`
-        });
-
-        return { 
-          data: formattedComments, 
-          paging: {},
-          fromArchive: true 
-        };
-      }, 'facebook');
+      return { 
+        data: formattedComments, 
+        paging: {},
+        fromArchive: true 
+      };
     },
     getNextPageParam: () => undefined, // No pagination needed for archive
     initialPageParam: undefined,
@@ -545,11 +540,71 @@ export function FacebookCommentsManager({
     onMutate: (variables) => {
       setPendingCommentIds((prev) => new Set(prev).add(variables.comment.id));
     },
-    onSuccess: (data) => {
+    onSuccess: async (data, variables) => {
       toast({
         title: "Tạo đơn hàng thành công!",
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
+
+      // Auto-print bill
+      try {
+        const [
+          { getActivePrinter, printPDFToXC80 },
+          { DEFAULT_BILL_TEMPLATE },
+          { generateBillPDF }
+        ] = await Promise.all([
+          import('@/lib/printer-utils'),
+          import('@/types/bill-template'),
+          import('@/lib/bill-pdf-generator')
+        ]);
+
+        const printer = getActivePrinter();
+        if (!printer) {
+          console.log('⚠️ No active printer configured');
+          return;
+        }
+
+        const commentText = variables.comment.message || '';
+        const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
+        const productCode = productCodeMatch ? productCodeMatch[1] : '';
+
+        const templateJson = localStorage.getItem('billTemplate');
+        const template = templateJson ? JSON.parse(templateJson) : DEFAULT_BILL_TEMPLATE;
+
+        const billData = {
+          sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+          phone: data.response.Telephone || null,
+          customerName: data.response.Name || variables.comment.from.name,
+          productCode: productCode,
+          productName: productCode,
+          comment: commentText,
+          createdTime: variables.comment.created_time,
+        };
+
+        const pdfDoc = generateBillPDF(template, billData);
+        const pdfDataUri = pdfDoc.output('datauristring');
+
+        const printResult = await printPDFToXC80(printer, pdfDataUri);
+        if (printResult.success) {
+          toast({
+            title: "✅ In bill thành công",
+            description: `Đơn #${billData.sessionIndex}`,
+          });
+        } else {
+          toast({
+            title: "❌ Lỗi in bill",
+            description: printResult.error,
+            variant: "destructive",
+          });
+        }
+      } catch (error: any) {
+        console.error('❌ Auto-print error:', error);
+        toast({
+          title: "❌ Lỗi in bill",
+          description: error.message || "Không thể in bill",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: Error) => {
       let errorData;
@@ -1184,6 +1239,95 @@ export function FacebookCommentsManager({
     }
   };
 
+  const toggleProductSelection = (commentId: string) => {
+    setExpandedCommentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleProductSelect = async (comment: CommentWithStatus, product: any) => {
+    try {
+      const productCode = product.code || product.productInfo?.product_code || 'N/A';
+      
+      // Get current message from database to ensure we have the latest version
+      const { data: currentComment } = await (supabase as any)
+        .from('facebook_comments_archive')
+        .select('comment_message')
+        .eq('facebook_comment_id', comment.id)
+        .eq('facebook_post_id', selectedVideo?.objectId || '')
+        .maybeSingle();
+      
+      const currentMessage = currentComment?.comment_message || comment.message || '';
+      
+      // Check if this product code is already in the message
+      if (currentMessage.includes(`[${productCode}]`)) {
+        console.log(`Product ${productCode} already in message, skipping`);
+        return;
+      }
+      
+      // Append product code to comment message on same line
+      const updatedMessage = `${currentMessage} [${productCode}]`;
+      
+      // Update comment in database
+      const { error } = await (supabase as any)
+        .from('facebook_comments_archive')
+        .update({ 
+          comment_message: updatedMessage 
+        })
+        .eq('facebook_comment_id', comment.id)
+        .eq('facebook_post_id', selectedVideo?.objectId || '');
+      
+      if (error) {
+        console.error('Error updating comment:', error);
+        toast({
+          variant: "destructive",
+          title: "❌ Lỗi",
+          description: "Không thể cập nhật comment",
+        });
+        return;
+      }
+      
+      // Update local comment state
+      comment.message = updatedMessage;
+      
+      // Invalidate queries to refresh UI (debounced to avoid too many refreshes)
+      queryClient.invalidateQueries({
+        queryKey: getCommentsQueryKey(
+          pageId,
+          selectedVideo?.objectId,
+          selectedVideo?.statusLive === 1
+        ),
+      });
+      
+      toast({
+        title: "✅ Đã chọn sản phẩm",
+        description: `${productCode} cho ${comment.from.name}`,
+      });
+    } catch (error) {
+      console.error('Error in handleProductSelect:', error);
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: "Có lỗi xảy ra khi chọn sản phẩm",
+      });
+    } finally {
+      // Auto-collapse selector after all products are added
+      setTimeout(() => {
+        setExpandedCommentIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(comment.id);
+          return newSet;
+        });
+      }, 100);
+    }
+  };
+
   const handleRefreshFromTPOS = () => {
     queryClient.removeQueries({
       queryKey: getCommentsQueryKey(
@@ -1254,45 +1398,6 @@ export function FacebookCommentsManager({
               </CardHeader>
 
               <CardContent className={cn("space-y-4", isMobile && "space-y-3")}>
-                {/* Empty State: No Pages */}
-                {(!facebookPages || facebookPages.length === 0) && (
-                  <Alert className="border-orange-500/30 bg-orange-500/5">
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
-                    <AlertDescription className="text-sm text-orange-700">
-                      <div className="space-y-2">
-                        <p className="font-medium">Chưa có Facebook Page nào</p>
-                        <p>Vui lòng thêm Facebook Page ở tab "Facebook Page" ở trên để bắt đầu.</p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Error State: Videos failed to load */}
-                {videosError && (
-                  <Alert className="border-destructive/30 bg-destructive/5">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <AlertDescription className="text-sm text-destructive">
-                      <div className="space-y-2">
-                        <p className="font-medium">Không thể tải videos</p>
-                        <p>{videosErrorMessage?.message || "Lỗi không xác định"}</p>
-                        <p className="text-xs">
-                          Có thể do: Facebook Bearer Token không tồn tại hoặc đã hết hạn. 
-                          Vui lòng kiểm tra cài đặt TPOS credentials.
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => refetchVideos()}
-                          className="mt-2"
-                        >
-                          <RefreshCw className="mr-2 h-4 w-4" />
-                          Thử lại
-                        </Button>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 {selectedPage && selectedPage.crm_team_id && (
                   <div
                     className={cn(
@@ -1366,20 +1471,6 @@ export function FacebookCommentsManager({
                     )}
                   </Button>
                 </div>
-
-                {/* Empty State: No videos found */}
-                {!videosLoading && !videosError && videos.length === 0 && pageId && (
-                  <Alert className="border-blue-500/30 bg-blue-500/5">
-                    <AlertCircle className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-sm text-blue-700">
-                      <div className="space-y-2">
-                        <p className="font-medium">Không tìm thấy video nào</p>
-                        <p>Page này chưa có video nào hoặc không có video trong {limit} video gần nhất.</p>
-                        <p className="text-xs">Thử tăng limit hoặc kiểm tra lại page.</p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
 
                 {videos.length > 0 && (
                   <div
@@ -1973,6 +2064,21 @@ export function FacebookCommentsManager({
                                       Thông tin
                                     </Button>
 
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className={cn(
+                                        "h-7 text-xs bg-purple-500 hover:bg-purple-600 text-white border-purple-500",
+                                        expandedCommentIds.has(comment.id) && "bg-purple-600"
+                                      )}
+                                      onClick={() => toggleProductSelection(comment.id)}
+                                      disabled={isDeleted}
+                                      aria-label="Chọn sản phẩm"
+                                    >
+                                      <Package className="mr-1 h-3.5 w-3.5" />
+                                      {expandedCommentIds.has(comment.id) ? "▲" : "▼"} Chọn SP
+                                    </Button>
+
                                     {comment.like_count > 0 && (
                                       <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
                                         <Heart
@@ -1983,6 +2089,19 @@ export function FacebookCommentsManager({
                                       </span>
                                     )}
                                   </div>
+
+                                   {/* Inline Product Selector */}
+                                  {expandedCommentIds.has(comment.id) && (
+                                    <InlineProductSelector
+                                      comment={comment}
+                                      scannedBarcodes={scannedBarcodes}
+                                      onProductSelect={(product) => handleProductSelect(comment, product)}
+                                      onRemoveProduct={(productCode) => removeScannedBarcode(productCode)}
+                                      onAddToScannedList={addScannedBarcode}
+                                      onClose={() => toggleProductSelection(comment.id)}
+                                      isMobile={isMobile}
+                                    />
+                                  )}
                                 </div>
                               </div>
                             </CardContent>

@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { fetchProductVariants, fetchProductsByCode } from "@/lib/product-variants-fetcher";
+import { supabase } from "@/integrations/supabase/client";
 
 type ScannerPage = 'live-products' | 'settings-test' | 'facebook-comments';
 
@@ -20,7 +22,7 @@ interface BarcodeScannerContextType {
   togglePage: (page: ScannerPage) => void;
   lastScannedCode: string;
   scannedBarcodes: ScannedBarcode[];
-  addScannedBarcode: (barcode: ScannedBarcode) => void;
+  addScannedBarcode: (barcode: ScannedBarcode) => Promise<void>;
   clearScannedBarcodes: () => void;
   removeScannedBarcode: (code: string) => void;
 }
@@ -53,12 +55,40 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addScannedBarcode = (barcode: ScannedBarcode) => {
-    setScannedBarcodes(prev => {
-      const updated = [barcode, ...prev];
-      localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
-      return updated;
-    });
+  const addScannedBarcode = async (barcode: ScannedBarcode) => {
+    // Fetch all variants for this product
+    const variantCodes = await fetchProductVariants(barcode.code);
+    
+    // If multiple variants, fetch full product details for all
+    if (variantCodes.length > 1) {
+      const products = await fetchProductsByCode(variantCodes);
+      
+      // Create ScannedBarcode objects for all variants
+      const variantBarcodes: ScannedBarcode[] = products.map(product => ({
+        code: product.product_code,
+        timestamp: new Date().toISOString(),
+        productInfo: {
+          id: product.id,
+          name: product.product_name,
+          image_url: product.product_images?.[0] || product.tpos_image_url,
+          product_code: product.product_code,
+        }
+      }));
+      
+      // Add all variants at once
+      setScannedBarcodes(prev => {
+        const updated = [...variantBarcodes, ...prev];
+        localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
+        return updated;
+      });
+    } else {
+      // Single product - add normally
+      setScannedBarcodes(prev => {
+        const updated = [barcode, ...prev];
+        localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
+        return updated;
+      });
+    }
   };
 
   const clearScannedBarcodes = () => {
