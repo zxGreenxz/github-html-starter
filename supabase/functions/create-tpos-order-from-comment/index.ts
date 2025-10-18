@@ -410,6 +410,10 @@ serve(async (req) => {
       console.error('Exception saving to pending_live_orders:', pendingDbError);
     }
 
+    // Extract product codes from comment message
+    const productCodes = extractProductCodes(comment.message);
+    console.log('📦 Extracted product codes:', productCodes);
+
     // Save to facebook_pending_orders table
     console.log('💾 About to save to facebook_pending_orders with commentType:', commentType);
     try {
@@ -437,6 +441,7 @@ serve(async (req) => {
           tpos_order_id: data.Id || null,
           order_count: newOrderCount,
           comment_type: commentType || null,
+          product_codes: productCodes,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingOrder.id);
@@ -485,6 +490,7 @@ serve(async (req) => {
           facebook_post_id: video.objectId,
           order_count: 1,
           comment_type: commentType || null,
+          product_codes: productCodes,
         });
       
       if (insertError) {
