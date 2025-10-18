@@ -16,7 +16,7 @@ interface LiveOrder {
   live_session_id: string;
   live_product_id: string;
   live_phase_id?: string;
-  order_code: string;
+  session_index: number;
   tpos_order_id?: string | null;
   code_tpos_order_id?: string | null;
   quantity: number;
@@ -55,7 +55,7 @@ export function UploadOrdersToTPOSDialog({
   sessionId,
 }: UploadOrdersToTPOSDialogProps) {
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [uploadProgress, setUploadProgress] = useState<Map<string, UploadProgress>>(new Map());
+  const [uploadProgress, setUploadProgress] = useState<Map<number, UploadProgress>>(new Map());
   const [isUploading, setIsUploading] = useState(false);
 
   // Fetch session info
@@ -86,13 +86,13 @@ export function UploadOrdersToTPOSDialog({
   // Flatten products into individual rows
   const flattenedProducts = orders.map((order, idx) => ({
     ...order,
-    uniqueKey: `${order.order_code}-${order.product_code}-${idx}`,
+    uniqueKey: `${order.session_index}-${order.product_code}-${idx}`,
   }));
 
-  // Calculate rowSpan for order_code column
-  const orderCodeRowSpans = new Map<string, number>();
+  // Calculate rowSpan for session_index column
+  const sessionIndexRowSpans = new Map<number, number>();
   flattenedProducts.forEach(product => {
-    orderCodeRowSpans.set(product.order_code, (orderCodeRowSpans.get(product.order_code) || 0) + 1);
+    sessionIndexRowSpans.set(product.session_index, (sessionIndexRowSpans.get(product.session_index) || 0) + 1);
   });
 
   // Reset when dialog closes
@@ -134,23 +134,23 @@ export function UploadOrdersToTPOSDialog({
     }
 
     setIsUploading(true);
-    const newProgress = new Map<string, UploadProgress>();
+    const newProgress = new Map<number, UploadProgress>();
     
-    // Group selected products by order_code
+    // Group selected products by session_index
     const selectedItems = flattenedProducts.filter(p => selectedProducts.has(p.uniqueKey));
     const orderGroups = selectedItems.reduce((acc, product) => {
-      if (!acc[product.order_code]) {
-        acc[product.order_code] = [];
+      if (!acc[product.session_index]) {
+        acc[product.session_index] = [];
       }
-      acc[product.order_code].push(product);
+      acc[product.session_index].push(product);
       return acc;
-    }, {} as Record<string, typeof selectedItems>);
+    }, {} as Record<number, typeof selectedItems>);
 
-    const orderCodes = Object.keys(orderGroups);
+    const sessionIndexes = Object.keys(orderGroups).map(Number);
     
     // Initialize progress for all selected order groups
-    orderCodes.forEach(orderCode => {
-      newProgress.set(orderCode, {
+    sessionIndexes.forEach(sessionIndex => {
+      newProgress.set(sessionIndex, {
         status: 'pending',
         message: 'Đang chờ...',
       });
@@ -161,12 +161,12 @@ export function UploadOrdersToTPOSDialog({
     let failedCount = 0;
 
     // Upload orders sequentially
-    for (const orderCode of orderCodes) {
-      const orderItems = orderGroups[orderCode];
+    for (const sessionIndex of sessionIndexes) {
+      const orderItems = orderGroups[sessionIndex];
       if (!orderItems || orderItems.length === 0) continue;
 
       // Update status to uploading
-      newProgress.set(orderCode, {
+      newProgress.set(sessionIndex, {
         status: 'uploading',
         message: 'Đang upload...',
       });
@@ -181,7 +181,7 @@ export function UploadOrdersToTPOSDialog({
         }));
         
         const result = await uploadOrderToTPOS({
-          orderCode,
+          sessionIndex,
           products,
           sessionInfo: {
             start_date: sessionData.start_date,
@@ -189,7 +189,7 @@ export function UploadOrdersToTPOSDialog({
             session_index: sessionData.session_index,
           },
           onProgress: (step, message) => {
-            newProgress.set(orderCode, {
+            newProgress.set(sessionIndex, {
               status: 'uploading',
               message: `Bước ${step}/4: ${message}`,
             });
@@ -198,21 +198,21 @@ export function UploadOrdersToTPOSDialog({
         });
 
         if (result.success) {
-          newProgress.set(orderCode, {
+          newProgress.set(sessionIndex, {
             status: 'success',
             message: `Đã upload ${products.length} sản phẩm`,
             codeTPOSOrderId: result.codeTPOSOrderId,
           });
           successCount++;
         } else {
-          newProgress.set(orderCode, {
+          newProgress.set(sessionIndex, {
             status: 'failed',
             message: result.error || 'Upload thất bại',
           });
           failedCount++;
         }
       } catch (error) {
-        newProgress.set(orderCode, {
+        newProgress.set(sessionIndex, {
           status: 'failed',
           message: error instanceof Error ? error.message : 'Lỗi không xác định',
         });
@@ -254,21 +254,21 @@ export function UploadOrdersToTPOSDialog({
 
         <ScrollArea className="max-h-[60vh]">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mã đơn</TableHead>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead className="text-right">Tổng SL</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="w-12 text-center">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={handleSelectAll}
-                    disabled={isUploading}
-                  />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SessionIndex</TableHead>
+                  <TableHead>Sản phẩm</TableHead>
+                  <TableHead className="text-right">Tổng SL</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="w-12 text-center">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={handleSelectAll}
+                      disabled={isUploading}
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {flattenedProducts.length === 0 ? (
                 <TableRow>
@@ -279,19 +279,19 @@ export function UploadOrdersToTPOSDialog({
               ) : (
                 flattenedProducts.map((product, index) => {
                   const isFirstInOrderGroup = index === 0 || 
-                    flattenedProducts[index - 1].order_code !== product.order_code;
-                  const rowSpan = orderCodeRowSpans.get(product.order_code) || 1;
-                  const progress = uploadProgress.get(product.order_code);
+                    flattenedProducts[index - 1].session_index !== product.session_index;
+                  const rowSpan = sessionIndexRowSpans.get(product.session_index) || 1;
+                  const progress = uploadProgress.get(product.session_index);
 
                   return (
                     <TableRow key={product.uniqueKey}>
-                      {/* Merge Mã đơn cell */}
+                      {/* Merge SessionIndex cell */}
                       {isFirstInOrderGroup && (
                         <TableCell 
                           className="font-medium align-top border-r" 
                           rowSpan={rowSpan}
                         >
-                          {product.order_code}
+                          {product.session_index}
                         </TableCell>
                       )}
                       
@@ -308,7 +308,7 @@ export function UploadOrdersToTPOSDialog({
                         </div>
                       </TableCell>
                       
-                      {/* Tổng SL - merge cho order_code */}
+                      {/* Tổng SL - merge cho session_index */}
                       {isFirstInOrderGroup && (
                         <TableCell 
                           className="text-right align-top border-r" 
@@ -316,13 +316,13 @@ export function UploadOrdersToTPOSDialog({
                         >
                           <span className="font-medium">
                             {flattenedProducts
-                              .filter(p => p.order_code === product.order_code)
+                              .filter(p => p.session_index === product.session_index)
                               .reduce((sum, p) => sum + p.quantity, 0)}
                           </span>
                         </TableCell>
                       )}
                       
-                      {/* Trạng thái - merge cho order_code */}
+                      {/* Trạng thái - merge cho session_index */}
                       {isFirstInOrderGroup && (
                         <TableCell className="align-top border-r" rowSpan={rowSpan}>
                           {progress ? (

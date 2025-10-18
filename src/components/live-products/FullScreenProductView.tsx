@@ -19,7 +19,7 @@ interface LiveProduct {
 
 interface LiveOrder {
   id: string;
-  order_code: string;
+  session_index: number;
   tpos_order_id?: string | null;
   live_product_id: string;
   quantity: number;
@@ -160,7 +160,7 @@ export function FullScreenProductView({
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className={order.is_oversell ? "text-destructive font-medium" : ""}>
-                              {order.order_code}
+                              {order.session_index}
                             </span>
                             <span className="text-muted-foreground">({order.quantity})</span>
                             {order.tpos_order_id && (

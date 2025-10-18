@@ -112,7 +112,7 @@ interface LiveOrder {
   live_session_id: string;
   live_product_id: string;
   live_phase_id?: string;
-  order_code: string;
+  session_index: number;
   tpos_order_id?: string | null;
   code_tpos_order_id?: string | null;
   quantity: number;

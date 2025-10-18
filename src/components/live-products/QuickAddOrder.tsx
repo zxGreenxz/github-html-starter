@@ -85,7 +85,7 @@ export function QuickAddOrder({
       const {
         data,
         error
-      } = await supabase.from('live_orders').select('order_code, facebook_comment_id').eq('live_phase_id', phaseId);
+      } = await supabase.from('live_orders').select('session_index, facebook_comment_id').eq('live_phase_id', phaseId);
       if (error) throw error;
       return data || [];
     },
@@ -232,7 +232,7 @@ export function QuickAddOrder({
       const {
         error: orderError
       } = await supabase.from('live_orders').insert({
-        order_code: sessionIndex,
+        session_index: parseInt(sessionIndex),
         facebook_comment_id: commentId === 'MANUAL_ENTRY' ? null : commentId,
         tpos_order_id: pendingOrder?.code || null,
         code_tpos_order_id: pendingOrder?.tpos_order_id || null,

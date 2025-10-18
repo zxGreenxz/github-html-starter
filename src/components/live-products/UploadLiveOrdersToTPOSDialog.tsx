@@ -19,7 +19,7 @@ import { uploadOrderToTPOS } from "@/lib/tpos-order-uploader";
 
 interface OrderWithProduct {
   id: string;
-  order_code: string;
+  session_index: number;
   product_code: string;
   product_name: string;
   quantity: number;
@@ -43,7 +43,7 @@ interface UploadProgress {
 }
 
 interface GroupedOrder {
-  order_code: string;
+  session_index: number;
   products: Array<{
     product_code: string;
     product_name: string;
@@ -64,7 +64,7 @@ export function UploadLiveOrdersToTPOSDialog({
   sessionId,
 }: UploadLiveOrdersToTPOSDialogProps) {
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<number, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [allowDuplicate, setAllowDuplicate] = useState(false);
 
@@ -101,16 +101,16 @@ export function UploadLiveOrdersToTPOSDialog({
       .filter(order => order.upload_status !== 'success')
       .map((order, idx) => ({
         ...order,
-        uniqueKey: `${order.order_code}-${order.product_code}-${order.id}`,
+        uniqueKey: `${order.session_index}-${order.product_code}-${order.id}`,
       }))
-      .sort((a, b) => parseInt(a.order_code) - parseInt(b.order_code));
+      .sort((a, b) => a.session_index - b.session_index);
   }, [ordersWithProducts]);
 
-  // Calculate rowSpan for order_code column
-  const orderCodeRowSpans = useMemo(() => {
-    const spans = new Map<string, number>();
+  // Calculate rowSpan for session_index column
+  const sessionIndexRowSpans = useMemo(() => {
+    const spans = new Map<number, number>();
     flattenedProducts.forEach(product => {
-      spans.set(product.order_code, (spans.get(product.order_code) || 0) + 1);
+      spans.set(product.session_index, (spans.get(product.session_index) || 0) + 1);
     });
     return spans;
   }, [flattenedProducts]);
@@ -149,52 +149,50 @@ export function UploadLiveOrdersToTPOSDialog({
 
     setIsUploading(true);
     
-    // Group selected products by order_code
+    // Group selected products by session_index
     const selectedItems = flattenedProducts.filter(p => selectedProducts.has(p.uniqueKey));
     const orderGroups = selectedItems.reduce((acc, product) => {
-      if (!acc[product.order_code]) {
-        acc[product.order_code] = [];
+      if (!acc[product.session_index]) {
+        acc[product.session_index] = [];
       }
-      acc[product.order_code].push(product);
+      acc[product.session_index].push(product);
       return acc;
-    }, {} as Record<string, typeof selectedItems>);
+    }, {} as Record<number, typeof selectedItems>);
 
-    const orderCodes = Object.keys(orderGroups);
+    const sessionIndexes = Object.keys(orderGroups).map(Number);
     
     // Initialize progress
-    const initialProgress: Record<string, UploadProgress> = {};
-    orderCodes.forEach(orderCode => {
-      initialProgress[orderCode] = { status: 'idle' };
+    const initialProgress: Record<number, UploadProgress> = {};
+    sessionIndexes.forEach(sessionIndex => {
+      initialProgress[sessionIndex] = { status: 'idle' };
     });
     setUploadProgress(initialProgress);
 
     let successCount = 0;
     let failedCount = 0;
 
-    // Process each order_code group
-    for (const orderCode of orderCodes) {
-      const products = orderGroups[orderCode];
+    // Process each session_index group
+    for (const sessionIndex of sessionIndexes) {
+      const products = orderGroups[sessionIndex];
       const allOrderItemIds = products.map(p => p.id);
 
       setUploadProgress(prev => ({
         ...prev,
-        [orderCode]: { status: 'uploading', message: 'Đang xử lý...' }
+        [sessionIndex]: { status: 'uploading', message: 'Đang xử lý...' }
       }));
 
       try {
-        const sessionIndex = parseInt(orderCode);
-        
-        // Check for duplicate order_code if allowDuplicate is false
+        // Check for duplicate session_index if allowDuplicate is false
         if (!allowDuplicate) {
           setUploadProgress(prev => ({
             ...prev,
-            [orderCode]: { status: 'uploading', message: 'Đang kiểm tra trùng...' }
+            [sessionIndex]: { status: 'uploading', message: 'Đang kiểm tra trùng...' }
           }));
 
           const { data: existingOrders, error: checkError } = await supabase
             .from('live_orders')
-            .select('id, order_code, upload_status, uploaded_at')
-            .eq('order_code', orderCode)
+            .select('id, session_index, upload_status, uploaded_at')
+            .eq('session_index', sessionIndex)
             .eq('upload_status', 'success')
             .limit(1);
 
@@ -202,7 +200,7 @@ export function UploadLiveOrdersToTPOSDialog({
             console.error('Error checking duplicate:', checkError);
             setUploadProgress(prev => ({
               ...prev,
-              [orderCode]: { 
+              [sessionIndex]: { 
                 status: 'error', 
                 message: `Lỗi kiểm tra trùng: ${checkError.message}` 
               }
@@ -213,12 +211,12 @@ export function UploadLiveOrdersToTPOSDialog({
 
           if (existingOrders && existingOrders.length > 0) {
             const existingOrder = existingOrders[0];
-            console.warn(`⚠️ Order ${orderCode} already uploaded:`, existingOrder);
+            console.warn(`⚠️ Order ${sessionIndex} already uploaded:`, existingOrder);
             setUploadProgress(prev => ({
               ...prev,
-              [orderCode]: { 
+              [sessionIndex]: { 
                 status: 'error', 
-                message: `Đơn ${orderCode} đã được upload lúc ${new Date(existingOrder.uploaded_at).toLocaleString('vi-VN')}. Tick "Cho phép upload đơn trùng" để upload lại.` 
+                message: `Đơn ${sessionIndex} đã được upload lúc ${new Date(existingOrder.uploaded_at).toLocaleString('vi-VN')}. Tick "Cho phép upload đơn trùng" để upload lại.` 
               }
             }));
             failedCount++;
@@ -227,7 +225,7 @@ export function UploadLiveOrdersToTPOSDialog({
         }
         
         console.log('🚀 [DEBUG] Upload params:', {
-          orderCode,
+          sessionIndex,
           productsCount: products.length,
           sessionInfo: {
             start_date: sessionData.start_date,
@@ -237,7 +235,7 @@ export function UploadLiveOrdersToTPOSDialog({
         });
         
         const result = await uploadOrderToTPOS({
-          orderCode,
+          sessionIndex,
           products: products.map(p => ({
             product_code: p.product_code,
             product_name: p.product_name,
@@ -253,7 +251,7 @@ export function UploadLiveOrdersToTPOSDialog({
           onProgress: (step, message) => {
             setUploadProgress(prev => ({
               ...prev,
-              [orderCode]: { status: 'uploading', message, step }
+              [sessionIndex]: { status: 'uploading', message, step }
             }));
           },
         });
@@ -261,7 +259,7 @@ export function UploadLiveOrdersToTPOSDialog({
         if (result.success) {
           setUploadProgress(prev => ({
             ...prev,
-            [orderCode]: { 
+            [sessionIndex]: { 
               status: 'success', 
               message: `Đã upload ${products.length} sản phẩm` 
             }
@@ -270,7 +268,7 @@ export function UploadLiveOrdersToTPOSDialog({
         } else {
           setUploadProgress(prev => ({
             ...prev,
-            [orderCode]: { 
+            [sessionIndex]: { 
               status: 'error', 
               message: result.error || 'Lỗi không xác định' 
             }
@@ -278,10 +276,10 @@ export function UploadLiveOrdersToTPOSDialog({
           failedCount++;
         }
       } catch (error) {
-        console.error(`Error uploading order ${orderCode}:`, error);
+        console.error(`Error uploading order ${sessionIndex}:`, error);
         setUploadProgress(prev => ({
           ...prev,
-          [orderCode]: { 
+          [sessionIndex]: { 
             status: 'error', 
             message: error instanceof Error ? error.message : 'Lỗi không xác định' 
           }
@@ -301,8 +299,8 @@ export function UploadLiveOrdersToTPOSDialog({
     }
   };
 
-  const renderUploadStatus = (orderCode: string) => {
-    const progress = uploadProgress[orderCode];
+  const renderUploadStatus = (sessionIndex: number) => {
+    const progress = uploadProgress[sessionIndex];
     if (!progress) return null;
 
     switch (progress.status) {
@@ -374,7 +372,7 @@ export function UploadLiveOrdersToTPOSDialog({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>SessionIndex</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead className="text-center">Tổng SL</TableHead>
                   <TableHead>Ghi chú</TableHead>

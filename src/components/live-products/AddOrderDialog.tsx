@@ -29,7 +29,7 @@ interface AddOrderDialogProps {
 }
 
 interface FormData {
-  order_code: string;
+  session_index: number;
   customer_code: string;
   quantity: number;
 }
@@ -40,7 +40,7 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrd
 
   const form = useForm<FormData>({
     defaultValues: {
-      order_code: "",
+      session_index: 1,
       customer_code: "",
       quantity: 1,
     },
@@ -54,7 +54,7 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrd
         .insert([{
           live_session_id: sessionId,
           live_product_id: productId,
-          order_code: data.order_code.trim(),
+          session_index: data.session_index,
           customer_code: data.customer_code.trim(),
           quantity: data.quantity,
           order_date: new Date().toISOString(),
@@ -89,7 +89,7 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrd
       onOrderAdded?.(form.getValues().quantity);
       
       form.reset({
-        order_code: "",
+        session_index: 1,
         customer_code: "",
         quantity: 1,
       });
@@ -107,7 +107,7 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrd
       return;
     }
 
-    if (!data.order_code.trim() || !data.customer_code.trim()) {
+    if (data.session_index <= 0 || !data.customer_code.trim()) {
       toast.error("Vui lòng điền đầy đủ thông tin đơn hàng");
       return;
     }
@@ -136,14 +136,17 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrd
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="order_code"
+              name="session_index"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mã đơn hàng *</FormLabel>
+                  <FormLabel>Số thứ tự đơn (SessionIndex) *</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="Nhập mã đơn hàng"
+                      type="number"
+                      min="1"
+                      placeholder="Nhập số thứ tự đơn"
                       {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                     />
                   </FormControl>
                   <FormMessage />

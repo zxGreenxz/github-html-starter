@@ -19,7 +19,7 @@ interface UploadTPOSDialogProps {
 }
 
 interface OrderToUpload {
-  order_code: string;
+  session_index: number;
   tpos_order_id: string | null;
   code_tpos_order_id: string | null;
   upload_status: string | null;
@@ -28,7 +28,7 @@ interface OrderToUpload {
 }
 
 export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComplete }: UploadTPOSDialogProps) {
-  const [selectedOrderCodes, setSelectedOrderCodes] = useState<Set<string>>(new Set());
+  const [selectedSessionIndexes, setSelectedSessionIndexes] = useState<Set<number>>(new Set());
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const queryClient = useQueryClient();
@@ -39,17 +39,17 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
     queryFn: async () => {
       const { data: ordersData, error } = await supabase
         .from('live_orders')
-        .select('order_code, tpos_order_id, code_tpos_order_id, upload_status, quantity')
+        .select('session_index, tpos_order_id, code_tpos_order_id, upload_status, quantity')
         .eq('live_session_id', sessionId)
         .not('code_tpos_order_id', 'is', null);
 
       if (error) throw error;
 
-      // Group by order_code and calculate stats
+      // Group by session_index and calculate stats
       const groupedOrders = ordersData.reduce((acc, order) => {
-        if (!acc[order.order_code]) {
-          acc[order.order_code] = {
-            order_code: order.order_code,
+        if (!acc[order.session_index]) {
+          acc[order.session_index] = {
+            session_index: order.session_index,
             tpos_order_id: order.tpos_order_id,
             code_tpos_order_id: order.code_tpos_order_id,
             upload_status: order.upload_status,
@@ -57,10 +57,10 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
             total_quantity: 0,
           };
         }
-        acc[order.order_code].product_count += 1;
-        acc[order.order_code].total_quantity += order.quantity;
+        acc[order.session_index].product_count += 1;
+        acc[order.session_index].total_quantity += order.quantity;
         return acc;
-      }, {} as Record<string, OrderToUpload>);
+      }, {} as Record<number, OrderToUpload>);
 
       return Object.values(groupedOrders);
     },
@@ -70,27 +70,27 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
   // Reset selection when dialog opens/closes
   useEffect(() => {
     if (!open) {
-      setSelectedOrderCodes(new Set());
+      setSelectedSessionIndexes(new Set());
       setUploadProgress({ current: 0, total: 0 });
     }
   }, [open]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedOrderCodes(new Set(orders.map(o => o.order_code)));
+      setSelectedSessionIndexes(new Set(orders.map(o => o.session_index)));
     } else {
-      setSelectedOrderCodes(new Set());
+      setSelectedSessionIndexes(new Set());
     }
   };
 
-  const handleSelectOrder = (orderCode: string, checked: boolean) => {
-    const newSelection = new Set(selectedOrderCodes);
+  const handleSelectOrder = (sessionIndex: number, checked: boolean) => {
+    const newSelection = new Set(selectedSessionIndexes);
     if (checked) {
-      newSelection.add(orderCode);
+      newSelection.add(sessionIndex);
     } else {
-      newSelection.delete(orderCode);
+      newSelection.delete(sessionIndex);
     }
-    setSelectedOrderCodes(newSelection);
+    setSelectedSessionIndexes(newSelection);
   };
 
   /**
@@ -138,13 +138,13 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
   };
 
   const handleUploadSelected = async () => {
-    if (selectedOrderCodes.size === 0) {
+    if (selectedSessionIndexes.size === 0) {
       toast.error("Vui lòng chọn ít nhất 1 đơn hàng");
       return;
     }
 
     setIsUploading(true);
-    const ordersToUpload = Array.from(selectedOrderCodes);
+    const ordersToUpload = Array.from(selectedSessionIndexes);
     setUploadProgress({ current: 0, total: ordersToUpload.length });
 
     try {
@@ -154,7 +154,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
       }
 
       for (let i = 0; i < ordersToUpload.length; i++) {
-        const orderCode = ordersToUpload[i];
+        const sessionIndex = ordersToUpload[i];
         setUploadProgress({ current: i + 1, total: ordersToUpload.length });
 
         try {
@@ -162,7 +162,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
         const { data: orderData, error: orderError } = await supabase
           .from('live_orders')
           .select('code_tpos_order_id, id')
-          .eq('order_code', orderCode)
+          .eq('session_index', sessionIndex)
           .limit(1)
           .maybeSingle();
 
@@ -199,7 +199,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
                 product_name
               )
             `)
-            .eq('order_code', orderCode)
+            .eq('session_index', sessionIndex)
             .eq('live_session_id', sessionId);
 
           if (liveOrdersError) throw liveOrdersError;
@@ -307,7 +307,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
               uploaded_at: new Date().toISOString(),
               upload_status: 'success'
             })
-            .eq('order_code', orderCode);
+            .eq('session_index', sessionIndex);
 
           if (updateError) throw updateError;
 
@@ -336,17 +336,17 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
 
           // Log activity (activity_logs trigger will handle this automatically)
 
-          console.log(`✅ Upload thành công đơn ${orderCode}`);
+          console.log(`✅ Upload thành công đơn ${sessionIndex}`);
 
         } catch (error) {
           // XỬ LÝ LỖI: DỪNG HẲN
-          console.error(`❌ Lỗi upload đơn ${orderCode}:`, error);
-          toast.error(`Lỗi upload đơn ${orderCode}: ${error.message}`);
+          console.error(`❌ Lỗi upload đơn ${sessionIndex}:`, error);
+          toast.error(`Lỗi upload đơn ${sessionIndex}: ${error.message}`);
 
           await supabase
             .from('live_orders')
             .update({ upload_status: 'failed' })
-            .eq('order_code', orderCode);
+            .eq('session_index', sessionIndex);
 
           setIsUploading(false);
           queryClient.invalidateQueries({ queryKey: ['upload-tpos-orders'] });
@@ -368,8 +368,8 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
     }
   };
 
-  const allSelected = orders.length > 0 && selectedOrderCodes.size === orders.length;
-  const someSelected = selectedOrderCodes.size > 0 && selectedOrderCodes.size < orders.length;
+  const allSelected = orders.length > 0 && selectedSessionIndexes.size === orders.length;
+  const someSelected = selectedSessionIndexes.size > 0 && selectedSessionIndexes.size < orders.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -407,7 +407,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
                       disabled={isUploading}
                     />
                   </TableHead>
-                  <TableHead>Mã đơn hàng</TableHead>
+                  <TableHead>SessionIndex</TableHead>
                   <TableHead>Mã TPOS</TableHead>
                   <TableHead>Mã Order ID</TableHead>
                   <TableHead className="text-right">Số SP</TableHead>
@@ -417,17 +417,17 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                  <TableRow key={order.order_code}>
+                  <TableRow key={order.session_index}>
                     <TableCell>
                       <Checkbox
-                        checked={selectedOrderCodes.has(order.order_code)}
+                        checked={selectedSessionIndexes.has(order.session_index)}
                         onCheckedChange={(checked) =>
-                          handleSelectOrder(order.order_code, checked as boolean)
+                          handleSelectOrder(order.session_index, checked as boolean)
                         }
                         disabled={isUploading}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{order.order_code}</TableCell>
+                    <TableCell className="font-medium">{order.session_index}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {order.tpos_order_id || '-'}
                     </TableCell>

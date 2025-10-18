@@ -419,9 +419,9 @@ export type Database = {
           live_product_id: string
           live_session_id: string
           note: string | null
-          order_code: string
           order_date: string
           quantity: number
+          session_index: number
           tpos_order_id: string | null
           upload_status: string | null
           uploaded_at: string | null
@@ -437,9 +437,9 @@ export type Database = {
           live_product_id: string
           live_session_id: string
           note?: string | null
-          order_code: string
           order_date?: string
           quantity?: number
+          session_index: number
           tpos_order_id?: string | null
           upload_status?: string | null
           uploaded_at?: string | null
@@ -455,9 +455,9 @@ export type Database = {
           live_product_id?: string
           live_session_id?: string
           note?: string | null
-          order_code?: string
           order_date?: string
           quantity?: number
+          session_index?: number
           tpos_order_id?: string | null
           upload_status?: string | null
           uploaded_at?: string | null

@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getActiveTPOSToken, getTPOSHeaders } from "./tpos-config";
 
 interface UploadOrderToTPOSParams {
-  orderCode: string;
+  sessionIndex: number;
   products: Array<{
     product_code: string;
     product_name: string;
@@ -266,13 +266,13 @@ export async function uploadOrderToTPOS(
       start_date: params.sessionInfo.start_date,
       end_date: params.sessionInfo.end_date,
       session_index: params.sessionInfo.session_index,
-      orderCode: params.orderCode,
+      sessionIndex: params.sessionIndex,
     });
     
     const tposOrders = await fetchTPOSOrders(
       params.sessionInfo.start_date,
       params.sessionInfo.end_date,
-      params.sessionInfo.session_index,
+      params.sessionIndex,
       bearerToken
     );
 
@@ -343,7 +343,7 @@ export async function uploadOrderToTPOS(
         console.error('Failed to update database:', updateError);
       }
     } else {
-      // Fallback: Update all items with this order_code
+      // Fallback: Update all items with this session_index
       const { error: updateError } = await supabase
         .from('live_orders')
         .update({
@@ -352,7 +352,7 @@ export async function uploadOrderToTPOS(
           upload_status: 'success',
           uploaded_at: new Date().toISOString(),
         })
-        .eq('order_code', params.orderCode);
+        .eq('session_index', params.sessionIndex);
 
       if (updateError) {
         console.error('Failed to update database:', updateError);
@@ -383,7 +383,7 @@ export async function uploadOrderToTPOS(
           upload_status: 'failed',
           uploaded_at: new Date().toISOString(),
         })
-        .eq('order_code', params.orderCode);
+        .eq('session_index', params.sessionIndex);
     }
 
     return {
