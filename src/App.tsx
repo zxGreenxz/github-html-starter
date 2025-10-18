@@ -37,10 +37,10 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <RealtimeProvider />
     <BrowserRouter>
-      <BarcodeScannerProvider>
-        <TooltipProvider>
-          <AuthProvider>
-            <CommentsSidebarProvider>
+      <AuthProvider>
+        <BarcodeScannerProvider>
+          <CommentsSidebarProvider>
+            <TooltipProvider>
               <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={
@@ -125,10 +125,10 @@ const App = () => (
               </Routes>
               <Toaster />
               <Sonner />
-            </CommentsSidebarProvider>
-          </AuthProvider>
-        </TooltipProvider>
-      </BarcodeScannerProvider>
+            </TooltipProvider>
+          </CommentsSidebarProvider>
+        </BarcodeScannerProvider>
+      </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>
 );
