@@ -88,6 +88,8 @@ import { cn } from "@/lib/utils";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { InlineProductSelector } from "./InlineProductSelector";
 import { Package } from "lucide-react";
+import { extractProductCodesFromMessage } from "@/lib/product-code-extractor";
+import { ProductCodesPreviewDialog } from "./ProductCodesPreviewDialog";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -305,6 +307,13 @@ export function FacebookCommentsManager({
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
     new Set(),
   );
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewDialogData, setPreviewDialogData] = useState<{
+    comment: FacebookComment;
+    video: FacebookVideo;
+    commentType: "hang_dat" | "hang_le";
+    extractedCodes: string[];
+  } | null>(null);
 
   // Get scanned barcodes
   const { scannedBarcodes, removeScannedBarcode, addScannedBarcode } = useBarcodeScanner();
@@ -490,12 +499,15 @@ export function FacebookCommentsManager({
       comment,
       video,
       commentType = "hang_dat",
+      productCodes,
     }: {
       comment: FacebookComment;
       video: FacebookVideo;
       commentType?: string;
+      productCodes?: string[];
     }) => {
-      console.log('🎬 [FRONTEND] User clicked "Tạo đơn hàng"');
+      console.log('🎬 [FRONTEND] User confirmed "Tạo đơn hàng"');
+      console.log('📋 [FRONTEND] Product codes:', productCodes);
       console.log('📋 [FRONTEND] Comment:', {
         id: comment.id,
         from: comment.from.name,
@@ -517,7 +529,7 @@ export function FacebookCommentsManager({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ comment, video, commentType }),
+          body: JSON.stringify({ comment, video, commentType, productCodes }),
         },
       );
 
@@ -1224,9 +1236,32 @@ export function FacebookCommentsManager({
   };
 
   const handleCreateOrderClick = (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
-    if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
-    }
+    if (!selectedVideo) return;
+    
+    // Extract product codes from comment message
+    const extractedCodes = extractProductCodesFromMessage(comment.message || "");
+    
+    // Show preview dialog
+    setPreviewDialogData({
+      comment,
+      video: selectedVideo,
+      commentType,
+      extractedCodes,
+    });
+    setPreviewDialogOpen(true);
+  };
+
+  const handleConfirmCreateOrder = (productCodes: string[]) => {
+    if (!previewDialogData) return;
+    
+    console.log('✅ [FRONTEND] User confirmed product codes:', productCodes);
+    
+    createOrderMutation.mutate({
+      comment: previewDialogData.comment,
+      video: previewDialogData.video,
+      commentType: previewDialogData.commentType,
+      productCodes,
+    });
   };
 
   const toggleProductSelection = (commentId: string) => {
@@ -2261,6 +2296,18 @@ export function FacebookCommentsManager({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Product Codes Preview Dialog */}
+      {previewDialogData && (
+        <ProductCodesPreviewDialog
+          open={previewDialogOpen}
+          onOpenChange={setPreviewDialogOpen}
+          initialCodes={previewDialogData.extractedCodes}
+          commentMessage={previewDialogData.comment.message || ""}
+          commentType={previewDialogData.commentType}
+          onConfirm={handleConfirmCreateOrder}
+        />
+      )}
     </div>
   );
 }

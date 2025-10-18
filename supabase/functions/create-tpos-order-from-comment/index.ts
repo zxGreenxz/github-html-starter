@@ -89,20 +89,26 @@ function getVariantName(variant: string | null | undefined): string {
 
 /**
  * Extract all product codes from comment text
- * Pattern: N followed by numbers and optional letters (e.g., N55, N236L, N217)
+ * Supports multiple patterns: N123, P45, M800XD, A16, etc.
  * Handles special characters around codes: (N217), [N217], N217., N217,, etc.
  */
 function extractProductCodes(text: string): string[] {
-  // More flexible pattern: N followed by digits, then optional letters
-  // Allows for various surrounding characters
-  const pattern = /N\d+[A-Z]*/gi;
-  const matches = text.match(pattern);
+  if (!text) return [];
   
-  if (!matches) return [];
+  // Pattern: Chữ cái (1+ ký tự) + số (1+ chữ số) + chữ cái optional (0+ ký tự)
+  // Matches: N123, P45VX, M800XXD30, A16, etc.
+  const pattern = /\b([A-Z]+\d+[A-Z]*)\b/gi;
   
-  // Convert to uppercase, remove duplicates, and normalize
-  const codes = matches.map(m => m.toUpperCase().trim());
-  return [...new Set(codes)]; // Remove duplicates
+  const matches = text.match(pattern) || [];
+  
+  // Convert to uppercase, remove duplicates
+  const uniqueCodes = Array.from(new Set(
+    matches.map(code => code.toUpperCase())
+  ));
+  
+  console.log(`   📝 Extracted ${uniqueCodes.length} product codes:`, uniqueCodes);
+  
+  return uniqueCodes;
 }
 
 /**
@@ -380,13 +386,14 @@ serve(async (req) => {
   let payload: any = null;
 
   try {
-    const { comment, video, commentType } = await req.json();
+    const { comment, video, commentType, productCodes: frontendProductCodes } = await req.json();
     
     console.log('🚀 [CREATE ORDER] Starting to create TPOS order...');
     console.log('📋 [CREATE ORDER] Comment ID:', comment.id);
     console.log('👤 [CREATE ORDER] Customer:', comment.from.name);
     console.log('📦 [CREATE ORDER] Comment Type:', commentType);
     console.log('💬 [CREATE ORDER] Message:', comment.message);
+    console.log('🔍 [CREATE ORDER] Frontend Product Codes:', frontendProductCodes || 'not provided');
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -427,6 +434,28 @@ serve(async (req) => {
 
     // Fetch LiveCampaignId dynamically
     const liveCampaignId = await fetchLiveCampaignId(video.objectId, teamId, bearerToken);
+    
+    // ✅ Prioritize productCodes from frontend, fallback to extraction
+    let productCodes: string[];
+    
+    if (frontendProductCodes && frontendProductCodes.length > 0) {
+      console.log('✅ [EDGE] Using product codes from frontend:', frontendProductCodes);
+      productCodes = frontendProductCodes;
+    } else {
+      console.log('⚠️ [EDGE] No product codes from frontend, extracting from comment message...');
+      productCodes = extractProductCodes(comment.message);
+      console.log('📝 [EDGE] Extracted product codes:', productCodes);
+    }
+
+    if (productCodes.length === 0) {
+      console.error('❌ [EDGE] No product codes found (frontend or extracted)');
+      return new Response(
+        JSON.stringify({ error: 'Không tìm thấy mã sản phẩm trong comment' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`📦 [CREATE ORDER] Will create order with ${productCodes.length} product codes:`, productCodes);
     
     console.log('🎯 [CREATE ORDER] LiveCampaignId:', liveCampaignId);
     console.log('🏢 [CREATE ORDER] TeamId:', teamId, '- TeamName:', teamName);
@@ -518,10 +547,6 @@ serve(async (req) => {
     } catch (pendingDbError) {
       console.error('Exception saving to pending_live_orders:', pendingDbError);
     }
-
-    // Extract product codes from comment message
-    const productCodes = extractProductCodes(comment.message);
-    console.log('📦 Extracted product codes:', productCodes);
 
     // Save to facebook_pending_orders table
     console.log('💾 About to save to facebook_pending_orders with commentType:', commentType);
