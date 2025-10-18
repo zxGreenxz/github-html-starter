@@ -66,6 +66,7 @@ export function UploadLiveOrdersToTPOSDialog({
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [allowDuplicate, setAllowDuplicate] = useState(false);
 
   // Fetch session data
   const { data: sessionData } = useQuery({
@@ -90,6 +91,7 @@ export function UploadLiveOrdersToTPOSDialog({
       setSelectedProducts(new Set());
       setUploadProgress({});
       setIsUploading(false);
+      setAllowDuplicate(false);
     }
   }, [open]);
 
@@ -181,6 +183,48 @@ export function UploadLiveOrdersToTPOSDialog({
 
       try {
         const sessionIndex = parseInt(orderCode);
+        
+        // Check for duplicate order_code if allowDuplicate is false
+        if (!allowDuplicate) {
+          setUploadProgress(prev => ({
+            ...prev,
+            [orderCode]: { status: 'uploading', message: 'Đang kiểm tra trùng...' }
+          }));
+
+          const { data: existingOrders, error: checkError } = await supabase
+            .from('live_orders')
+            .select('id, order_code, upload_status, uploaded_at')
+            .eq('order_code', orderCode)
+            .eq('upload_status', 'success')
+            .limit(1);
+
+          if (checkError) {
+            console.error('Error checking duplicate:', checkError);
+            setUploadProgress(prev => ({
+              ...prev,
+              [orderCode]: { 
+                status: 'error', 
+                message: `Lỗi kiểm tra trùng: ${checkError.message}` 
+              }
+            }));
+            failedCount++;
+            continue;
+          }
+
+          if (existingOrders && existingOrders.length > 0) {
+            const existingOrder = existingOrders[0];
+            console.warn(`⚠️ Order ${orderCode} already uploaded:`, existingOrder);
+            setUploadProgress(prev => ({
+              ...prev,
+              [orderCode]: { 
+                status: 'error', 
+                message: `Đơn ${orderCode} đã được upload lúc ${new Date(existingOrder.uploaded_at).toLocaleString('vi-VN')}. Tick "Cho phép upload đơn trùng" để upload lại.` 
+              }
+            }));
+            failedCount++;
+            continue;
+          }
+        }
         
         console.log('🚀 [DEBUG] Upload params:', {
           orderCode,
@@ -296,6 +340,21 @@ export function UploadLiveOrdersToTPOSDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Checkbox for allowing duplicate uploads */}
+          <div className="flex items-center space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <Checkbox
+              id="allow-duplicate"
+              checked={allowDuplicate}
+              onCheckedChange={(checked) => setAllowDuplicate(!!checked)}
+              disabled={isUploading}
+            />
+            <label
+              htmlFor="allow-duplicate"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Cho phép upload đơn trùng (bỏ qua kiểm tra đã upload)
+            </label>
+          </div>
           {sessionData && (
             <div className="bg-muted p-3 rounded-md">
               <div className="grid grid-cols-2 gap-2 text-sm">
