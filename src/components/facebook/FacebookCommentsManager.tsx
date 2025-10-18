@@ -514,6 +514,15 @@ export function FacebookCommentsManager({
       video: FacebookVideo;
       commentType?: string;
     }) => {
+      console.log('🎬 [FRONTEND] User clicked "Tạo đơn hàng"');
+      console.log('📋 [FRONTEND] Comment:', {
+        id: comment.id,
+        from: comment.from.name,
+        message: comment.message,
+        commentType
+      });
+      console.log('🎥 [FRONTEND] Video:', video.objectId);
+      
       const {
         data: { session },
       } = await supabase.auth.getSession();

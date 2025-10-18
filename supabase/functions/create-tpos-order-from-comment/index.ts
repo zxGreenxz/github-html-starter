@@ -289,6 +289,12 @@ serve(async (req) => {
 
   try {
     const { comment, video, commentType } = await req.json();
+    
+    console.log('🚀 [CREATE ORDER] Starting to create TPOS order...');
+    console.log('📋 [CREATE ORDER] Comment ID:', comment.id);
+    console.log('👤 [CREATE ORDER] Customer:', comment.from.name);
+    console.log('📦 [CREATE ORDER] Comment Type:', commentType);
+    console.log('💬 [CREATE ORDER] Message:', comment.message);
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -329,6 +335,9 @@ serve(async (req) => {
 
     // Fetch LiveCampaignId dynamically
     const liveCampaignId = await fetchLiveCampaignId(video.objectId, teamId, bearerToken);
+    
+    console.log('🎯 [CREATE ORDER] LiveCampaignId:', liveCampaignId);
+    console.log('🏢 [CREATE ORDER] TeamId:', teamId, '- TeamName:', teamName);
 
     const tposUrl = "https://tomato.tpos.vn/odata/SaleOnline_Order?IsIncrease=True&$expand=Details,User,Partner($expand=Addresses)";
 
@@ -375,6 +384,10 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('TPOS API error:', errorText);
+      console.error('❌ [CREATE ORDER] TPOS API error details:');
+      console.error('   - Status:', response.status);
+      console.error('   - Error:', errorText);
+      console.error('   - Payload sent:', JSON.stringify(payload, null, 2));
       // Return payload even on error for debugging
       return new Response(
         JSON.stringify({ payload, error: `TPOS API error: ${response.status} - ${errorText}` }),
@@ -384,6 +397,10 @@ serve(async (req) => {
 
     const data = await response.json();
     console.log("TPOS response:", data);
+    console.log('✅ [CREATE ORDER] TPOS Order created successfully!');
+    console.log('📝 [CREATE ORDER] TPOS Order ID:', data.Id);
+    console.log('🔢 [CREATE ORDER] Session Index:', data.SessionIndex);
+    console.log('💰 [CREATE ORDER] Total Amount:', data.TotalAmount);
 
     // Save to pending_live_orders (queue table for background processing)
     try {
@@ -446,11 +463,15 @@ serve(async (req) => {
         })
         .eq('id', existingOrder.id);
       
-      if (updateError) {
-        console.error('❌ Error updating facebook_pending_orders:', updateError);
-      } else {
-        console.log(`✅ Successfully updated order with commentType: "${commentType}"`);
-      }
+        if (updateError) {
+          console.error('❌ Error updating facebook_pending_orders:', updateError);
+        } else {
+          console.log(`✅ Successfully updated order with commentType: "${commentType}"`);
+          console.log('📊 [CREATE ORDER] facebook_pending_orders updated:');
+          console.log('   - Order Count:', newOrderCount);
+          console.log('   - Product Codes:', productCodes);
+          console.log('   - Comment Type:', commentType);
+        }
       
       // Update facebook_comments_archive
       if (!updateError) {
@@ -493,11 +514,15 @@ serve(async (req) => {
           product_codes: productCodes,
         });
       
-      if (insertError) {
-        console.error('❌ Error saving to facebook_pending_orders:', insertError);
-      } else {
-        console.log(`✅ Successfully created order with commentType: "${commentType}"`);
-      }
+        if (insertError) {
+          console.error('❌ Error saving to facebook_pending_orders:', insertError);
+        } else {
+          console.log(`✅ Successfully created order with commentType: "${commentType}"`);
+          console.log('📊 [CREATE ORDER] facebook_pending_orders created:');
+          console.log('   - Product Codes:', productCodes);
+          console.log('   - Comment Type:', commentType);
+          console.log('   - Facebook Comment ID:', comment.id);
+        }
       
       // Update facebook_comments_archive
       if (!insertError) {
