@@ -728,10 +728,10 @@ serve(async (req) => {
               // Check if live_product already exists
               const { data: existingProduct, error: checkError } = await supabase
                 .from('live_products')
-                .select('id, sold_quantity, prepared_quantity, product_code, variant')
+                .select('id, sold_quantity, prepared_quantity, product_code, variant, base_product_code')
                 .eq('live_session_id', targetPhase.live_session_id)
                 .eq('live_phase_id', targetPhase.id)
-                .ilike('variant', `%${productCode}%`)
+                .eq('product_code', productCode)
                 .maybeSingle();
               
               if (checkError) {
@@ -743,6 +743,7 @@ serve(async (req) => {
                 console.log('      ├─ Product ID:', existingProduct.id);
                 console.log('      ├─ Product code:', existingProduct.product_code);
                 console.log('      ├─ Variant:', existingProduct.variant);
+                console.log('      ├─ Base code:', existingProduct.base_product_code || 'null');
                 console.log('      ├─ Sold:', existingProduct.sold_quantity);
                 console.log('      └─ Prepared:', existingProduct.prepared_quantity);
               }
@@ -851,6 +852,7 @@ serve(async (req) => {
                           product_code: tposProduct.DefaultCode || productCode,
                           product_name: tposProduct.Name,
                           variant: tposProduct.Attributes || null,
+                          base_product_code: null,
                           live_session_id: targetPhase.live_session_id,
                           live_phase_id: targetPhase.id,
                           product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
@@ -858,7 +860,7 @@ serve(async (req) => {
                           sold_quantity: 0,
                           image_url: tposProduct.ImageURL || null
                         })
-                        .select('id, sold_quantity, prepared_quantity, product_code, variant')
+                        .select('id, sold_quantity, prepared_quantity, product_code, variant, base_product_code')
                         .single();
                       
                       if (createError) {
