@@ -89,118 +89,20 @@ function getVariantName(variant: string | null | undefined): string {
 
 /**
  * Extract all product codes from comment text
- * Supports multiple patterns: N123, P45, M800XD, A16, etc.
+ * Pattern: N followed by numbers and optional letters (e.g., N55, N236L, N217)
  * Handles special characters around codes: (N217), [N217], N217., N217,, etc.
  */
 function extractProductCodes(text: string): string[] {
-  if (!text) return [];
+  // More flexible pattern: N followed by digits, then optional letters
+  // Allows for various surrounding characters
+  const pattern = /N\d+[A-Z]*/gi;
+  const matches = text.match(pattern);
   
-  // Pattern: Chữ cái (1+ ký tự) + số (1+ chữ số) + chữ cái optional (0+ ký tự)
-  // Matches: N123, P45VX, M800XXD30, A16, etc.
-  const pattern = /\b([A-Z]+\d+[A-Z]*)\b/gi;
+  if (!matches) return [];
   
-  const matches = text.match(pattern) || [];
-  
-  // Convert to uppercase, remove duplicates
-  const uniqueCodes = Array.from(new Set(
-    matches.map(code => code.toUpperCase())
-  ));
-  
-  console.log(`   📝 Extracted ${uniqueCodes.length} product codes:`, uniqueCodes);
-  
-  return uniqueCodes;
-}
-
-/**
- * Format variant with product code (from src/lib/variant-utils.ts)
- */
-function formatVariant(variant: string | null | undefined, productCode: string): string | null {
-  if (!variant || variant.trim() === '') return null;
-  const trimmed = variant.trim();
-  // If variant already contains product code → keep as is
-  if (trimmed.includes(productCode)) return trimmed;
-  // Otherwise → add product code
-  return `${trimmed} - ${productCode}`;
-}
-
-/**
- * Extract base name prefix (from AddProductToLiveDialog)
- */
-function extractBaseNamePrefix(productName: string): string | null {
-  if (!productName) return null;
-  
-  // Priority 1: Format xxx (y) - extract xxx
-  if (productName.includes('(')) {
-    const basePrefix = productName.split('(')[0].trim();
-    if (basePrefix.length > 0) return basePrefix;
-  }
-  
-  // Priority 2: Format xxx - y - extract xxx
-  if (productName.includes(' - ')) {
-    return productName.split(' - ')[0].trim();
-  }
-  
-  // Priority 3: Format xxx-y (no space) - extract xxx
-  if (productName.includes('-')) {
-    return productName.split('-')[0].trim();
-  }
-  
-  return null;
-}
-
-/**
- * Search inventory with 3 strategies (like AddProductToLiveDialog)
- */
-async function searchInventoryProduct(
-  supabase: any,
-  productCode: string
-): Promise<any | null> {
-  console.log(`      🔍 [SEARCH INVENTORY] Strategy 1: Exact match by product_code = "${productCode}"`);
-  
-  // Strategy 1: Exact match by product_code
-  const { data: exactMatch } = await supabase
-    .from('products')
-    .select('*')
-    .eq('product_code', productCode)
-    .maybeSingle();
-  
-  if (exactMatch) {
-    console.log('         ✅ Found exact match:', exactMatch.product_name?.substring(0, 60));
-    return exactMatch;
-  }
-  
-  console.log('         ⚠️ No exact match');
-  console.log(`      🔍 [SEARCH INVENTORY] Strategy 2: Search by base_product_code = "${productCode}"`);
-  
-  // Strategy 2: Search by base_product_code (might be base product)
-  const { data: baseMatches } = await supabase
-    .from('products')
-    .select('*')
-    .eq('base_product_code', productCode)
-    .limit(1);
-  
-  if (baseMatches && baseMatches.length > 0) {
-    console.log('         ✅ Found via base_product_code:', baseMatches[0].product_name?.substring(0, 60));
-    return baseMatches[0];
-  }
-  
-  console.log('         ⚠️ No base_product_code match');
-  console.log(`      🔍 [SEARCH INVENTORY] Strategy 3: Search by name pattern containing "${productCode}"`);
-  
-  // Strategy 3: Search in product_name (fallback)
-  const { data: nameMatches } = await supabase
-    .from('products')
-    .select('*')
-    .ilike('product_name', `%${productCode}%`)
-    .limit(1);
-  
-  if (nameMatches && nameMatches.length > 0) {
-    console.log('         ✅ Found via name pattern:', nameMatches[0].product_name?.substring(0, 60));
-    return nameMatches[0];
-  }
-  
-  console.log('         ❌ Not found in inventory (all 3 strategies failed)');
-  return null;
+  // Convert to uppercase, remove duplicates, and normalize
+  const codes = matches.map(m => m.toUpperCase().trim());
+  return [...new Set(codes)]; // Remove duplicates
 }
 
 async function getCRMTeamId(
@@ -386,14 +288,13 @@ serve(async (req) => {
   let payload: any = null;
 
   try {
-    const { comment, video, commentType, productCodes: frontendProductCodes } = await req.json();
+    const { comment, video, commentType } = await req.json();
     
     console.log('🚀 [CREATE ORDER] Starting to create TPOS order...');
     console.log('📋 [CREATE ORDER] Comment ID:', comment.id);
     console.log('👤 [CREATE ORDER] Customer:', comment.from.name);
     console.log('📦 [CREATE ORDER] Comment Type:', commentType);
     console.log('💬 [CREATE ORDER] Message:', comment.message);
-    console.log('🔍 [CREATE ORDER] Frontend Product Codes:', frontendProductCodes || 'not provided');
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -434,28 +335,6 @@ serve(async (req) => {
 
     // Fetch LiveCampaignId dynamically
     const liveCampaignId = await fetchLiveCampaignId(video.objectId, teamId, bearerToken);
-    
-    // ✅ Prioritize productCodes from frontend, fallback to extraction
-    let productCodes: string[];
-    
-    if (frontendProductCodes && frontendProductCodes.length > 0) {
-      console.log('✅ [EDGE] Using product codes from frontend:', frontendProductCodes);
-      productCodes = frontendProductCodes;
-    } else {
-      console.log('⚠️ [EDGE] No product codes from frontend, extracting from comment message...');
-      productCodes = extractProductCodes(comment.message);
-      console.log('📝 [EDGE] Extracted product codes:', productCodes);
-    }
-
-    if (productCodes.length === 0) {
-      console.error('❌ [EDGE] No product codes found (frontend or extracted)');
-      return new Response(
-        JSON.stringify({ error: 'Không tìm thấy mã sản phẩm trong comment' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log(`📦 [CREATE ORDER] Will create order with ${productCodes.length} product codes:`, productCodes);
     
     console.log('🎯 [CREATE ORDER] LiveCampaignId:', liveCampaignId);
     console.log('🏢 [CREATE ORDER] TeamId:', teamId, '- TeamName:', teamName);
@@ -547,6 +426,10 @@ serve(async (req) => {
     } catch (pendingDbError) {
       console.error('Exception saving to pending_live_orders:', pendingDbError);
     }
+
+    // Extract product codes from comment message
+    const productCodes = extractProductCodes(comment.message);
+    console.log('📦 Extracted product codes:', productCodes);
 
     // Save to facebook_pending_orders table
     console.log('💾 About to save to facebook_pending_orders with commentType:', commentType);
@@ -728,10 +611,10 @@ serve(async (req) => {
               // Check if live_product already exists
               const { data: existingProduct, error: checkError } = await supabase
                 .from('live_products')
-                .select('id, sold_quantity, prepared_quantity, product_code, variant, base_product_code')
+                .select('id, sold_quantity, prepared_quantity, product_code, variant')
                 .eq('live_session_id', targetPhase.live_session_id)
                 .eq('live_phase_id', targetPhase.id)
-                .eq('product_code', productCode)
+                .ilike('variant', `%${productCode}%`)
                 .maybeSingle();
               
               if (checkError) {
@@ -743,7 +626,6 @@ serve(async (req) => {
                 console.log('      ├─ Product ID:', existingProduct.id);
                 console.log('      ├─ Product code:', existingProduct.product_code);
                 console.log('      ├─ Variant:', existingProduct.variant);
-                console.log('      ├─ Base code:', existingProduct.base_product_code || 'null');
                 console.log('      ├─ Sold:', existingProduct.sold_quantity);
                 console.log('      └─ Prepared:', existingProduct.prepared_quantity);
               }
@@ -754,31 +636,29 @@ serve(async (req) => {
               // If not exists → search in products table first, then TPOS
               if (!existingProduct) {
                 console.log(`   ⚠️ Product not found in live_products`);
-                console.log('   └─ Step 2.1: Searching in products table (3 strategies)...');
+                console.log('   └─ Step 2.1: Searching in products table (local inventory)...');
                 
-                // Use multi-strategy inventory search (like manual form)
-                const inventoryProduct = await searchInventoryProduct(supabase, productCode);
+                // Try to find in products table first
+                const { data: inventoryProduct, error: invError } = await supabase
+                  .from('products')
+                  .select('product_code, product_name, variant, tpos_image_url, tpos_product_id')
+                  .eq('product_code', productCode)
+                  .maybeSingle();
                 
-                console.log('      └─ Search result:', inventoryProduct ? '✅ Found in inventory' : '⚠️ Not in inventory');
+                if (invError) {
+                  console.error('      ❌ Error searching products table:', invError);
+                }
+                
+                console.log('      └─ Query result:', inventoryProduct ? '✅ Found in inventory' : '⚠️ Not in inventory');
                 
                 if (inventoryProduct) {
                   console.log('      ✅ Found in products table:');
                   console.log('         ├─ Code:', inventoryProduct.product_code);
                   console.log('         ├─ Name:', inventoryProduct.product_name?.substring(0, 60));
-                  console.log('         ├─ Variant:', inventoryProduct.variant || 'null');
-                  console.log('         ├─ Base code:', inventoryProduct.base_product_code || 'null');
+                  console.log('         ├─ Variant:', inventoryProduct.variant);
                   console.log('         └─ TPOS Image:', inventoryProduct.tpos_image_url ? 'Yes' : 'No');
                   
                   console.log('      └─ Step 2.2: Creating live_product from inventory...');
-                  
-                  // Format variant properly (like the manual form)
-                  const formattedVariant = formatVariant(
-                    inventoryProduct.variant,
-                    inventoryProduct.product_code
-                  );
-                  
-                  console.log('         ├─ Original variant:', inventoryProduct.variant || 'null');
-                  console.log('         └─ Formatted variant:', formattedVariant || 'null');
                   
                   // Create live_product from inventory data
                   const { data: newProduct, error: createError } = await supabase
@@ -786,8 +666,7 @@ serve(async (req) => {
                     .insert({
                       product_code: inventoryProduct.product_code,
                       product_name: inventoryProduct.product_name,
-                      variant: formattedVariant, // ✅ Format variant correctly
-                      base_product_code: inventoryProduct.base_product_code || null, // ✅ Save base_product_code
+                      variant: inventoryProduct.variant || null,
                       live_session_id: targetPhase.live_session_id,
                       live_phase_id: targetPhase.id,
                       product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
@@ -795,7 +674,7 @@ serve(async (req) => {
                       sold_quantity: 0,
                       image_url: inventoryProduct.tpos_image_url || null
                     })
-                    .select('id, sold_quantity, prepared_quantity, product_code, variant, base_product_code')
+                    .select('id, sold_quantity, prepared_quantity, product_code, variant')
                     .single();
                   
                   if (createError) {
@@ -803,9 +682,6 @@ serve(async (req) => {
                     console.error('            └─ Details:', JSON.stringify(createError));
                   } else {
                     console.log('         ✅ Created live_product from inventory:', newProduct.id);
-                    console.log('            ├─ product_code:', newProduct.product_code);
-                    console.log('            ├─ variant:', newProduct.variant || 'null');
-                    console.log('            ├─ base_product_code:', newProduct.base_product_code || 'null');
                     console.log('            ├─ sold_quantity:', newProduct.sold_quantity);
                     console.log('            └─ prepared_quantity:', newProduct.prepared_quantity);
                     liveProductId = newProduct.id;
@@ -813,10 +689,10 @@ serve(async (req) => {
                   }
                 }
                 
-                // Only fetch from TPOS if not found in inventory (all 3 strategies failed)
+                // Only fetch from TPOS if not found in products table
                 if (!inventoryProduct) {
-                  console.log('      ⚠️ Product not found in inventory (tried 3 strategies)');
-                  console.log('      └─ Step 2.1b: Fetching from TPOS API as LAST RESORT...');
+                  console.log('      ⚠️ Product not found in inventory');
+                  console.log('      └─ Step 2.1b: Fetching from TPOS API as fallback...');
                   
                   const tposUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=50&$orderby=DateCreated desc&$filter=(Active eq true) and (DefaultCode eq '${productCode}')&$count=true`;
                   console.log('         ├─ URL:', tposUrl.substring(0, 100) + '...');
@@ -852,7 +728,6 @@ serve(async (req) => {
                           product_code: tposProduct.DefaultCode || productCode,
                           product_name: tposProduct.Name,
                           variant: tposProduct.Attributes || null,
-                          base_product_code: null,
                           live_session_id: targetPhase.live_session_id,
                           live_phase_id: targetPhase.id,
                           product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
@@ -860,7 +735,7 @@ serve(async (req) => {
                           sold_quantity: 0,
                           image_url: tposProduct.ImageURL || null
                         })
-                        .select('id, sold_quantity, prepared_quantity, product_code, variant, base_product_code')
+                        .select('id, sold_quantity, prepared_quantity, product_code, variant')
                         .single();
                       
                       if (createError) {
