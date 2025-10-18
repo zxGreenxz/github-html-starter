@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseVariant } from '@/lib/variant-utils';
+import { toZonedTime } from 'date-fns-tz';
+import { getHours, getMinutes } from 'date-fns';
 
 /**
  * Extract all product codes from comment text
@@ -18,6 +20,30 @@ function extractProductCodes(text: string): string[] {
   // Convert to uppercase, remove duplicates, and normalize
   const codes = matches.map(m => m.toUpperCase().trim());
   return [...new Set(codes)]; // Remove duplicates
+}
+
+/**
+ * Fetch product from TPOS API by product code
+ */
+async function fetchProductFromTPOS(productCode: string, bearerToken: string) {
+  const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?` +
+    `Active=true&` +
+    `$top=50&` +
+    `$orderby=DateCreated desc&` +
+    `$filter=(Active eq true) and (DefaultCode eq '${productCode}')&` +
+    `$count=true`;
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${bearerToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) throw new Error(`TPOS API error: ${response.status}`);
+  
+  const data = await response.json();
+  return data.value?.[0]; // Return first match
 }
 
 interface PendingLiveOrder {
@@ -207,6 +233,90 @@ export function useProcessPendingOrders() {
             return isMatch;
           });
 
+          // If product not found → fetch from TPOS and create live_product
+          if (!matchedProduct) {
+            console.log(`  ⚠️ Product "${productCode}" not found in live_products`);
+            console.log(`  🔄 Fetching from TPOS API...`);
+
+            try {
+              // Get TPOS token
+              const { data: credential } = await supabase
+                .from('tpos_credentials')
+                .select('bearer_token')
+                .eq('token_type', 'tpos')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (!credential?.bearer_token) {
+                throw new Error('No TPOS token found');
+              }
+
+              // Fetch product from TPOS
+              const tposProduct = await fetchProductFromTPOS(productCode, credential.bearer_token);
+
+              if (!tposProduct) {
+                console.log(`  ❌ Product "${productCode}" not found in TPOS`);
+                continue; // Skip this product code
+              }
+
+              console.log(`  ✅ Found in TPOS: ${tposProduct.Name}`);
+
+              // Determine live_session_id and live_phase_id
+              const orderDate = new Date(pending.created_at);
+              const dateStr = orderDate.toISOString().split('T')[0];
+
+              // Determine phase_type from comment time
+              const commentTime = toZonedTime(orderDate, 'Asia/Bangkok');
+              const totalMinutes = getHours(commentTime) * 60 + getMinutes(commentTime);
+              const phaseType = totalMinutes <= 750 ? 'morning' : 'evening';
+
+              // Find matching live_phase
+              const { data: targetPhase } = await supabase
+                .from('live_phases')
+                .select('id, live_session_id')
+                .eq('phase_date', dateStr)
+                .eq('phase_type', phaseType)
+                .single();
+
+              if (!targetPhase) {
+                console.log(`  ❌ No live_phase found for ${dateStr} ${phaseType}`);
+                continue;
+              }
+
+              console.log(`  📍 Target phase: ${targetPhase.id} (${dateStr} ${phaseType})`);
+
+              // Create new live_product
+              const { data: newLiveProduct, error: createError } = await supabase
+                .from('live_products')
+                .insert({
+                  product_code: tposProduct.DefaultCode || productCode,
+                  product_name: tposProduct.Name,
+                  variant: tposProduct.Attributes || null,
+                  live_session_id: targetPhase.live_session_id,
+                  live_phase_id: targetPhase.id,
+                  product_type: 'hang_dat',
+                  prepared_quantity: 0,
+                  sold_quantity: 0,
+                  image_url: tposProduct.ImageURL || null
+                })
+                .select()
+                .single();
+
+              if (createError) {
+                console.error(`  ❌ Error creating live_product:`, createError);
+                continue;
+              }
+
+              console.log(`  ✅ Created live_product: ${newLiveProduct.id}`);
+              matchedProduct = newLiveProduct as LiveProduct;
+
+            } catch (error) {
+              console.error(`  ❌ Error fetching/creating product "${productCode}":`, error);
+              continue;
+            }
+          }
+
           if (matchedProduct) {
             matchedCode = productCode;
             console.log(`  ✅ Found match! Product ID: ${matchedProduct.id}`);
@@ -216,6 +326,13 @@ export function useProcessPendingOrders() {
               console.log(`  ⚠️ Product ${matchedProduct.id} already processed for this comment, skipping...`);
               continue;
             }
+
+            // Update updated_at to push product to top
+            await supabase
+              .from('live_products')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', matchedProduct.id);
+            console.log(`  📌 Updated timestamp to push product to top`);
             
             break;
           }
