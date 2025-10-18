@@ -536,6 +536,69 @@ serve(async (req) => {
 
       console.log(`✅ Using session: ${selectedSession}, phase: ${selectedPhase}`);
 
+      // ===== VALIDATE COMMENT BELONGS TO SELECTED PHASE =====
+      console.log('🔍 Validating comment date/time match phase...');
+
+      // 1. Get phase data (phase_date, phase_type)
+      const { data: phaseData, error: phaseError } = await supabase
+        .from('live_phases')
+        .select('phase_date, phase_type')
+        .eq('id', selectedPhase)
+        .single();
+
+      if (phaseError || !phaseData) {
+        console.log('❌ Failed to fetch phase data, skipping auto-creation');
+        return new Response(JSON.stringify({ payload, response: data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`✅ Phase data: ${phaseData.phase_date}, ${phaseData.phase_type}`);
+
+      // 2. Check comment date matches phase date
+      const commentDate = new Date(comment.created_time).toISOString().split('T')[0];
+      if (commentDate !== phaseData.phase_date) {
+        console.log(`⚠️ Comment date (${commentDate}) != Phase date (${phaseData.phase_date})`);
+        console.log('⏭️ Skipping auto-creation - comment not for this phase');
+        return new Response(JSON.stringify({ payload, response: data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`✅ Comment date matches phase date: ${commentDate}`);
+
+      // 3. Check comment time matches phase type (morning/evening)
+      const commentTime = new Date(comment.created_time);
+      const vietnamTime = new Date(commentTime.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+      const hour = vietnamTime.getHours();
+      const minute = vietnamTime.getMinutes();
+      const totalMinutes = hour * 60 + minute;
+
+      console.log(`⏰ Comment time (UTC+7): ${hour}:${minute} (${totalMinutes} minutes)`);
+
+      let timeMatchesPhase = false;
+
+      if (phaseData.phase_type === 'morning') {
+        // Morning: 0h01 - 12h30 (1 - 750 phút)
+        timeMatchesPhase = totalMinutes >= 1 && totalMinutes <= 750;
+        console.log(`📋 Phase type: morning (1-750 phút), Match: ${timeMatchesPhase}`);
+      } else if (phaseData.phase_type === 'evening') {
+        // Evening: 12h31 - 23h59 (751 - 1439 phút)
+        timeMatchesPhase = totalMinutes >= 751 && totalMinutes <= 1439;
+        console.log(`📋 Phase type: evening (751-1439 phút), Match: ${timeMatchesPhase}`);
+      }
+
+      if (!timeMatchesPhase) {
+        console.log(`⚠️ Comment time (${hour}:${minute}) does not match phase type (${phaseData.phase_type})`);
+        console.log('⏭️ Skipping auto-creation - comment not in phase time range');
+        return new Response(JSON.stringify({ payload, response: data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`✅ Comment time matches phase type: ${phaseData.phase_type}`);
+      console.log('✅ All validations passed, proceeding with auto-creation...\n');
+
       // Process each product code
       for (const productCode of productCodes) {
         console.log(`\n📦 Processing: ${productCode}`);
