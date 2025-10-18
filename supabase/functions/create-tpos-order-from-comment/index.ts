@@ -770,7 +770,8 @@ serve(async (req) => {
                 
                 console.log('      ├─ live_product_id:', liveProductId);
                 console.log('      ├─ facebook_comment_id:', comment.id);
-                console.log('      ├─ order_code:', data.Code);
+                console.log('      ├─ session_index:', data.SessionIndex);
+                console.log('      ├─ tpos_order_code:', data.Code);
                 console.log('      ├─ tpos_order_id:', data.Id);
                 console.log('      ├─ is_oversell:', isOversell);
                 console.log('      └─ Inserting into live_orders...');
@@ -782,9 +783,10 @@ serve(async (req) => {
                     live_product_id: liveProductId,
                     live_session_id: targetPhase.live_session_id,
                     live_phase_id: targetPhase.id,
-                    order_code: data.Code || null,
+                    session_index: data.SessionIndex || null,
                     is_oversell: isOversell,
                     tpos_order_id: data.Id?.toString() || null,
+                    code_tpos_order_id: data.Code || null,
                   })
                   .select('id')
                   .single();
