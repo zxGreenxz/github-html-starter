@@ -93,15 +93,20 @@ function getVariantName(variant: string | null | undefined): string {
  * Handles special characters around codes: (N217), [N217], N217., N217,, etc.
  */
 function extractProductCodes(text: string): string[] {
-  // More flexible pattern: N followed by digits, then optional letters
-  // Allows for various surrounding characters
-  const pattern = /N\d+[A-Z]*/gi;
+  // ✅ ONLY match product codes inside [...] brackets
+  // Pattern: [N + digits + optional letters]
+  const pattern = /\[N\d+[A-Z]*\]/gi;
   const matches = text.match(pattern);
   
   if (!matches) return [];
   
-  // Convert to uppercase, remove duplicates, and normalize
-  const codes = matches.map(m => m.toUpperCase().trim());
+  // Remove brackets [ ] and normalize
+  const codes = matches.map(m => 
+    m.replace(/[\[\]]/g, '')  // Remove [ and ]
+      .toUpperCase()
+      .trim()
+  );
+  
   return [...new Set(codes)]; // Remove duplicates
 }
 
@@ -429,6 +434,7 @@ serve(async (req) => {
 
     // Extract product codes from comment message
     const productCodes = extractProductCodes(comment.message);
+    console.log('📦 Comment message:', comment.message);
     console.log('📦 Extracted product codes:', productCodes);
 
     // Save to facebook_pending_orders table
