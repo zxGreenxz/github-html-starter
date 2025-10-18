@@ -14,7 +14,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const net = require("net");
 const iconv = require("iconv-lite");
-const fs = require("fs");
+const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
 const { promisify } = require("util");
 const { exec } = require("child_process");
@@ -28,8 +29,8 @@ const PORT = 9100;
 const TEMP_DIR = path.join(__dirname, "temp");
 
 // Tạo thư mục temp nếu chưa có
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
+if (!fsSync.existsSync(TEMP_DIR)) {
+  fsSync.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 // Middleware
@@ -96,23 +97,23 @@ async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
   const outputPrefix = path.join(TEMP_DIR, `output_${timestamp}`);
   
   try {
-    // Step 1: Save PDF buffer to file
-    fs.writeFileSync(pdfPath, pdfBuffer);
+    // Step 1: Save PDF buffer to file (async)
+    await fs.writeFile(pdfPath, pdfBuffer);
     
-    // Step 2: Convert PDF to grayscale using pdftoppm
-    console.log(`🔄 Converting PDF to grayscale (DPI: ${dpi})...`);
-    const command = `pdftoppm -r ${dpi} -gray "${pdfPath}" "${outputPrefix}"`;
+    // Step 2: Convert PDF to PNG using pdftoppm (better Sharp support)
+    console.log(`🔄 Converting PDF to PNG (DPI: ${dpi})...`);
+    const command = `pdftoppm -r ${dpi} -png "${pdfPath}" "${outputPrefix}"`;
     await execAsync(command);
     
-    // Step 3: Find generated PGM file
-    const pgmPath = `${outputPrefix}-1.pgm`;
-    if (!fs.existsSync(pgmPath)) {
+    // Step 3: Find generated PNG file
+    const pngPath = `${outputPrefix}-1.png`;
+    if (!fsSync.existsSync(pngPath)) {
       throw new Error('PDF conversion failed - no output file generated');
     }
     
     // Step 4: Load and enhance image with sharp
     console.log(`🔄 Processing image (width: ${width}px, threshold: ${threshold})...`);
-    let img = sharp(pgmPath);
+    let img = sharp(pngPath);
     
     // Get metadata
     const metadata = await img.metadata();
@@ -145,10 +146,10 @@ async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
     // Step 6: Convert to ESC/POS format
     const escposData = encodeImageToESCPOS(imageData, info.width, info.height);
     
-    // Cleanup temp files
+    // Cleanup temp files (async)
     try {
-      fs.unlinkSync(pdfPath);
-      fs.unlinkSync(pgmPath);
+      await fs.unlink(pdfPath);
+      await fs.unlink(pngPath);
     } catch (e) {
       console.warn('Warning: Could not delete temp files:', e.message);
     }
@@ -156,11 +157,11 @@ async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
     return escposData;
     
   } catch (error) {
-    // Cleanup on error
+    // Cleanup on error (async)
     try {
-      if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-      const pgmPath = `${outputPrefix}-1.pgm`;
-      if (fs.existsSync(pgmPath)) fs.unlinkSync(pgmPath);
+      await fs.unlink(pdfPath).catch(() => {});
+      const pngPath = `${outputPrefix}-1.png`;
+      await fs.unlink(pngPath).catch(() => {});
     } catch (e) {}
     
     throw new Error(`PDF to ESC/POS conversion failed: ${error.message}`);
