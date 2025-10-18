@@ -202,7 +202,7 @@ export function UploadLiveOrdersToTPOSDialog({
           })),
           sessionInfo: {
             start_date: sessionData.start_date,
-            end_date: sessionData.end_date,
+            end_date: sessionData.end_date || sessionData.start_date,
             session_index: sessionIndex,
           },
           orderItemIds: allOrderItemIds,

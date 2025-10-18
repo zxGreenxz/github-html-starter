@@ -61,20 +61,50 @@ async function fetchTPOSOrders(
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
   return queryWithAutoRefresh(async () => {
-    // Convert Vietnam dates to UTC datetime format
-    // Start of day in Vietnam (00:00 +07:00) = 17:00 same day UTC
-    // End of day in Vietnam (23:59:59 +07:00) = 16:59:59 same day UTC
-    const startDateTime = `${startDate}T17:00:00+00:00`;
-    const endDateTime = `${endDate}T16:59:59+00:00`;
+    // Helper: Extract date-only part (YYYY-MM-DD)
+    const toDateOnly = (dateStr: string): string => dateStr.split('T')[0];
+    
+    // Convert Vietnam date to UTC start of day
+    // Example: 2025-10-16 VN (00:00 +07:00) = 2025-10-15 17:00 UTC
+    const vnDateToUTCStart = (vnDate: string): string => {
+      const date = new Date(vnDate + 'T00:00:00+07:00');
+      return date.toISOString().replace('.000Z', 'Z');
+    };
+    
+    // Convert Vietnam date to UTC end of day
+    // Example: 2025-10-16 VN (23:59:59 +07:00) = 2025-10-16 16:59:59 UTC
+    const vnDateToUTCEnd = (vnDate: string): string => {
+      const date = new Date(vnDate + 'T23:59:59+07:00');
+      return date.toISOString().replace('.000Z', 'Z');
+    };
+    
+    const startDateOnly = toDateOnly(startDate);
+    const endDateOnly = toDateOnly(endDate);
+    
+    const startDateTime = vnDateToUTCStart(startDateOnly);
+    const endDateTime = vnDateToUTCEnd(endDateOnly);
+    
     const filterQuery = `DateCreated ge ${startDateTime} and DateCreated le ${endDateTime} and SessionIndex eq ${sessionIndex}`;
     const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$filter=${encodeURIComponent(filterQuery)}&$orderby=DateCreated desc&$top=50`;
     
     console.log('📡 [DEBUG] TPOS API Request:', {
       url,
       filterQuery,
-      startDate,
-      endDate,
-      sessionIndex,
+      input: {
+        startDate,
+        endDate,
+        sessionIndex,
+      },
+      converted: {
+        startDateOnly,
+        endDateOnly,
+        startDateTime,
+        endDateTime,
+      },
+      explanation: {
+        vnToUtcStart: `${startDateOnly} 00:00 VN → ${startDateTime} UTC`,
+        vnToUtcEnd: `${endDateOnly} 23:59 VN → ${endDateTime} UTC`,
+      },
     });
 
     const response = await fetch(url, {
