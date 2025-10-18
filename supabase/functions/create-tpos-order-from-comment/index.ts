@@ -633,89 +633,132 @@ serve(async (req) => {
               let liveProductId = existingProduct?.id;
               let productData = existingProduct;
               
-              // If not exists → fetch from TPOS and create
+              // If not exists → search in products table first, then TPOS
               if (!existingProduct) {
                 console.log(`   ⚠️ Product not found in live_products`);
-                console.log('   └─ Step 2.1: Fetching from TPOS API...');
+                console.log('   └─ Step 2.1: Searching in products table (local inventory)...');
                 
-                const tposUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=50&$orderby=DateCreated desc&$filter=(Active eq true) and (DefaultCode eq '${productCode}')&$count=true`;
-                console.log('      ├─ URL:', tposUrl.substring(0, 100) + '...');
+                // Try to find in products table first
+                const { data: inventoryProduct, error: invError } = await supabase
+                  .from('products')
+                  .select('product_code, product_name, variant, tpos_image_url, tpos_product_id')
+                  .eq('product_code', productCode)
+                  .maybeSingle();
                 
-                const tposResponse = await fetch(tposUrl, {
-                  headers: {
-                    'Authorization': `Bearer ${tposToken.bearer_token}`,
-                    'Content-Type': 'application/json'
+                if (invError) {
+                  console.error('      ❌ Error searching products table:', invError);
+                }
+                
+                console.log('      └─ Query result:', inventoryProduct ? '✅ Found in inventory' : '⚠️ Not in inventory');
+                
+                if (inventoryProduct) {
+                  console.log('      ✅ Found in products table:');
+                  console.log('         ├─ Code:', inventoryProduct.product_code);
+                  console.log('         ├─ Name:', inventoryProduct.product_name?.substring(0, 60));
+                  console.log('         ├─ Variant:', inventoryProduct.variant);
+                  console.log('         └─ TPOS Image:', inventoryProduct.tpos_image_url ? 'Yes' : 'No');
+                  
+                  console.log('      └─ Step 2.2: Creating live_product from inventory...');
+                  
+                  // Create live_product from inventory data
+                  const { data: newProduct, error: createError } = await supabase
+                    .from('live_products')
+                    .insert({
+                      product_code: inventoryProduct.product_code,
+                      product_name: inventoryProduct.product_name,
+                      variant: inventoryProduct.variant || null,
+                      live_session_id: targetPhase.live_session_id,
+                      live_phase_id: targetPhase.id,
+                      product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
+                      prepared_quantity: 0,
+                      sold_quantity: 0,
+                      image_url: inventoryProduct.tpos_image_url || null
+                    })
+                    .select('id, sold_quantity, prepared_quantity, product_code, variant')
+                    .single();
+                  
+                  if (createError) {
+                    console.error('         ❌ Error creating live_product:', createError);
+                    console.error('            └─ Details:', JSON.stringify(createError));
+                  } else {
+                    console.log('         ✅ Created live_product from inventory:', newProduct.id);
+                    console.log('            ├─ sold_quantity:', newProduct.sold_quantity);
+                    console.log('            └─ prepared_quantity:', newProduct.prepared_quantity);
+                    liveProductId = newProduct.id;
+                    productData = newProduct;
                   }
-                });
+                }
                 
-                console.log('      ├─ Response status:', tposResponse.status);
-                
-                if (tposResponse.ok) {
-                  const tposData = await tposResponse.json();
-                  console.log('      ├─ Response data count:', tposData.value?.length || 0);
+                // Only fetch from TPOS if not found in products table
+                if (!inventoryProduct) {
+                  console.log('      ⚠️ Product not found in inventory');
+                  console.log('      └─ Step 2.1b: Fetching from TPOS API as fallback...');
                   
-                  const tposProduct = tposData.value?.[0];
+                  const tposUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=50&$orderby=DateCreated desc&$filter=(Active eq true) and (DefaultCode eq '${productCode}')&$count=true`;
+                  console.log('         ├─ URL:', tposUrl.substring(0, 100) + '...');
                   
-                  if (tposProduct) {
-                    console.log('      ✅ Found product in TPOS:');
-                    console.log('         ├─ Code:', tposProduct.DefaultCode);
-                    console.log('         ├─ Name:', tposProduct.Name?.substring(0, 60));
-                    console.log('         ├─ Attributes:', tposProduct.Attributes);
-                    console.log('         └─ ImageURL:', tposProduct.ImageURL ? 'Yes' : 'No');
+                  const tposResponse = await fetch(tposUrl, {
+                    headers: {
+                      'Authorization': `Bearer ${tposToken.bearer_token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  console.log('         ├─ Response status:', tposResponse.status);
+                  
+                  if (tposResponse.ok) {
+                    const tposData = await tposResponse.json();
+                    console.log('         ├─ Response data count:', tposData.value?.length || 0);
                     
-                    console.log('   └─ Step 2.2: Creating live_product...');
+                    const tposProduct = tposData.value?.[0];
                     
-                    // Create new live_product
-                    const { data: newProduct, error: createError } = await supabase
-                      .from('live_products')
-                      .insert({
-                        product_code: tposProduct.DefaultCode || productCode,
-                        product_name: tposProduct.Name,
-                        variant: tposProduct.Attributes || null,
-                        live_session_id: targetPhase.live_session_id,
-                        live_phase_id: targetPhase.id,
-                        product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
-                        prepared_quantity: 0,
-                        sold_quantity: 0,
-                        image_url: tposProduct.ImageURL || null
-                      })
-                      .select('id, sold_quantity, prepared_quantity, product_code, variant')
-                      .single();
-                    
-                    if (createError) {
-                      console.error('      ❌ Error creating live_product:', createError);
-                      console.error('         └─ Details:', JSON.stringify(createError));
+                    if (tposProduct) {
+                      console.log('         ✅ Found product in TPOS:');
+                      console.log('            ├─ Code:', tposProduct.DefaultCode);
+                      console.log('            ├─ Name:', tposProduct.Name?.substring(0, 60));
+                      console.log('            ├─ Attributes:', tposProduct.Attributes);
+                      console.log('            └─ ImageURL:', tposProduct.ImageURL ? 'Yes' : 'No');
+                      
+                      console.log('         └─ Step 2.2: Creating live_product from TPOS...');
+                      
+                      // Create new live_product
+                      const { data: newProduct, error: createError } = await supabase
+                        .from('live_products')
+                        .insert({
+                          product_code: tposProduct.DefaultCode || productCode,
+                          product_name: tposProduct.Name,
+                          variant: tposProduct.Attributes || null,
+                          live_session_id: targetPhase.live_session_id,
+                          live_phase_id: targetPhase.id,
+                          product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
+                          prepared_quantity: 0,
+                          sold_quantity: 0,
+                          image_url: tposProduct.ImageURL || null
+                        })
+                        .select('id, sold_quantity, prepared_quantity, product_code, variant')
+                        .single();
+                      
+                      if (createError) {
+                        console.error('            ❌ Error creating live_product:', createError);
+                        console.error('               └─ Details:', JSON.stringify(createError));
+                      } else {
+                        console.log('            ✅ Created live_product from TPOS:', newProduct.id);
+                        console.log('               ├─ sold_quantity:', newProduct.sold_quantity);
+                        console.log('               └─ prepared_quantity:', newProduct.prepared_quantity);
+                        liveProductId = newProduct.id;
+                        productData = newProduct;
+                      }
                     } else {
-                      console.log('      ✅ Created live_product:', newProduct.id);
-                      console.log('         ├─ sold_quantity:', newProduct.sold_quantity);
-                      console.log('         └─ prepared_quantity:', newProduct.prepared_quantity);
-                      liveProductId = newProduct.id;
-                      productData = newProduct;
+                      console.error('         ❌ Product not found in TPOS response');
+                      console.log('            └─ Response data:', JSON.stringify(tposData).substring(0, 200));
                     }
                   } else {
-                    console.error('      ❌ Product not found in TPOS response');
-                    console.log('         └─ Response data:', JSON.stringify(tposData).substring(0, 200));
+                    console.error('         ❌ TPOS API request failed');
+                    console.error('            ├─ Status:', tposResponse.status);
+                    console.error('            └─ StatusText:', tposResponse.statusText);
+                    const errorText = await tposResponse.text();
+                    console.error('            └─ Response:', errorText.substring(0, 200));
                   }
-                } else {
-                  console.error('      ❌ TPOS API request failed');
-                  console.error('         ├─ Status:', tposResponse.status);
-                  console.error('         └─ StatusText:', tposResponse.statusText);
-                  const errorText = await tposResponse.text();
-                  console.error('         └─ Response:', errorText.substring(0, 200));
-                }
-              } else {
-                console.log('   ✅ Product already exists in live_products');
-                console.log('   └─ Step 2.1: Updating timestamp...');
-                
-                const { error: updateError } = await supabase
-                  .from('live_products')
-                  .update({ updated_at: new Date().toISOString() })
-                  .eq('id', existingProduct.id);
-                
-                if (updateError) {
-                  console.error('      ❌ Error updating timestamp:', updateError);
-                } else {
-                  console.log('      ✅ Timestamp updated');
                 }
               }
               
