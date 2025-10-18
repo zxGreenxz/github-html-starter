@@ -75,7 +75,6 @@ import type {
   CommentWithStatus,
   TPOSOrder,
 } from "@/types/facebook";
-import { formatVietnamDateTime, nowVietnamISO } from "@/lib/date-utils";
 import {
   Collapsible,
   CollapsibleContent,
@@ -399,7 +398,7 @@ export function FacebookCommentsManager({
       console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
         videoId: selectedVideo.objectId,
         pageId,
-        timestamp: nowVietnamISO()
+        timestamp: new Date().toISOString()
       });
       const startTime = Date.now();
 
@@ -1649,7 +1648,7 @@ export function FacebookCommentsManager({
                         </h3>
                         <p className="text-xs text-muted-foreground mb-2">
                           {video.channelCreatedTime
-                            ? formatVietnamDateTime(video.channelCreatedTime)
+                            ? format(new Date(video.channelCreatedTime), "dd/MM/yyyy HH:mm")
                             : "N/A"}
                         </p>
                         <div className="flex gap-3 text-xs text-muted-foreground">
@@ -2004,7 +2003,12 @@ export function FacebookCommentsManager({
 
                                     <span className="text-xs text-muted-foreground ml-auto">
                                       {comment.created_time
-                                        ? formatVietnamDateTime(comment.created_time)
+                                        ? format(
+                                            new Date(comment.created_time),
+                                            isMobile
+                                              ? "HH:mm"
+                                              : "dd/MM/yyyy HH:mm",
+                                          )
                                         : "N/A"}
                                     </span>
                                   </div>

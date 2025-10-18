@@ -7,11 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Barcode, Trash2, X, Package, CheckCircle, Loader2 } from "lucide-react";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatVietnamTime } from "@/lib/date-utils";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -360,7 +360,7 @@ export function ScannedBarcodesPanel() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {formatVietnamTime(barcode.timestamp)}
+                      {format(new Date(barcode.timestamp), 'HH:mm:ss')}
                     </p>
                   </div>
                 </div>
