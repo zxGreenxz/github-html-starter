@@ -745,15 +745,7 @@ export function FacebookCommentsManager({
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
         },
         async (payload) => {
-          const timestamp = new Date().toISOString();
           const newComment = payload.new as any;
-          
-          console.log(`[${timestamp}] 🔥 Realtime trigger received:`, {
-            event: payload.eventType,
-            comment_id: newComment?.facebook_comment_id,
-            message: newComment?.comment_message?.substring(0, 50),
-            table: 'facebook_comments_archive'
-          });
 
           // Track new comments for batching
           if (payload.eventType === 'INSERT' && newComment?.facebook_comment_id) {
@@ -771,16 +763,6 @@ export function FacebookCommentsManager({
               const isLive = selectedVideo.statusLive === 1;
               const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
               
-              const pendingCount = pendingCommentsRef.current.size;
-              
-              console.log(`[${new Date().toISOString()}] 🔑 Batch invalidating query:`, {
-                queryKey,
-                pendingNewComments: pendingCount,
-                isLive,
-                pageId,
-                videoId: selectedVideo.objectId
-              });
-              
               // Invalidate and force refetch
               queryClient.invalidateQueries({ queryKey });
               await queryClient.refetchQueries({ 
@@ -788,8 +770,6 @@ export function FacebookCommentsManager({
                 exact: true,
                 type: 'active'
               });
-              
-              console.log(`[${new Date().toISOString()}] ✅ Query invalidated + refetched (${pendingCount} new comments)`);
               
               // Clear pending set
               pendingCommentsRef.current.clear();
@@ -808,7 +788,6 @@ export function FacebookCommentsManager({
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
         },
         (payload) => {
-          console.log('[Realtime] facebook_pending_orders change:', payload);
           queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo.objectId] });
         }
       )
