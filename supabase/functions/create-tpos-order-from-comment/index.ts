@@ -546,6 +546,8 @@ serve(async (req) => {
       // 🔥 CREATE live_products + live_orders IMMEDIATELY (not background job)
       // ========================================================================
       console.log('🚀 [CREATE LIVE PRODUCTS] Starting immediate creation...');
+      console.log('📦 [CREATE LIVE PRODUCTS] Product codes:', JSON.stringify(productCodes));
+      console.log('📦 [CREATE LIVE PRODUCTS] Total products to process:', productCodes.length);
 
       try {
         // Determine live_session_id and live_phase_id based on comment time
@@ -576,7 +578,8 @@ serve(async (req) => {
           console.log('✅ [CREATE LIVE PRODUCTS] Found phase:', targetPhase.id);
           
           // Get TPOS token for product fetch
-          const { data: tposToken } = await supabase
+          console.log('🔑 [CREATE LIVE PRODUCTS] Step 1: Fetching TPOS token...');
+          const { data: tposToken, error: tokenError } = await supabase
             .from('tpos_credentials')
             .select('bearer_token')
             .eq('token_type', 'tpos')
@@ -584,30 +587,59 @@ serve(async (req) => {
             .limit(1)
             .maybeSingle();
           
+          if (tokenError) {
+            console.error('❌ [CREATE LIVE PRODUCTS] Token fetch error:', tokenError);
+          }
+          
           if (!tposToken?.bearer_token) {
             console.error('❌ [CREATE LIVE PRODUCTS] No TPOS token found');
+            console.log('📊 [CREATE LIVE PRODUCTS] Query result:', JSON.stringify(tposToken));
           } else {
+            console.log('✅ [CREATE LIVE PRODUCTS] TPOS token found (length:', tposToken.bearer_token.length, ')');
+            
+            console.log('🔄 [CREATE LIVE PRODUCTS] Step 2: Processing', productCodes.length, 'product(s)...');
+            console.log('═══════════════════════════════════════════════════════════════');
+            
             // Process each product code
-            for (const productCode of productCodes) {
-              console.log(`🔍 [CREATE LIVE PRODUCTS] Processing: ${productCode}`);
+            for (let i = 0; i < productCodes.length; i++) {
+              const productCode = productCodes[i];
+              console.log(`\n🔍 [CREATE LIVE PRODUCTS] [${i+1}/${productCodes.length}] Processing: "${productCode}"`);
+              console.log('   ├─ live_session_id:', targetPhase.live_session_id);
+              console.log('   ├─ live_phase_id:', targetPhase.id);
+              console.log('   └─ Checking if product exists...');
               
               // Check if live_product already exists
-              const { data: existingProduct } = await supabase
+              const { data: existingProduct, error: checkError } = await supabase
                 .from('live_products')
-                .select('id, sold_quantity, prepared_quantity')
+                .select('id, sold_quantity, prepared_quantity, product_code, variant')
                 .eq('live_session_id', targetPhase.live_session_id)
                 .eq('live_phase_id', targetPhase.id)
                 .ilike('variant', `%${productCode}%`)
                 .maybeSingle();
+              
+              if (checkError) {
+                console.error('   ❌ Error checking existing product:', checkError);
+              }
+              
+              console.log('   └─ Query result:', existingProduct ? '✅ Found' : '⚠️ Not found');
+              if (existingProduct) {
+                console.log('      ├─ Product ID:', existingProduct.id);
+                console.log('      ├─ Product code:', existingProduct.product_code);
+                console.log('      ├─ Variant:', existingProduct.variant);
+                console.log('      ├─ Sold:', existingProduct.sold_quantity);
+                console.log('      └─ Prepared:', existingProduct.prepared_quantity);
+              }
               
               let liveProductId = existingProduct?.id;
               let productData = existingProduct;
               
               // If not exists → fetch from TPOS and create
               if (!existingProduct) {
-                console.log(`⚠️ [CREATE LIVE PRODUCTS] Product not found, fetching from TPOS...`);
+                console.log(`   ⚠️ Product not found in live_products`);
+                console.log('   └─ Step 2.1: Fetching from TPOS API...');
                 
                 const tposUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=50&$orderby=DateCreated desc&$filter=(Active eq true) and (DefaultCode eq '${productCode}')&$count=true`;
+                console.log('      ├─ URL:', tposUrl.substring(0, 100) + '...');
                 
                 const tposResponse = await fetch(tposUrl, {
                   headers: {
@@ -616,12 +648,22 @@ serve(async (req) => {
                   }
                 });
                 
+                console.log('      ├─ Response status:', tposResponse.status);
+                
                 if (tposResponse.ok) {
                   const tposData = await tposResponse.json();
+                  console.log('      ├─ Response data count:', tposData.value?.length || 0);
+                  
                   const tposProduct = tposData.value?.[0];
                   
                   if (tposProduct) {
-                    console.log(`✅ [CREATE LIVE PRODUCTS] Found in TPOS: ${tposProduct.Name}`);
+                    console.log('      ✅ Found product in TPOS:');
+                    console.log('         ├─ Code:', tposProduct.DefaultCode);
+                    console.log('         ├─ Name:', tposProduct.Name?.substring(0, 60));
+                    console.log('         ├─ Attributes:', tposProduct.Attributes);
+                    console.log('         └─ ImageURL:', tposProduct.ImageURL ? 'Yes' : 'No');
+                    
+                    console.log('   └─ Step 2.2: Creating live_product...');
                     
                     // Create new live_product
                     const { data: newProduct, error: createError } = await supabase
@@ -637,37 +679,60 @@ serve(async (req) => {
                         sold_quantity: 0,
                         image_url: tposProduct.ImageURL || null
                       })
-                      .select('id, sold_quantity, prepared_quantity')
+                      .select('id, sold_quantity, prepared_quantity, product_code, variant')
                       .single();
                     
                     if (createError) {
-                      console.error(`❌ [CREATE LIVE PRODUCTS] Error creating:`, createError);
+                      console.error('      ❌ Error creating live_product:', createError);
+                      console.error('         └─ Details:', JSON.stringify(createError));
                     } else {
-                      console.log(`✅ [CREATE LIVE PRODUCTS] Created: ${newProduct.id}`);
+                      console.log('      ✅ Created live_product:', newProduct.id);
+                      console.log('         ├─ sold_quantity:', newProduct.sold_quantity);
+                      console.log('         └─ prepared_quantity:', newProduct.prepared_quantity);
                       liveProductId = newProduct.id;
                       productData = newProduct;
                     }
                   } else {
-                    console.error(`❌ [CREATE LIVE PRODUCTS] Product ${productCode} not found in TPOS`);
+                    console.error('      ❌ Product not found in TPOS response');
+                    console.log('         └─ Response data:', JSON.stringify(tposData).substring(0, 200));
                   }
                 } else {
-                  console.error(`❌ [CREATE LIVE PRODUCTS] TPOS API error:`, tposResponse.status);
+                  console.error('      ❌ TPOS API request failed');
+                  console.error('         ├─ Status:', tposResponse.status);
+                  console.error('         └─ StatusText:', tposResponse.statusText);
+                  const errorText = await tposResponse.text();
+                  console.error('         └─ Response:', errorText.substring(0, 200));
                 }
               } else {
-                console.log(`✅ [CREATE LIVE PRODUCTS] Product exists: ${existingProduct.id}`);
+                console.log('   ✅ Product already exists in live_products');
+                console.log('   └─ Step 2.1: Updating timestamp...');
                 
-                // Update timestamp to push to top
-                await supabase
+                const { error: updateError } = await supabase
                   .from('live_products')
                   .update({ updated_at: new Date().toISOString() })
                   .eq('id', existingProduct.id);
+                
+                if (updateError) {
+                  console.error('      ❌ Error updating timestamp:', updateError);
+                } else {
+                  console.log('      ✅ Timestamp updated');
+                }
               }
               
               // Create live_order if we have a product
+              console.log('   └─ Step 2.3: Creating live_order...');
+              
               if (liveProductId && productData) {
                 const isOversell = (productData.sold_quantity || 0) >= (productData.prepared_quantity || 0);
                 
-                const { error: orderError } = await supabase
+                console.log('      ├─ live_product_id:', liveProductId);
+                console.log('      ├─ facebook_comment_id:', comment.id);
+                console.log('      ├─ order_code:', data.Code);
+                console.log('      ├─ tpos_order_id:', data.Id);
+                console.log('      ├─ is_oversell:', isOversell);
+                console.log('      └─ Inserting into live_orders...');
+                
+                const { data: newOrder, error: orderError } = await supabase
                   .from('live_orders')
                   .insert({
                     facebook_comment_id: comment.id,
@@ -677,27 +742,54 @@ serve(async (req) => {
                     order_code: data.Code || null,
                     is_oversell: isOversell,
                     tpos_order_id: data.Id?.toString() || null,
-                  });
+                  })
+                  .select('id')
+                  .single();
                 
                 if (orderError) {
-                  console.error(`❌ [CREATE LIVE PRODUCTS] Error creating live_order:`, orderError);
+                  console.error('      ❌ Error creating live_order:', orderError);
+                  console.error('         └─ Details:', JSON.stringify(orderError));
                 } else {
-                  console.log(`✅ [CREATE LIVE PRODUCTS] Created live_order`);
+                  console.log('      ✅ Created live_order:', newOrder.id);
+                  console.log('      └─ Step 2.4: Updating sold_quantity...');
+                  console.log('         ├─ Current sold_quantity:', productData.sold_quantity);
+                  console.log('         └─ New sold_quantity:', (productData.sold_quantity || 0) + 1);
                   
                   // Update sold_quantity
-                  await supabase
+                  const { error: updateError } = await supabase
                     .from('live_products')
                     .update({ sold_quantity: (productData.sold_quantity || 0) + 1 })
                     .eq('id', liveProductId);
+                  
+                  if (updateError) {
+                    console.error('         ❌ Error updating sold_quantity:', updateError);
+                  } else {
+                    console.log('         ✅ sold_quantity updated successfully');
+                  }
                 }
+              } else {
+                console.error('      ❌ Cannot create live_order - Missing data');
+                console.error('         ├─ liveProductId:', liveProductId || 'MISSING');
+                console.error('         └─ productData:', productData ? 'OK' : 'MISSING');
               }
+              
+              console.log(''); // Empty line for readability
             }
           }
         }
       } catch (liveError) {
-        console.error('❌ [CREATE LIVE PRODUCTS] Exception:', liveError);
+        console.error('❌ [CREATE LIVE PRODUCTS] Exception caught:', liveError);
+        if (liveError instanceof Error) {
+          console.error('   ├─ Error name:', liveError.name);
+          console.error('   ├─ Error message:', liveError.message);
+          console.error('   └─ Stack trace:', liveError.stack);
+        }
         // Don't throw - just log and continue
       }
+      
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('🏁 [CREATE LIVE PRODUCTS] Finished processing all products');
+      console.log('═══════════════════════════════════════════════════════════════');
 
       }
     } catch (dbError) {
