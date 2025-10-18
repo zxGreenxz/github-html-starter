@@ -186,13 +186,15 @@ const Settings = () => {
         return;
       }
       
-      // Get today's date range (00:00:00 to 23:59:59)
+      // Get today's date and apply TPOS datetime format
       const today = new Date();
-      const startDate = new Date(today.setHours(0, 0, 0, 0));
-      const endDate = new Date(today.setHours(23, 59, 59, 999));
+      const todayStr = today.toISOString().split('T')[0]; // Get YYYY-MM-DD
       
-      const startDateStr = startDate.toISOString();
-      const endDateStr = endDate.toISOString();
+      // Convert Vietnam date to TPOS datetime format
+      // Start of day in Vietnam (00:00 +07:00) = 17:00 same day UTC
+      // End of day in Vietnam (23:59:59 +07:00) = 16:59:59 same day UTC
+      const startDateStr = `${todayStr}T17:00:00+00:00`;
+      const endDateStr = `${todayStr}T16:59:59+00:00`;
       
       const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=${topValue}&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateStr} and DateCreated le ${endDateStr})&$count=true`;
       

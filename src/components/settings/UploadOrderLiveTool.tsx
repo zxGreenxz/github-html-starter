@@ -55,16 +55,14 @@ export const UploadOrderLiveTool = () => {
   const [updateResult, setUpdateResult] = useState<any>(null);
 
   const formatDateForAPI = (dateStr: string, isEndDate = false) => {
-    const date = new Date(dateStr);
-    
+    // Convert Vietnam date to TPOS datetime format
+    // Start of day in Vietnam (00:00 +07:00) = 17:00 same day UTC
+    // End of day in Vietnam (23:59:59 +07:00) = 16:59:59 same day UTC
     if (isEndDate) {
-      date.setHours(16, 59, 59, 0);
+      return `${dateStr}T16:59:59+00:00`;
     } else {
-      date.setHours(17, 0, 0, 0);
-      date.setDate(date.getDate() - 1);
+      return `${dateStr}T17:00:00+00:00`;
     }
-    
-    return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
   };
 
   const handleFetchOrders = async () => {
