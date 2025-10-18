@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
+import { getActivePrinter } from '@/lib/printer-utils';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -301,92 +302,142 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill using browser print dialog
+      // Auto-print bill using HTML → Canvas → Bitmap (silent print)
       if (billData) {
-        console.log("🖨️ Opening browser print dialog for bill");
-        const billHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <style>
-                @page {
-                  margin: 2mm;
-                }
-                body { 
-                  margin: 0; 
-                  padding: 2mm; 
-                  font-family: Tahoma, sans-serif;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 100vh;
-                }
-                .bill-container {
-                  display: flex;
-                  flex-direction: column;
-                  gap: 2mm;
-                  text-align: center;
-                  width: 100%;
-                }
-                .line1 {
-                  font-size: 28pt;
-                  font-weight: bold;
-                  line-height: 1.2;
-                }
-                .line1 .phone {
-                  font-size: 18pt;
-                  font-weight: bold;
-                }
-                .line2 {
-                  font-size: 28pt;
-                  font-weight: bold;
-                  line-height: 1.2;
-                }
-                .line3 {
-                  font-size: 14pt;
-                  font-weight: bold;
-                  line-height: 1.2;
-                }
-                .line4 {
-                  font-size: 28pt;
-                  font-weight: bold;
-                  font-style: italic;
-                  line-height: 1.2;
-                }
-                .line5 {
-                  font-size: 7pt;
-                  font-weight: bold;
-                  line-height: 1.2;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="bill-container">
-                <div class="line1">#${billData.sessionIndex} - <span class="phone">${billData.phone || 'Chưa có SĐT'}</span></div>
-                <div class="line2">${billData.customerName}</div>
-                <div class="line3">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
-                ${billData.comment ? `<div class="line4">${billData.comment}</div>` : ''}
-                <div class="line5">${new Date(billData.createdTime).toLocaleString('vi-VN', {
-            timeZone: 'Asia/Bangkok',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}</div>
+        const activePrinter = getActivePrinter();
+        if (activePrinter) {
+          try {
+            console.log('🖨️ [Silent Print] Starting HTML to bitmap conversion...');
+            
+            // Dynamic import html2canvas
+            const html2canvas = (await import('html2canvas')).default;
+            
+            // Create bill HTML element
+            const billElement = document.createElement('div');
+            billElement.style.cssText = `
+              position: absolute;
+              left: -9999px;
+              width: 384px;
+              padding: 10px;
+              font-family: Arial, sans-serif;
+              background: white;
+              color: black;
+            `;
+            
+            billElement.innerHTML = `
+              <div style="display: flex; flex-direction: column; gap: 8px; text-align: center;">
+                <div style="font-size: 32px; font-weight: bold;">#${billData.sessionIndex}</div>
+                <div style="font-size: 24px; font-weight: bold;">${billData.phone || 'Chưa có SĐT'}</div>
+                <div style="font-size: 28px; font-weight: bold;">${billData.customerName}</div>
+                <div style="font-size: 16px; font-weight: bold;">${billData.productCode}</div>
+                <div style="font-size: 16px;">${billData.productName.replace(/^\d+\s+/, '')}</div>
+                ${billData.comment ? `<div style="font-size: 28px; font-weight: bold; font-style: italic;">${billData.comment}</div>` : ''}
+                <div style="font-size: 10px; font-weight: bold; margin-top: 8px;">
+                  ${new Date(billData.createdTime).toLocaleString('vi-VN', {
+                    timeZone: 'Asia/Bangkok',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
               </div>
-            </body>
-            </html>
-          `;
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          printWindow.document.write(billHtml);
-          printWindow.document.close();
-          printWindow.focus();
-          printWindow.onload = () => {
-            printWindow.print();
-          };
+            `;
+            
+            document.body.appendChild(billElement);
+            
+            // Convert HTML to Canvas
+            const canvas = await html2canvas(billElement, {
+              backgroundColor: '#ffffff',
+              scale: 1,
+              logging: false,
+              width: 384,
+            });
+            
+            document.body.removeChild(billElement);
+            
+            console.log(`✅ [Silent Print] Canvas created: ${canvas.width}x${canvas.height}`);
+            
+            // Convert canvas to monochrome bitmap
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Could not get canvas context');
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const bytesPerLine = Math.ceil(canvas.width / 8);
+            const totalBytes = bytesPerLine * canvas.height;
+            const monoData = new Uint8Array(totalBytes);
+            
+            // Convert to 1-bit monochrome
+            for (let y = 0; y < canvas.height; y++) {
+              for (let x = 0; x < canvas.width; x++) {
+                const pixelIndex = (y * canvas.width + x) * 4;
+                const r = imageData.data[pixelIndex];
+                const g = imageData.data[pixelIndex + 1];
+                const b = imageData.data[pixelIndex + 2];
+                const gray = (r + g + b) / 3;
+                const isBlack = gray < 128 ? 1 : 0;
+                
+                const byteIndex = y * bytesPerLine + Math.floor(x / 8);
+                const bitIndex = 7 - (x % 8);
+                
+                if (isBlack) {
+                  monoData[byteIndex] |= (1 << bitIndex);
+                }
+              }
+            }
+            
+            // Encode to ESC/POS format
+            const header = new Uint8Array([
+              0x1D, 0x76, 0x30,
+              0x00,
+              bytesPerLine & 0xFF,
+              (bytesPerLine >> 8) & 0xFF,
+              canvas.height & 0xFF,
+              (canvas.height >> 8) & 0xFF
+            ]);
+            
+            const cutCommands = new Uint8Array([
+              0x1B, 0x64, 0x03,
+              0x1D, 0x56, 0x42
+            ]);
+            
+            const bitmapData = new Uint8Array(header.length + monoData.length + cutCommands.length);
+            bitmapData.set(header, 0);
+            bitmapData.set(monoData, header.length);
+            bitmapData.set(cutCommands, header.length + monoData.length);
+            
+            // Send to printer
+            const base64Data = btoa(String.fromCharCode(...bitmapData));
+            const bridgeUrl = activePrinter.bridge_url.replace(/\/$/, '');
+            const response = await fetch(`${bridgeUrl}/print/bitmap`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ip: activePrinter.ip,
+                port: activePrinter.port,
+                data: base64Data
+              })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+              console.log('✅ [Silent Print] Bill printed successfully');
+            } else {
+              throw new Error(result.error || 'Print failed');
+            }
+            
+          } catch (error) {
+            console.error('❌ [Silent Print] Error:', error);
+            toast({
+              title: "⚠️ Lỗi in bill",
+              description: error instanceof Error ? error.message : "Unknown error",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.log('⚠️ [Silent Print] No active printer found');
         }
       }
       const isManualEntry = !billData;
