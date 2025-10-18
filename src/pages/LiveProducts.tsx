@@ -704,11 +704,9 @@ export default function LiveProducts() {
       if (ordersError) throw ordersError;
       if (!ordersData || ordersData.length === 0) return [];
       
-      // Sort orders by order_code numerically (ascending)
+      // Sort orders by session_index numerically (ascending)
       const sortedOrdersData = [...ordersData].sort((a, b) => {
-        const numA = parseInt(a.order_code, 10) || 0;
-        const numB = parseInt(b.order_code, 10) || 0;
-        return numA - numB;
+        return a.session_index - b.session_index;
       });
       
       // Collect all facebook_comment_ids
@@ -1708,14 +1706,14 @@ export default function LiveProducts() {
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
                                                       <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => handleEditOrderItem(order)}>
-                                                        {order.order_code}
+                                                        {order.session_index}
                                                         {isOversell && " ⚠️"}
                                                         {order.uploaded_at && " ✓"}
                                                       </Badge>
                                                     </TooltipTrigger>
                                                     <TooltipContent>
                                                       <div className="text-xs">
-                                                        <div>Mã: {order.order_code}</div>
+                                                        <div>Mã: {order.session_index}</div>
                                                         <div>SL: {order.quantity}</div>
                                                         {isOversell && <div className="text-red-500 font-semibold">⚠️ Vượt số lượng chuẩn bị</div>}
                                                         {order.uploaded_at && <div className="text-green-600 font-semibold">
@@ -1883,13 +1881,13 @@ export default function LiveProducts() {
                                   return <TooltipProvider key={order.id}>
                                             <Tooltip>
                                               <TooltipTrigger asChild>
-                                                <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
-                                                  {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
-                                                  {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
-                                                </Badge>
-                                              </TooltipTrigger>
-                                              <TooltipContent>
-                                                <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.order_code} - SL: ${order.quantity}`}</p>
+                                              <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
+                                                {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
+                                                {order.quantity === 1 ? order.session_index : `${order.session_index} x${order.quantity}`}
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.session_index} - SL: ${order.quantity}`}</p>
                                               </TooltipContent>
                                             </Tooltip>
                                           </TooltipProvider>;
@@ -1989,13 +1987,13 @@ export default function LiveProducts() {
                                 return <TooltipProvider key={order.id}>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
-                                                {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
-                                                {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
-                                              </Badge>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.order_code} - SL: ${order.quantity}`}</p>
+                                            <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
+                                              {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
+                                              {order.quantity === 1 ? order.session_index : `${order.session_index} x${order.quantity}`}
+                                            </Badge>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.session_index} - SL: ${order.quantity}`}</p>
                                             </TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>;
@@ -2188,15 +2186,15 @@ export default function LiveProducts() {
               </TableHeader>
               <TableBody>
                 {(() => {
-                  // Group orders by order_code and calculate rowSpan
-                  const orderGroups = new Map<string, number>();
+                  // Group orders by session_index and calculate rowSpan
+                  const orderGroups = new Map<number, number>();
                   ordersWithProducts.forEach(order => {
-                    const count = orderGroups.get(order.order_code) || 0;
-                    orderGroups.set(order.order_code, count + 1);
+                    const count = orderGroups.get(order.session_index) || 0;
+                    orderGroups.set(order.session_index, count + 1);
                   });
 
-                  // Track which order_code we've already rendered the first row for
-                  const renderedFirstRow = new Set<string>();
+                  // Track which session_index we've already rendered the first row for
+                  const renderedFirstRow = new Set<number>();
 
                   return ordersWithProducts.map((order, index) => {
                     const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
@@ -2204,27 +2202,27 @@ export default function LiveProducts() {
                       ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
                       : '';
                     
-                    // Check if this is the first row for this order_code
-                    const isFirstRowForOrderCode = !renderedFirstRow.has(order.order_code);
-                    if (isFirstRowForOrderCode) {
-                      renderedFirstRow.add(order.order_code);
+                    // Check if this is the first row for this session_index
+                    const isFirstRowForSessionIndex = !renderedFirstRow.has(order.session_index);
+                    if (isFirstRowForSessionIndex) {
+                      renderedFirstRow.add(order.session_index);
                     }
                     
-                    const rowSpan = orderGroups.get(order.order_code) || 1;
+                    const rowSpan = orderGroups.get(order.session_index) || 1;
                     
                     return (
                   <TableRow 
                     key={order.id}
                     className={`h-12 ${bgColorClass}`}
                   >
-                        {/* Chỉ render cột Mã đơn cho dòng đầu tiên của mỗi order_code */}
-                        {isFirstRowForOrderCode && (
+                        {/* Chỉ render cột SessionIndex cho dòng đầu tiên của mỗi session_index */}
+                        {isFirstRowForSessionIndex && (
                           <TableCell 
                             className="border-r border-l text-center align-top" 
                             rowSpan={rowSpan}
                           >
                             <Badge className="text-sm font-mono">
-                              {order.order_code}
+                              {order.session_index}
                             </Badge>
                           </TableCell>
                         )}
@@ -2488,7 +2486,7 @@ export default function LiveProducts() {
                                                   className={`cursor-pointer text-xs ${customerStatusColor}`}
                                                   onClick={() => handleEditOrderItem(order)}
                                                 >
-                                                  {order.order_code}
+                                                  {order.session_index}
                                                   {order.quantity > 1 && ` x${order.quantity}`}
                                                   {isOversell && " ⚠️"}
                                                   {order.uploaded_at && " ✓"}
@@ -2496,7 +2494,7 @@ export default function LiveProducts() {
                                               </TooltipTrigger>
                                               <TooltipContent>
                                                 <div className="text-xs">
-                                                  <div>Mã: {order.order_code}</div>
+                                                  <div>Mã: {order.session_index}</div>
                                                   <div>SL: {order.quantity}</div>
                                                   {order.note && <div>Ghi chú: {order.note}</div>}
                                                   {isOversell && (

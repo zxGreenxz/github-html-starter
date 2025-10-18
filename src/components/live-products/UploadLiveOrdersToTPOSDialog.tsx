@@ -395,19 +395,19 @@ export function UploadLiveOrdersToTPOSDialog({
                   </TableRow>
                 ) : (
                   flattenedProducts.map((product, index) => {
-                    const isFirstInOrderGroup = index === 0 || 
-                      flattenedProducts[index - 1].order_code !== product.order_code;
-                    const rowSpan = orderCodeRowSpans.get(product.order_code) || 1;
+                    const isFirstInSessionGroup = index === 0 || 
+                      flattenedProducts[index - 1].session_index !== product.session_index;
+                    const rowSpan = sessionIndexRowSpans.get(product.session_index) || 1;
 
                     return (
                       <TableRow key={product.uniqueKey}>
-                        {/* Merge Mã đơn cell */}
-                        {isFirstInOrderGroup && (
+                        {/* Merge SessionIndex cell */}
+                        {isFirstInSessionGroup && (
                           <TableCell 
                             className="font-medium align-top border-r" 
                             rowSpan={rowSpan}
                           >
-                            {product.order_code}
+                            {product.session_index}
                           </TableCell>
                         )}
                         
@@ -425,15 +425,15 @@ export function UploadLiveOrdersToTPOSDialog({
                           </div>
                         </TableCell>
                         
-                        {/* Tổng SL - merge cho order_code */}
-                        {isFirstInOrderGroup && (
+                        {/* Tổng SL - merge cho session_index */}
+                        {isFirstInSessionGroup && (
                           <TableCell 
                             className="text-center align-top border-r" 
                             rowSpan={rowSpan}
                           >
                             <Badge variant="outline">
                               {flattenedProducts
-                                .filter(p => p.order_code === product.order_code)
+                                .filter(p => p.session_index === product.session_index)
                                 .reduce((sum, p) => sum + p.quantity, 0)}
                             </Badge>
                           </TableCell>
@@ -450,10 +450,10 @@ export function UploadLiveOrdersToTPOSDialog({
                           </div>
                         </TableCell>
                         
-                        {/* Trạng thái - merge cho order_code */}
-                        {isFirstInOrderGroup && (
+                        {/* Trạng thái - merge cho session_index */}
+                        {isFirstInSessionGroup && (
                           <TableCell className="align-top border-r" rowSpan={rowSpan}>
-                            {renderUploadStatus(product.order_code)}
+                            {renderUploadStatus(product.session_index)}
                           </TableCell>
                         )}
                         

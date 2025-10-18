@@ -460,7 +460,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
           </Button>
           <Button 
             onClick={handleUploadSelected} 
-            disabled={selectedOrderCodes.size === 0 || isUploading}
+            disabled={selectedSessionIndexes.size === 0 || isUploading}
           >
             {isUploading ? (
               <>
@@ -470,7 +470,7 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
             ) : (
               <>
                 <Upload className="mr-2 h-4 w-4" />
-                Upload đã chọn ({selectedOrderCodes.size})
+                Upload đã chọn ({selectedSessionIndexes.size})
               </>
             )}
           </Button>
