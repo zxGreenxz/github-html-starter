@@ -63,6 +63,14 @@ async function fetchTPOSOrders(
   return queryWithAutoRefresh(async () => {
     const filterQuery = `DateCreated ge ${startDate} and DateCreated le ${endDate} and SessionIndex eq ${sessionIndex}`;
     const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$filter=${encodeURIComponent(filterQuery)}&$orderby=DateCreated desc&$top=50`;
+    
+    console.log('📡 [DEBUG] TPOS API Request:', {
+      url,
+      filterQuery,
+      startDate,
+      endDate,
+      sessionIndex,
+    });
 
     const response = await fetch(url, {
       method: 'GET',
@@ -79,6 +87,17 @@ async function fetchTPOSOrders(
     }
 
     const data = await response.json();
+    
+    console.log('✅ [DEBUG] TPOS API Response:', {
+      ordersCount: data.value?.length || 0,
+      orders: data.value?.map((o: any) => ({
+        Id: o.Id,
+        Code: o.Code,
+        DateCreated: o.DateCreated,
+        SessionIndex: o.SessionIndex,
+      })) || [],
+    });
+    
     return data.value || [];
   }, 'tpos');
 }
@@ -208,6 +227,13 @@ export async function uploadOrderToTPOS(
     // Step 1: Fetch TPOS Orders
     params.onProgress?.(1, `Đang tìm đơn hàng TPOS từ ${params.sessionInfo.start_date} đến ${params.sessionInfo.end_date}...`);
     
+    console.log('🔍 [DEBUG] Fetching TPOS orders with params:', {
+      start_date: params.sessionInfo.start_date,
+      end_date: params.sessionInfo.end_date,
+      session_index: params.sessionInfo.session_index,
+      orderCode: params.orderCode,
+    });
+    
     const tposOrders = await fetchTPOSOrders(
       params.sessionInfo.start_date,
       params.sessionInfo.end_date,
@@ -216,6 +242,12 @@ export async function uploadOrderToTPOS(
     );
 
     if (tposOrders.length === 0) {
+      console.error('❌ [DEBUG] No TPOS orders found!', {
+        start_date: params.sessionInfo.start_date,
+        end_date: params.sessionInfo.end_date,
+        session_index: params.sessionInfo.session_index,
+        tposOrders,
+      });
       throw new Error("Không tìm thấy đơn hàng TPOS trong khoảng thời gian này");
     }
 

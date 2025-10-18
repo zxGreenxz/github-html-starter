@@ -182,6 +182,16 @@ export function UploadLiveOrdersToTPOSDialog({
       try {
         const sessionIndex = parseInt(orderCode);
         
+        console.log('🚀 [DEBUG] Upload params:', {
+          orderCode,
+          productsCount: products.length,
+          sessionInfo: {
+            start_date: sessionData.start_date,
+            end_date: sessionData.end_date,
+            session_index: sessionIndex,
+          },
+        });
+        
         const result = await uploadOrderToTPOS({
           orderCode,
           products: products.map(p => ({
