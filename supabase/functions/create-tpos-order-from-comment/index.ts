@@ -606,6 +606,7 @@ serve(async (req) => {
               console.log(`\n🔍 [CREATE LIVE PRODUCTS] [${i+1}/${productCodes.length}] Processing: "${productCode}"`);
               console.log('   ├─ live_session_id:', targetPhase.live_session_id);
               console.log('   ├─ live_phase_id:', targetPhase.id);
+              console.log('   ├─ facebook_comment_id:', comment.id);
               console.log('   └─ Checking if product exists...');
               
               // Check if live_product already exists
@@ -614,7 +615,7 @@ serve(async (req) => {
                 .select('id, sold_quantity, prepared_quantity, product_code, variant')
                 .eq('live_session_id', targetPhase.live_session_id)
                 .eq('live_phase_id', targetPhase.id)
-                .ilike('variant', `%${productCode}%`)
+                .eq('product_code', productCode)
                 .maybeSingle();
               
               if (checkError) {
@@ -763,53 +764,69 @@ serve(async (req) => {
               }
               
               // Create live_order if we have a product
-              console.log('   └─ Step 2.3: Creating live_order...');
+              console.log('   └─ Step 2.3: Checking if live_order already exists...');
               
               if (liveProductId && productData) {
-                const isOversell = (productData.sold_quantity || 0) >= (productData.prepared_quantity || 0);
-                
-                console.log('      ├─ live_product_id:', liveProductId);
-                console.log('      ├─ facebook_comment_id:', comment.id);
-                console.log('      ├─ session_index:', data.SessionIndex);
-                console.log('      ├─ tpos_order_code:', data.Code);
-                console.log('      ├─ tpos_order_id:', data.Id);
-                console.log('      ├─ is_oversell:', isOversell);
-                console.log('      └─ Inserting into live_orders...');
-                
-                const { data: newOrder, error: orderError } = await supabase
+                // Check if live_order already exists for this comment + product
+                const { data: existingOrder } = await supabase
                   .from('live_orders')
-                  .insert({
-                    facebook_comment_id: comment.id,
-                    live_product_id: liveProductId,
-                    live_session_id: targetPhase.live_session_id,
-                    live_phase_id: targetPhase.id,
-                    session_index: data.SessionIndex || null,
-                    is_oversell: isOversell,
-                    tpos_order_id: data.Id?.toString() || null,
-                    code_tpos_order_id: data.Code || null,
-                  })
                   .select('id')
-                  .single();
+                  .eq('facebook_comment_id', comment.id)
+                  .eq('live_product_id', liveProductId)
+                  .maybeSingle();
                 
-                if (orderError) {
-                  console.error('      ❌ Error creating live_order:', orderError);
-                  console.error('         └─ Details:', JSON.stringify(orderError));
+                if (existingOrder) {
+                  console.log('      ⚠️ live_order already exists:', existingOrder.id);
+                  console.log('      └─ Skipping creation...');
                 } else {
-                  console.log('      ✅ Created live_order:', newOrder.id);
-                  console.log('      └─ Step 2.4: Updating sold_quantity...');
-                  console.log('         ├─ Current sold_quantity:', productData.sold_quantity);
-                  console.log('         └─ New sold_quantity:', (productData.sold_quantity || 0) + 1);
+                  console.log('      ⚠️ live_order does not exist');
+                  console.log('      └─ Creating new live_order...');
                   
-                  // Update sold_quantity
-                  const { error: updateError } = await supabase
-                    .from('live_products')
-                    .update({ sold_quantity: (productData.sold_quantity || 0) + 1 })
-                    .eq('id', liveProductId);
+                  const isOversell = (productData.sold_quantity || 0) >= (productData.prepared_quantity || 0);
                   
-                  if (updateError) {
-                    console.error('         ❌ Error updating sold_quantity:', updateError);
+                  console.log('         ├─ live_product_id:', liveProductId);
+                  console.log('         ├─ facebook_comment_id:', comment.id);
+                  console.log('         ├─ session_index:', data.SessionIndex);
+                  console.log('         ├─ tpos_order_code:', data.Code);
+                  console.log('         ├─ tpos_order_id:', data.Id);
+                  console.log('         ├─ is_oversell:', isOversell);
+                  console.log('         └─ Inserting into live_orders...');
+                  
+                  const { data: newOrder, error: orderError } = await supabase
+                    .from('live_orders')
+                    .insert({
+                      facebook_comment_id: comment.id,
+                      live_product_id: liveProductId,
+                      live_session_id: targetPhase.live_session_id,
+                      live_phase_id: targetPhase.id,
+                      session_index: data.SessionIndex || null,
+                      is_oversell: isOversell,
+                      tpos_order_id: data.Id?.toString() || null,
+                      code_tpos_order_id: data.Code || null,
+                    })
+                    .select('id')
+                    .single();
+                  
+                  if (orderError) {
+                    console.error('         ❌ Error creating live_order:', orderError);
+                    console.error('            └─ Details:', JSON.stringify(orderError));
                   } else {
-                    console.log('         ✅ sold_quantity updated successfully');
+                    console.log('         ✅ Created live_order:', newOrder.id);
+                    console.log('         └─ Step 2.4: Updating sold_quantity...');
+                    console.log('            ├─ Current sold_quantity:', productData.sold_quantity);
+                    console.log('            └─ New sold_quantity:', (productData.sold_quantity || 0) + 1);
+                    
+                    // Update sold_quantity
+                    const { error: updateError } = await supabase
+                      .from('live_products')
+                      .update({ sold_quantity: (productData.sold_quantity || 0) + 1 })
+                      .eq('id', liveProductId);
+                    
+                    if (updateError) {
+                      console.error('            ❌ Error updating sold_quantity:', updateError);
+                    } else {
+                      console.log('            ✅ sold_quantity updated successfully');
+                    }
                   }
                 }
               } else {
