@@ -646,11 +646,11 @@ serve(async (req) => {
                 console.log('   └─ Step 2.1: Searching in products table (local inventory)...');
                 
                 // Try to find in products table first
-                const { data: inventoryProduct, error: invError } = await supabase
-                  .from('products')
-                  .select('product_code, product_name, variant, tpos_image_url, tpos_product_id')
-                  .eq('product_code', productCode)
-                  .maybeSingle();
+      const { data: inventoryProduct, error: invError } = await supabase
+        .from('products')
+        .select('product_code, product_name, variant, tpos_image_url, tpos_product_id, product_images')
+        .eq('product_code', productCode)
+        .maybeSingle();
                 
                 if (invError) {
                   console.error('      ❌ Error searching products table:', invError);
@@ -663,6 +663,7 @@ serve(async (req) => {
                   console.log('         ├─ Code:', inventoryProduct.product_code);
                   console.log('         ├─ Name:', inventoryProduct.product_name?.substring(0, 60));
                   console.log('         ├─ Variant:', inventoryProduct.variant);
+                  console.log('         ├─ Product Images:', inventoryProduct.product_images?.length || 0, 'image(s)');
                   console.log('         └─ TPOS Image:', inventoryProduct.tpos_image_url ? 'Yes' : 'No');
                   
                   console.log('      └─ Step 2.2: Creating live_product from inventory...');
@@ -679,7 +680,9 @@ serve(async (req) => {
                       product_type: commentType === 'hang_dat' ? 'hang_dat' : 'hang_le',
                       prepared_quantity: 0,
                       sold_quantity: 0,
-                      image_url: inventoryProduct.tpos_image_url || null
+          image_url: (inventoryProduct.product_images && inventoryProduct.product_images.length > 0) 
+            ? inventoryProduct.product_images[0]  // ✅ Ưu tiên ảnh Supabase
+            : inventoryProduct.tpos_image_url || null  // Fallback TPOS
                     })
                     .select('id, sold_quantity, prepared_quantity, product_code, variant')
                     .single();
