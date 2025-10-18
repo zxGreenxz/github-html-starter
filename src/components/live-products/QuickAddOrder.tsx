@@ -10,8 +10,6 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
-import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
 interface QuickAddOrderProps {
@@ -303,56 +301,10 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill using PDF template
+      // Auto-print bill using browser print dialog
       if (billData) {
-        const activePrinter = getActivePrinter();
-        if (activePrinter) {
-          try {
-            console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
-            
-            // Load saved template from localStorage
-            const savedTemplate = localStorage.getItem('billTemplate');
-            const { DEFAULT_BILL_TEMPLATE } = await import('@/types/bill-template');
-            const { generateBillPDF } = await import('@/lib/bill-pdf-generator');
-            const template = savedTemplate 
-              ? JSON.parse(savedTemplate) 
-              : DEFAULT_BILL_TEMPLATE;
-            
-            // Generate PDF
-            const pdf = generateBillPDF(template, {
-              sessionIndex: billData.sessionIndex,
-              phone: billData.phone,
-              customerName: billData.customerName,
-              productCode: billData.productCode,
-              productName: billData.productName,
-              comment: billData.comment,
-              createdTime: billData.createdTime,
-            });
-            
-            const pdfDataUri = pdf.output('datauristring');
-            console.log('✅ PDF generated, converting to bitmap...');
-            
-            // Print via bitmap conversion (automated, no user interaction)
-            const printResult = await printPDFToXC80(activePrinter, pdfDataUri);
-            
-            if (printResult.success) {
-              console.log("✅ Bill printed successfully");
-            } else {
-              throw new Error(printResult.error);
-            }
-            
-          } catch (error) {
-            console.error('❌ Auto-print error:', error);
-            toast({
-              title: "⚠️ Lỗi in bill tự động",
-              description: error instanceof Error ? error.message : "Unknown error",
-              variant: "destructive"
-            });
-          }
-        } else {
-          // Fallback: Browser print dialog nếu không có máy in active
-          console.log("⚠️ No active printer found, using browser dialog");
-          const billHtml = `
+        console.log("🖨️ Opening browser print dialog for bill");
+        const billHtml = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -427,15 +379,14 @@ export function QuickAddOrder({
             </body>
             </html>
           `;
-          const printWindow = window.open('', '_blank', 'width=400,height=600');
-          if (printWindow) {
-            printWindow.document.write(billHtml);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.onload = () => {
-              printWindow.print();
-            };
-          }
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (printWindow) {
+          printWindow.document.write(billHtml);
+          printWindow.document.close();
+          printWindow.focus();
+          printWindow.onload = () => {
+            printWindow.print();
+          };
         }
       }
       const isManualEntry = !billData;
