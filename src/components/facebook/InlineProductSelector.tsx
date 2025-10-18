@@ -9,6 +9,7 @@ import type { FacebookComment } from "@/types/facebook";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
+import { toVietnamTime, nowVietnamISO } from "@/lib/date-utils";
 import {
   DndContext,
   closestCenter,
@@ -48,9 +49,11 @@ interface InlineProductSelectorProps {
 }
 
 const formatTimeDiff = (commentTime: string, scanTime: string): string => {
-  const diff = Math.abs(
-    new Date(commentTime).getTime() - new Date(scanTime).getTime()
-  );
+  // Convert both times to GMT+7 before calculating difference
+  const commentVN = toVietnamTime(commentTime);
+  const scanVN = toVietnamTime(scanTime);
+  
+  const diff = Math.abs(commentVN.getTime() - scanVN.getTime());
   const seconds = Math.floor(diff / 1000);
   
   if (seconds === 0) return "0s";
@@ -300,7 +303,7 @@ export function InlineProductSelector({
     if (onAddToScannedList) {
       const scannedProduct: ScannedBarcode = {
         code: product.product_code,
-        timestamp: new Date().toISOString(),
+        timestamp: nowVietnamISO(),
         productInfo: {
           id: product.id,
           name: product.product_name,
