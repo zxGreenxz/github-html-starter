@@ -288,7 +288,7 @@ serve(async (req) => {
   let payload: any = null;
 
   try {
-    const { comment, video, commentType } = await req.json();
+    const { comment, video, commentType, selectedSession, selectedPhase } = await req.json();
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -520,6 +520,144 @@ serve(async (req) => {
       }
     } catch (dbError) {
       console.error('Exception saving to database:', dbError);
+    }
+
+    // ===== AUTO-CREATE LIVE PRODUCTS & ORDERS =====
+    console.log('🚀 Starting auto-creation of live_products and live_orders...');
+    
+    try {
+      // Validate session and phase
+      if (!selectedSession || !selectedPhase || selectedPhase === 'all') {
+        console.log('⚠️ No valid session/phase selected, skipping auto-creation');
+        return new Response(JSON.stringify({ payload, response: data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`✅ Using session: ${selectedSession}, phase: ${selectedPhase}`);
+
+      // Process each product code
+      for (const productCode of productCodes) {
+        console.log(`\n📦 Processing: ${productCode}`);
+
+        // Find product info from inventory
+        const { data: productInfo, error: productError } = await supabase
+          .from('products')
+          .select('product_name, variant, product_images, base_product_code')
+          .eq('product_code', productCode)
+          .maybeSingle();
+
+        if (productError || !productInfo) {
+          console.log(`❌ Product ${productCode} not found in inventory, skipping`);
+          continue;
+        }
+
+        console.log(`✅ Found: ${productInfo.product_name}`);
+
+        // Check if live_product exists
+        const { data: existingLiveProduct } = await supabase
+          .from('live_products')
+          .select('id, sold_quantity, prepared_quantity')
+          .eq('product_code', productCode)
+          .eq('live_session_id', selectedSession)
+          .eq('live_phase_id', selectedPhase)
+          .maybeSingle();
+
+        let liveProductId: string;
+
+        if (existingLiveProduct) {
+          console.log(`✓ Live product exists (ID: ${existingLiveProduct.id})`);
+          liveProductId = existingLiveProduct.id;
+        } else {
+          // Create new live_product with prepared_quantity = 1
+          console.log(`➕ Creating new live_product...`);
+
+          const { data: newLiveProduct, error: insertError } = await supabase
+            .from('live_products')
+            .insert({
+              product_code: productCode,
+              product_name: productInfo.product_name,
+              variant: productInfo.variant,
+              image_url: productInfo.product_images?.[0] || null,
+              base_product_code: productInfo.base_product_code || productCode.replace(/[A-Z]+$/, ''),
+              live_session_id: selectedSession,
+              live_phase_id: selectedPhase,
+              prepared_quantity: 1,
+              sold_quantity: 0,
+              product_type: 'hang_dat',
+            })
+            .select('id')
+            .single();
+
+          if (insertError || !newLiveProduct) {
+            console.error(`❌ Failed to create live_product: ${insertError}`);
+            continue;
+          }
+
+          liveProductId = newLiveProduct.id;
+          console.log(`✅ Created (ID: ${liveProductId})`);
+        }
+
+        // Check for duplicate live_order
+        const { data: existingOrder } = await supabase
+          .from('live_orders')
+          .select('id')
+          .eq('facebook_comment_id', comment.id)
+          .eq('live_product_id', liveProductId)
+          .maybeSingle();
+
+        if (existingOrder) {
+          console.log(`✓ Order exists for this comment + product, skipping`);
+          continue;
+        }
+
+        // Create live_order
+        console.log(`➕ Creating live_order...`);
+
+        // Get current product data for oversell check
+        const { data: currentProduct } = await supabase
+          .from('live_products')
+          .select('sold_quantity, prepared_quantity')
+          .eq('id', liveProductId)
+          .single();
+
+        const newSoldQuantity = (currentProduct?.sold_quantity || 0) + 1;
+        const isOversell = newSoldQuantity > (currentProduct?.prepared_quantity || 0);
+
+        const { error: orderError } = await supabase
+          .from('live_orders')
+          .insert({
+            order_code: data.SessionIndex?.toString() || 'AUTO',
+            facebook_comment_id: comment.id,
+            tpos_order_id: data.Code || null,
+            code_tpos_order_id: data.Id?.toString() || null,
+            live_session_id: selectedSession,
+            live_phase_id: selectedPhase,
+            live_product_id: liveProductId,
+            quantity: 1,
+            is_oversell: isOversell,
+          });
+
+        if (orderError) {
+          console.error(`❌ Failed to create live_order: ${orderError}`);
+          continue;
+        }
+
+        console.log(`✅ Created live_order (oversell: ${isOversell})`);
+
+        // Update sold_quantity
+        await supabase
+          .from('live_products')
+          .update({ sold_quantity: newSoldQuantity })
+          .eq('id', liveProductId);
+
+        console.log(`✅ Updated sold_quantity → ${newSoldQuantity}`);
+      }
+
+      console.log('\n🎉 Auto-creation completed!');
+    } catch (autoCreateError) {
+      console.error('❌ Error during auto-creation:', autoCreateError);
+      // Don't throw - TPOS order was already created successfully
     }
 
     // Return both payload and response

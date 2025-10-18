@@ -2627,7 +2627,7 @@ export default function LiveProducts() {
 
       {/* Comments Sidebar - outside content wrapper */}
       {commentsVideoId && <CommentsSidebar isOpen={isCommentsPanelOpen} onClose={() => setIsCommentsPanelOpen(false)}>
-          <LiveCommentsPanel pageId={commentsPageId} videoId={commentsVideoId} comments={comments} ordersData={ordersData} newCommentIds={newCommentIds} showOnlyWithOrders={showOnlyWithOrders} hideNames={hideNames} isLoading={commentsLoading || isFetchingNextPage} onLoadMore={() => fetchNextPage()} hasMore={hasNextPage} onRefresh={refetchComments} />
+          <LiveCommentsPanel pageId={commentsPageId} videoId={commentsVideoId} comments={comments} ordersData={ordersData} newCommentIds={newCommentIds} showOnlyWithOrders={showOnlyWithOrders} hideNames={hideNames} isLoading={commentsLoading || isFetchingNextPage} onLoadMore={() => fetchNextPage()} hasMore={hasNextPage} onRefresh={refetchComments} selectedSession={selectedSession} selectedPhase={selectedPhase} />
         </CommentsSidebar>}
     </div>;
 }

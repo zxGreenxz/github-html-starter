@@ -35,6 +35,8 @@ interface LiveCommentsPanelProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   onRefresh?: () => void;
+  selectedSession?: string;
+  selectedPhase?: string;
 }
 
 export function LiveCommentsPanel({
@@ -49,6 +51,8 @@ export function LiveCommentsPanel({
   onLoadMore,
   hasMore,
   onRefresh,
+  selectedSession,
+  selectedPhase,
 }: LiveCommentsPanelProps) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -389,7 +393,9 @@ export function LiveCommentsPanel({
           },
           body: JSON.stringify({ 
             comment, 
-            video: { objectId: videoId } 
+            video: { objectId: videoId },
+            selectedSession,
+            selectedPhase
           }),
         }
       );
