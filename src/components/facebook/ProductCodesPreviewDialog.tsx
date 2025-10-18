@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,19 +34,36 @@ export function ProductCodesPreviewDialog({
   const [productCodes, setProductCodes] = useState<string[]>(initialCodes);
   const [newCode, setNewCode] = useState("");
 
+  // ✅ Sync productCodes state when initialCodes changes
+  useEffect(() => {
+    console.log('🔄 [PREVIEW DIALOG] initialCodes changed:', initialCodes);
+    setProductCodes(initialCodes);
+  }, [initialCodes]);
+
+  // ✅ Reset newCode input when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setNewCode("");
+      console.log('🔒 [PREVIEW DIALOG] Dialog closed, reset newCode');
+    }
+  }, [open]);
+
   const handleAddCode = () => {
     const trimmed = newCode.trim().toUpperCase();
     if (trimmed && !productCodes.includes(trimmed)) {
+      console.log('➕ [PREVIEW DIALOG] Adding code:', trimmed);
       setProductCodes([...productCodes, trimmed]);
       setNewCode("");
     }
   };
 
   const handleRemoveCode = (code: string) => {
+    console.log('➖ [PREVIEW DIALOG] Removing code:', code);
     setProductCodes(productCodes.filter(c => c !== code));
   };
 
   const handleConfirm = () => {
+    console.log('✅ [PREVIEW DIALOG] Confirm clicked with codes:', productCodes);
     onConfirm(productCodes);
     onOpenChange(false);
   };

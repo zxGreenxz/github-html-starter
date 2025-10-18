@@ -1238,8 +1238,15 @@ export function FacebookCommentsManager({
   const handleCreateOrderClick = (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
     if (!selectedVideo) return;
     
+    console.log('🔍 [FRONTEND] handleCreateOrderClick called');
+    console.log('   - Comment ID:', comment.id);
+    console.log('   - Comment message:', comment.message);
+    
     // Extract product codes from comment message
     const extractedCodes = extractProductCodesFromMessage(comment.message || "");
+    
+    console.log('   - Extracted codes:', extractedCodes);
+    console.log('   - Previous previewDialogData:', previewDialogData);
     
     // Show preview dialog
     setPreviewDialogData({
@@ -1249,12 +1256,32 @@ export function FacebookCommentsManager({
       extractedCodes,
     });
     setPreviewDialogOpen(true);
+    
+    console.log('   - Set new previewDialogData with codes:', extractedCodes);
   };
 
   const handleConfirmCreateOrder = (productCodes: string[]) => {
-    if (!previewDialogData) return;
+    if (!previewDialogData) {
+      console.error('❌ [FRONTEND] No previewDialogData available!');
+      return;
+    }
     
     console.log('✅ [FRONTEND] User confirmed product codes:', productCodes);
+    console.log('   - Comment ID:', previewDialogData.comment.id);
+    console.log('   - Comment message:', previewDialogData.comment.message);
+    console.log('   - Extracted codes (from state):', previewDialogData.extractedCodes);
+    console.log('   - Confirmed codes (from dialog):', productCodes);
+    
+    // ✅ Validation: Ensure productCodes is not empty
+    if (productCodes.length === 0) {
+      console.error('❌ [FRONTEND] Empty product codes!');
+      toast({
+        title: "Lỗi",
+        description: "Danh sách mã sản phẩm trống. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     createOrderMutation.mutate({
       comment: previewDialogData.comment,
@@ -2300,6 +2327,7 @@ export function FacebookCommentsManager({
       {/* Product Codes Preview Dialog */}
       {previewDialogData && (
         <ProductCodesPreviewDialog
+          key={previewDialogData.comment.id}
           open={previewDialogOpen}
           onOpenChange={setPreviewDialogOpen}
           initialCodes={previewDialogData.extractedCodes}
