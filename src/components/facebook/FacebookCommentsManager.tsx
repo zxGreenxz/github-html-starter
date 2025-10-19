@@ -1854,6 +1854,7 @@ export function FacebookCommentsManager({
                 </div>
 
                 {/* Warning nhỏ khi có comment bị xóa */}
+                {/* Hidden: Archive notification
                 {selectedVideo &&
                   commentsData?.pages[0]?.fromArchive && (
                     <Alert className="border-blue-500/30 bg-blue-500/5 mb-4">
@@ -1863,6 +1864,7 @@ export function FacebookCommentsManager({
                       </AlertDescription>
                     </Alert>
                   )}
+                */}
 
                 <ScrollArea
                   className={cn(
