@@ -114,6 +114,18 @@ function SortableProductItem({
         isDragging && "shadow-lg z-50"
       )}
     >
+      {/* Select Button - First for easy access */}
+      <Button 
+        size="sm"
+        className={cn(
+          "flex-shrink-0 bg-purple-600 hover:bg-purple-700 text-white",
+          isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3"
+        )}
+        onClick={() => onProductSelect(product)}
+      >
+        Chọn
+      </Button>
+
       {/* Drag Handle */}
       <div
         {...attributes}
@@ -156,33 +168,21 @@ function SortableProductItem({
         </p>
       </div>
       
-      {/* Action buttons */}
-      <div className="flex items-center gap-1">
-        {onRemoveProduct && (
-          <Button 
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "flex-shrink-0 hover:bg-red-100 hover:text-red-600",
-              isMobile ? "h-7 w-7 p-0" : "h-8 w-8 p-0"
-            )}
-            onClick={() => onRemoveProduct(product.code)}
-            aria-label="Xóa sản phẩm"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+      {/* Remove button */}
+      {onRemoveProduct && (
         <Button 
           size="sm"
+          variant="ghost"
           className={cn(
-            "flex-shrink-0 bg-purple-600 hover:bg-purple-700 text-white",
-            isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3"
+            "flex-shrink-0 hover:bg-red-100 hover:text-red-600",
+            isMobile ? "h-7 w-7 p-0" : "h-8 w-8 p-0"
           )}
-          onClick={() => onProductSelect(product)}
+          onClick={() => onRemoveProduct(product.code)}
+          aria-label="Xóa sản phẩm"
         >
-          Chọn
+          <X className="h-4 w-4" />
         </Button>
-      </div>
+      )}
     </div>
   );
 }
