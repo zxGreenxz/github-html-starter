@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { getActiveTPOSToken } from "@/lib/tpos-config";
+import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 
 export function ProductUploadTestTool() {
   const { toast } = useToast();
@@ -22,11 +22,15 @@ export function ProductUploadTestTool() {
   // Helper function to get TPOS headers
   const getHeaders = async () => {
     const token = await getActiveTPOSToken();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    };
+    if (!token) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không tìm thấy TPOS token. Vui lòng cấu hình trong tab TPOS Credentials."
+      });
+      throw new Error('Không tìm thấy TPOS token');
+    }
+    return getTPOSHeaders(token);
   };
 
   // Helper function to show messages using React toast
