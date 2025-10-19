@@ -290,12 +290,15 @@ export function InlineProductSelector({
       const searchTerm = debouncedSearchQuery.trim();
       let query = supabase
         .from("products")
-        .select("id, product_code, product_name, product_images, tpos_image_url, barcode");
+        .select("id, product_code, product_name, product_images, tpos_image_url, barcode, created_at");
       
       // Apply multi-keyword search: product_name (primary), product_code, barcode
       query = applyMultiKeywordSearch(query, searchTerm, ['product_name', 'product_code', 'barcode']);
       
-      const { data, error } = await query.limit(20);
+      // Sort by created_at descending (newest first)
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(20);
       
       if (error) throw error;
       return data || [];
