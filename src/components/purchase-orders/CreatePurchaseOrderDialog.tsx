@@ -370,8 +370,81 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     setIsSelectProductOpen(true);
   };
 
-  const handleVariantsGenerated = (index: number, variantText: string) => {
-    // Simply update the variant field for the current item
+  const handleVariantsGenerated = async (index: number, variantText: string) => {
+    const baseItem = items[index];
+    
+    // Prepare product data for upsert
+    const productData = {
+      product_code: baseItem.product_code.trim().toUpperCase(),
+      product_name: baseItem.product_name.trim().toUpperCase(),
+      variant: variantText || null,
+      purchase_price: Number(baseItem.purchase_price) * 1000,
+      selling_price: Number(baseItem.selling_price) * 1000,
+      supplier_name: formData.supplier_name || null,
+      stock_quantity: 0,
+      unit: "Cái",
+      product_images: baseItem.product_images || [],
+      price_images: baseItem.price_images || [],
+      base_product_code: baseItem.product_code.trim().toUpperCase()
+    };
+
+    // Check if product exists
+    const { data: existingProduct } = await supabase
+      .from("products")
+      .select("id")
+      .eq("product_code", productData.product_code)
+      .maybeSingle();
+
+    if (existingProduct) {
+      // Update existing product
+      const { error } = await supabase
+        .from("products")
+        .update({
+          variant: productData.variant,
+          product_images: productData.product_images,
+          price_images: productData.price_images,
+          purchase_price: productData.purchase_price,
+          selling_price: productData.selling_price,
+          supplier_name: productData.supplier_name,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existingProduct.id);
+
+      if (error) {
+        toast({
+          title: "Lỗi cập nhật sản phẩm",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Đã cập nhật sản phẩm",
+        description: `${productData.product_code} - ${variantText}`,
+      });
+    } else {
+      // Insert new product
+      const { error } = await supabase
+        .from("products")
+        .insert(productData);
+
+      if (error) {
+        toast({
+          title: "Lỗi tạo sản phẩm",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Đã tạo sản phẩm mới",
+        description: `${productData.product_code} - ${variantText}`,
+      });
+    }
+    
+    // Update the variant field in the current item
     setItems(prev => {
       const newItems = [...prev];
       newItems[index] = {
@@ -379,11 +452,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         variant: variantText,
       };
       return newItems;
-    });
-    
-    toast({
-      title: "Đã thêm biến thể",
-      description: variantText,
     });
   };
 
