@@ -219,7 +219,7 @@ export function TPOSManagerNew() {
     setAttributeLines(newAttributeLines);
   };
 
-  const generateVariants = (productName: string, listPrice: number, attributeLines: AttributeLine[], imageBase64: string | null) => {
+  const generateVariants = (productName: string, listPrice: number, attributeLines: AttributeLine[]) => {
     if (!attributeLines || attributeLines.length === 0) return [];
     
     const combinations: AttributeValue[][] = [];
@@ -259,7 +259,7 @@ export function TPOSManagerNew() {
         POSCategId: null,
         Price: null,
         Barcode: null,
-        Image: imageBase64,
+        Image: null,
         ImageUrl: null,
         Thumbnails: [],
         PriceVariant: listPrice,
@@ -363,7 +363,7 @@ export function TPOSManagerNew() {
       // BƯỚC 2: Tạo sản phẩm mới
       toast({ description: "✅ Đang tạo mới...", duration: 2000 });
       
-      const variants = generateVariants(name, parseFloat(listPrice), attributeLines, imageBase64);
+      const variants = generateVariants(name, parseFloat(listPrice), attributeLines);
       
       // Full payload matching working HTML structure
       const payload = {
