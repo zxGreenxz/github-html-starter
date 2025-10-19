@@ -26,22 +26,16 @@ interface PurchaseOrder {
 
 interface PurchaseOrderItem {
   id: string;
-  product_id: string;
   quantity: number;
   notes: string | null;
-  product: {
-    product_name: string;
-    purchase_price: number;
-    product_images: string[] | null;
-  } | null;
-  // Snapshot fields
-  product_code_snapshot?: string;
-  product_name_snapshot?: string;
-  variant_snapshot?: string | null;
-  purchase_price_snapshot?: number;
-  selling_price_snapshot?: number;
-  product_images_snapshot?: string[];
-  price_images_snapshot?: string[];
+  // Primary fields (renamed from snapshot)
+  product_code: string;
+  product_name: string;
+  variant?: string | null;
+  purchase_price: number;
+  selling_price: number;
+  product_images?: string[];
+  price_images?: string[];
 }
 
 interface PurchaseOrderDetailDialogProps {
@@ -53,20 +47,13 @@ interface PurchaseOrderDetailDialogProps {
 export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: PurchaseOrderDetailDialogProps) {
   if (!order) return null;
 
-  // Fetch purchase order items with product JOIN
+  // Fetch purchase order items (no JOIN needed - all data is in purchase_order_items)
   const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['purchaseOrderItems', order.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('purchase_order_items')
-        .select(`
-          *,
-          product:products(
-            product_name,
-            purchase_price,
-            product_images
-          )
-        `)
+        .select('*')
         .eq('purchase_order_id', order.id)
         .order('position', { ascending: true });
       
@@ -79,8 +66,7 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
   // Calculate totals from items for verification
   const itemsTotalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const itemsTotalAmount = orderItems.reduce((sum, item) => {
-    // Ưu tiên snapshot data, fallback sang product data
-    const price = item.purchase_price_snapshot || item.product?.purchase_price || 0;
+    const price = item.purchase_price || 0;
     return sum + (item.quantity * price);
   }, 0);
 
@@ -179,12 +165,11 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
                         <TableHead className="text-right">Thành tiền (VND)</TableHead>
                       </TableRow>
                     </TableHeader>
-                  <TableBody>
+                   <TableBody>
                      {orderItems.map((item) => {
-                       // Ưu tiên snapshot data, fallback sang product data
-                       const productName = item.product_name_snapshot || item.product?.product_name || "Sản phẩm đã xóa";
-                       const productImages = item.product_images_snapshot || item.product?.product_images || [];
-                       const purchasePrice = item.purchase_price_snapshot || item.product?.purchase_price || 0;
+                       const productName = item.product_name || "Sản phẩm đã xóa";
+                       const productImages = item.product_images || [];
+                       const purchasePrice = item.purchase_price || 0;
                        
                        return (
                        <TableRow key={item.id}>

@@ -26,31 +26,18 @@ import { useDebounce } from "@/hooks/use-debounce";
 
 interface PurchaseOrderItem {
   id?: string;
-  product_id: string | null;
   quantity: number;
   notes: string;
   position?: number;
   
-  // Product data from JOIN
-  product?: {
-    id: string;
-    product_code: string;
-    product_name: string;
-    variant: string | null;
-    purchase_price: number;
-    selling_price: number;
-    product_images: string[] | null;
-    price_images: string[] | null;
-  };
-  
-  // Snapshot fields from database
-  product_code_snapshot?: string;
-  product_name_snapshot?: string;
-  variant_snapshot?: string | null;
-  purchase_price_snapshot?: number;
-  selling_price_snapshot?: number;
-  product_images_snapshot?: string[];
-  price_images_snapshot?: string[];
+  // Primary fields from database (renamed from snapshot fields)
+  product_code: string;
+  product_name: string;
+  variant?: string | null;
+  purchase_price: number;
+  selling_price: number;
+  product_images?: string[];
+  price_images?: string[];
   
   // Temporary UI fields
   _tempProductName: string;
@@ -105,7 +92,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showShippingFee, setShowShippingFee] = useState(false);
   const [items, setItems] = useState<PurchaseOrderItem[]>([
     { 
-      product_id: null,
+      product_code: "",
+      product_name: "",
+      variant: "",
+      purchase_price: 0,
+      selling_price: 0,
+      product_images: [],
+      price_images: [],
       quantity: 1,
       notes: "",
       _tempProductName: "",
@@ -153,17 +146,14 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     });
   }, [debouncedProductNames]);
 
-  // Fetch existing items when order changes (with JOIN to products)
+  // Fetch existing items (no JOIN needed - all data is in purchase_order_items)
   const { data: existingItems } = useQuery({
     queryKey: ["purchaseOrderItems", order?.id],
     queryFn: async () => {
       if (!order?.id) return [];
       const { data, error } = await supabase
         .from("purchase_order_items")
-        .select(`
-          *,
-          product:products(*)
-        `)
+        .select("*")
         .eq("purchase_order_id", order.id)
         .order("position", { ascending: true });
       
@@ -192,37 +182,37 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   // Load items when existingItems change
   useEffect(() => {
     if (existingItems && existingItems.length > 0) {
-      setItems(existingItems.map(item => {
-        // Ưu tiên sử dụng snapshot data, fallback sang product data
-        const productName = item.product_name_snapshot || item.product?.product_name || "";
-        const productCode = item.product_code_snapshot || item.product?.product_code || "";
-        const variant = item.variant_snapshot || item.product?.variant || "";
-        const purchasePrice = item.purchase_price_snapshot || item.product?.purchase_price || 0;
-        const sellingPrice = item.selling_price_snapshot || item.product?.selling_price || 0;
-        const productImages = item.product_images_snapshot || item.product?.product_images || [];
-        const priceImages = item.price_images_snapshot || item.product?.price_images || [];
-
-        return {
-          id: item.id,
-          product_id: item.product_id,
-          product: item.product,
-          quantity: item.quantity || 1,
-          notes: item.notes || "",
-          position: item.position,
-          _tempProductName: productName,
-          _tempProductCode: productCode,
-          _tempVariant: variant,
-          _tempUnitPrice: Number(purchasePrice) / 1000,
-          _tempSellingPrice: Number(sellingPrice) / 1000,
-          _tempTotalPrice: (item.quantity * Number(purchasePrice)) / 1000,
-          _tempProductImages: productImages,
-          _tempPriceImages: priceImages,
-        };
-      }));
+      setItems(existingItems.map(item => ({
+        id: item.id,
+        product_code: item.product_code,
+        product_name: item.product_name,
+        variant: item.variant || "",
+        purchase_price: item.purchase_price,
+        selling_price: item.selling_price,
+        product_images: item.product_images || [],
+        price_images: item.price_images || [],
+        quantity: item.quantity || 1,
+        notes: item.notes || "",
+        position: item.position,
+        _tempProductName: item.product_name,
+        _tempProductCode: item.product_code,
+        _tempVariant: item.variant || "",
+        _tempUnitPrice: Number(item.purchase_price) / 1000,
+        _tempSellingPrice: Number(item.selling_price) / 1000,
+        _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
+        _tempProductImages: item.product_images || [],
+        _tempPriceImages: item.price_images || [],
+      })));
     } else if (open && existingItems) {
       // If no existing items, add one empty row
       setItems([{
-        product_id: null,
+        product_code: "",
+        product_name: "",
+        variant: "",
+        purchase_price: 0,
+        selling_price: 0,
+        product_images: [],
+        price_images: [],
         quantity: 1,
         notes: "",
         _tempProductName: "",
@@ -248,7 +238,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     setShippingFee(0);
     setShowShippingFee(false);
     setItems([{
-      product_id: null,
+      product_code: "",
+      product_name: "",
+      variant: "",
+      purchase_price: 0,
+      selling_price: 0,
+      product_images: [],
+      price_images: [],
       quantity: 1,
       notes: "",
       _tempProductName: "",
@@ -277,7 +273,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   const addItem = () => {
     setItems([...items, {
-      product_id: null,
+      product_code: "",
+      product_name: "",
+      variant: "",
+      purchase_price: 0,
+      selling_price: 0,
+      product_images: [],
+      price_images: [],
       quantity: 1,
       notes: "",
       _tempProductName: "",
@@ -294,7 +296,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const copyItem = async (index: number) => {
     const itemToCopy = { ...items[index] };
     delete itemToCopy.id; // Remove id so it will be inserted as new
-    itemToCopy.product_id = null; // Clear product_id for new item
     // Deep copy the image arrays
     itemToCopy._tempProductImages = [...itemToCopy._tempProductImages];
     itemToCopy._tempPriceImages = [...itemToCopy._tempPriceImages];
@@ -325,7 +326,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     } else {
       // Reset the last item to empty state instead of removing
       setItems([{ 
-        product_id: null,
+        product_code: "",
+        product_name: "",
+        variant: "",
+        purchase_price: 0,
+        selling_price: 0,
+        product_images: [],
+        price_images: [],
         quantity: 1,
         notes: "",
         _tempProductName: "",
@@ -345,7 +352,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       const newItems = [...items];
       newItems[currentItemIndex] = {
         ...newItems[currentItemIndex],
-        product_id: product.id,
+        product_code: product.product_code,
+        product_name: product.product_name,
+        variant: product.variant || "",
+        purchase_price: product.purchase_price,
+        selling_price: product.selling_price,
+        product_images: product.product_images || [],
+        price_images: product.price_images || [],
         _tempProductName: product.product_name,
         _tempProductCode: product.product_code,
         _tempVariant: product.variant || "",
@@ -374,7 +387,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     const firstProduct = products[0];
     newItems[currentItemIndex] = {
       ...newItems[currentItemIndex],
-      product_id: firstProduct.id,
+      product_code: firstProduct.product_code,
+      product_name: firstProduct.product_name,
+      variant: firstProduct.variant || "",
+      purchase_price: firstProduct.purchase_price,
+      selling_price: firstProduct.selling_price,
+      product_images: firstProduct.product_images || [],
+      price_images: firstProduct.price_images || [],
       _tempProductName: firstProduct.product_name,
       _tempProductCode: firstProduct.product_code,
       _tempVariant: firstProduct.variant || "",
@@ -388,7 +407,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     // Add remaining products as new lines after current line
     const additionalItems = products.slice(1).map(product => ({
       id: undefined,
-      product_id: product.id,
+      product_code: product.product_code,
+      product_name: product.product_name,
+      variant: product.variant || "",
+      purchase_price: product.purchase_price,
+      selling_price: product.selling_price,
+      product_images: product.product_images || [],
+      price_images: product.price_images || [],
       quantity: 1,
       notes: "",
       position: undefined,
@@ -489,7 +514,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           // No checkboxes selected → Clear the line
           const emptyItem: PurchaseOrderItem = {
             id: undefined,
-            product_id: null,
+            product_code: "",
+            product_name: "",
+            variant: "",
+            purchase_price: 0,
+            selling_price: 0,
+            product_images: [],
+            price_images: [],
             quantity: 1,
             notes: "",
             position: items[index].position,
@@ -546,7 +577,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             // Add additional lines
             const additionalItems = selectedVariants.slice(1).map(variant => ({
               id: undefined,
-              product_id: null,
+              product_code: variant.fullCode,
+              product_name: variant.productName,
+              variant: variant.variantText,
+              purchase_price: Number(baseItem._tempUnitPrice) * 1000,
+              selling_price: Number(baseItem._tempSellingPrice) * 1000,
+              product_images: [...baseItem._tempProductImages],
+              price_images: [...baseItem._tempPriceImages],
               quantity: 1,
               notes: "",
               position: undefined,
@@ -610,10 +647,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
       const finalAmount = totalAmount - (discountAmount * 1000) + (shippingFee * 1000);
 
-      // Step 1: Collect product_ids from items (no creation/update)
-      const productIds: (string | null)[] = items.map(item => item.product_id || null);
-
-      // Step 2: Update purchase order
+      // Step 1: Update purchase order
       const { error: orderError } = await supabase
         .from("purchase_orders")
         .update({
@@ -631,7 +665,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
       if (orderError) throw orderError;
 
-      // Step 3: Get IDs of items to delete
+      // Step 2: Get IDs of items to delete
       const existingItemIds = existingItems?.map(item => item.id) || [];
       const currentItemIds = items.filter(item => item.id).map(item => item.id);
       const deletedItemIds = existingItemIds.filter(id => !currentItemIds.includes(id));
@@ -646,23 +680,22 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         if (deleteError) throw deleteError;
       }
 
-      // Step 4: Update existing items and insert new items
+      // Step 3: Update existing items and insert new items
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const itemData = {
           purchase_order_id: order.id,
-          product_id: productIds[i],
           quantity: item.quantity,
           notes: item.notes.trim().toUpperCase() || null,
           position: item.position || (i + 1),
-          // Snapshot data
-          product_code_snapshot: item._tempProductCode.trim().toUpperCase(),
-          product_name_snapshot: item._tempProductName.trim().toUpperCase(),
-          variant_snapshot: item._tempVariant.trim().toUpperCase() || null,
-          purchase_price_snapshot: Number(item._tempUnitPrice || 0) * 1000,
-          selling_price_snapshot: Number(item._tempSellingPrice || 0) * 1000,
-          product_images_snapshot: item._tempProductImages || [],
-          price_images_snapshot: item._tempPriceImages || []
+          // Primary data fields (renamed from snapshot)
+          product_code: item._tempProductCode.trim().toUpperCase(),
+          product_name: item._tempProductName.trim().toUpperCase(),
+          variant: item._tempVariant.trim().toUpperCase() || null,
+          purchase_price: Number(item._tempUnitPrice || 0) * 1000,
+          selling_price: Number(item._tempSellingPrice || 0) * 1000,
+          product_images: item._tempProductImages || [],
+          price_images: item._tempPriceImages || []
         };
 
         if (item.id) {
