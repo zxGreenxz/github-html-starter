@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, CheckCircle2, XCircle, Clock, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 import { 
   groupVariantsByBase, 
@@ -42,11 +44,41 @@ export function BulkTPOSUploadDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   
   const groupedProducts = groupVariantsByBase(items);
   const totalProducts = groupedProducts.length;
   
+  // Select all functionality
+  const allSelected = selectedIndices.size === groupedProducts.length && groupedProducts.length > 0;
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIndices(new Set());
+    } else {
+      setSelectedIndices(new Set(groupedProducts.map((_, idx) => idx)));
+    }
+  };
+  
+  const toggleSelect = (idx: number) => {
+    const newSet = new Set(selectedIndices);
+    if (newSet.has(idx)) {
+      newSet.delete(idx);
+    } else {
+      newSet.add(idx);
+    }
+    setSelectedIndices(newSet);
+  };
+  
   const handleUpload = async () => {
+    if (selectedIndices.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "Chưa chọn sản phẩm",
+        description: "Vui lòng chọn ít nhất một sản phẩm để upload",
+      });
+      return;
+    }
+    
     setIsUploading(true);
     setProgress([]);
     setCurrentIndex(0);
@@ -62,10 +94,14 @@ export function BulkTPOSUploadDialog({
     
     let successCount = 0;
     let errorCount = 0;
+    const selectedProducts = groupedProducts.filter((_, idx) => selectedIndices.has(idx));
     
     for (let i = 0; i < groupedProducts.length; i++) {
+      // Skip if not selected
+      if (!selectedIndices.has(i)) continue;
+      
       const group = groupedProducts[i];
-      setCurrentIndex(i + 1);
+      setCurrentIndex(Array.from(selectedIndices).indexOf(i) + 1);
       
       // Update status to uploading
       setProgress(prev => prev.map((p, idx) => 
@@ -82,7 +118,10 @@ export function BulkTPOSUploadDialog({
         
         // Build payload and upload
         const payload = buildInsertV2Payload(group);
-        await uploadToTPOSInsertV2(payload);
+        const tposResponse = await uploadToTPOSInsertV2(payload);
+        
+        // Create/update products in Supabase after successful upload
+        await createOrUpdateProductsInSupabase(group, tposResponse);
         
         successCount++;
         setProgress(prev => prev.map((p, idx) => 
@@ -100,9 +139,7 @@ export function BulkTPOSUploadDialog({
       }
       
       // Small delay between uploads
-      if (i < groupedProducts.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     setIsUploading(false);
@@ -111,7 +148,7 @@ export function BulkTPOSUploadDialog({
     if (successCount > 0) {
       toast({
         title: "✅ Upload hoàn tất",
-        description: `Thành công: ${successCount}/${totalProducts} sản phẩm${errorCount > 0 ? `, Lỗi: ${errorCount}` : ''}`,
+        description: `Thành công: ${successCount}/${selectedIndices.size} sản phẩm${errorCount > 0 ? `, Lỗi: ${errorCount}` : ''}`,
       });
       
       if (onSuccess) {
@@ -123,6 +160,53 @@ export function BulkTPOSUploadDialog({
         title: "❌ Upload thất bại",
         description: "Không có sản phẩm nào được upload thành công",
       });
+    }
+  };
+  
+  // Create or update products in Supabase after successful TPOS upload
+  const createOrUpdateProductsInSupabase = async (group: GroupedProduct, tposResponse: any) => {
+    try {
+      // Extract TPOS product ID and image URL from response
+      const tposProductId = tposResponse?.Id || tposResponse?.id;
+      const tposImageUrl = tposResponse?.ImageUrl || tposResponse?.imageUrl;
+      
+      // For each variant, create or update product in Supabase
+      for (const variant of group.variants) {
+        const productData = {
+          product_code: variant.product_code,
+          product_name: variant.product_name,
+          variant: variant.variant,
+          selling_price: variant.selling_price,
+          purchase_price: variant.unit_price,
+          base_product_code: group.baseCode,
+          supplier_name: variant.supplier_name || null,
+          tpos_product_id: tposProductId,
+          tpos_image_url: tposImageUrl, // Store TPOS image URL, not copy to Supabase
+        };
+        
+        // Check if product exists
+        const { data: existing } = await supabase
+          .from('products')
+          .select('id')
+          .eq('product_code', variant.product_code)
+          .maybeSingle();
+        
+        if (existing) {
+          // Update existing product
+          await supabase
+            .from('products')
+            .update(productData)
+            .eq('id', existing.id);
+        } else {
+          // Insert new product
+          await supabase
+            .from('products')
+            .insert(productData);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create/update products in Supabase:', error);
+      // Don't throw - we still consider the upload successful
     }
   };
   
@@ -152,7 +236,7 @@ export function BulkTPOSUploadDialog({
     }
   };
   
-  const progressPercentage = totalProducts > 0 ? (currentIndex / totalProducts) * 100 : 0;
+  const progressPercentage = selectedIndices.size > 0 ? (currentIndex / selectedIndices.size) * 100 : 0;
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,7 +244,9 @@ export function BulkTPOSUploadDialog({
         <DialogHeader>
           <DialogTitle>Upload sản phẩm lên TPOS (InsertV2)</DialogTitle>
           <DialogDescription>
-            Upload {totalProducts} sản phẩm (bao gồm cả biến thể) lên hệ thống TPOS
+            {selectedIndices.size > 0 
+              ? `Đã chọn ${selectedIndices.size}/${totalProducts} sản phẩm để upload` 
+              : `${totalProducts} sản phẩm có sẵn`}
           </DialogDescription>
         </DialogHeader>
         
@@ -169,7 +255,7 @@ export function BulkTPOSUploadDialog({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Đang upload: {currentIndex}/{totalProducts}</span>
+                <span>Đang upload: {currentIndex}/{selectedIndices.size}</span>
                 <span>{Math.round(progressPercentage)}%</span>
               </div>
               <Progress value={progressPercentage} />
@@ -186,6 +272,13 @@ export function BulkTPOSUploadDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleSelectAll}
+                        disabled={isUploading}
+                      />
+                    </TableHead>
                     <TableHead className="w-12"></TableHead>
                     <TableHead>Mã SP</TableHead>
                     <TableHead>Tên sản phẩm</TableHead>
@@ -197,6 +290,13 @@ export function BulkTPOSUploadDialog({
                 <TableBody>
                   {groupedProducts.map((group, idx) => (
                     <TableRow key={group.baseCode}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIndices.has(idx)}
+                          onCheckedChange={() => toggleSelect(idx)}
+                          disabled={isUploading}
+                        />
+                      </TableCell>
                       <TableCell>
                         {progress[idx] && getStatusIcon(progress[idx].status)}
                       </TableCell>
@@ -257,10 +357,10 @@ export function BulkTPOSUploadDialog({
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={isUploading || groupedProducts.length === 0}
+              disabled={isUploading || selectedIndices.size === 0}
             >
               <Upload className="w-4 h-4 mr-2" />
-              {isUploading ? 'Đang upload...' : 'Upload lên TPOS'}
+              {isUploading ? 'Đang upload...' : `Upload ${selectedIndices.size} sản phẩm`}
             </Button>
           </div>
         </div>
