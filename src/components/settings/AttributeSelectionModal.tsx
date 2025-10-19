@@ -21,7 +21,7 @@ export interface AttributeLine {
   Values: Array<{
     Id: number;
     Name: string;
-    Code: string;
+    Code: null;
     Sequence: number | null;
     AttributeId: number;
     AttributeName: string;
@@ -95,7 +95,7 @@ export function AttributeSelectionModal({ open, onOpenChange, initialAttributeLi
     const newValue = {
       Id: selectedValue.Id,
       Name: selectedValue.Name,
-      Code: selectedValue.Code,
+      Code: null,
       Sequence: selectedValue.Sequence || null,
       AttributeId: config.id,
       AttributeName: config.name,
