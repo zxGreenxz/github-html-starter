@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toVietnamTime, nowVietnamISO } from "@/lib/date-utils";
+import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import {
   DndContext,
   closestCenter,
@@ -287,11 +288,14 @@ export function InlineProductSelector({
       }
       
       const searchTerm = debouncedSearchQuery.trim();
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
-        .select("id, product_code, product_name, product_images, tpos_image_url, barcode")
-        .or(`product_code.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%`)
-        .limit(20);
+        .select("id, product_code, product_name, product_images, tpos_image_url, barcode");
+      
+      // Apply multi-keyword search: product_name (primary), product_code, barcode
+      query = applyMultiKeywordSearch(query, searchTerm, ['product_name', 'product_code', 'barcode']);
+      
+      const { data, error } = await query.limit(20);
       
       if (error) throw error;
       return data || [];
