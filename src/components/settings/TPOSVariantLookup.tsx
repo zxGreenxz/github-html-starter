@@ -69,7 +69,19 @@ export function TPOSVariantLookup() {
         throw new Error(`Không tìm thấy biến thể với mã "${variantCode}"`);
       }
 
-      const variantId = searchData.value[0].Id;
+      // ✅ Filter để tìm DefaultCode khớp chính xác (case-insensitive)
+      const exactMatch = searchData.value.find(
+        (item: any) => item.DefaultCode?.toUpperCase() === variantCode.toUpperCase()
+      );
+
+      if (!exactMatch) {
+        throw new Error(
+          `Không tìm thấy biến thể với mã chính xác "${variantCode}". ` +
+          `Tìm thấy các mã tương tự: ${searchData.value.map((v: any) => v.DefaultCode).join(', ')}`
+        );
+      }
+
+      const variantId = exactMatch.Id;
 
       // STEP 2: Detail API - Lấy thông tin chi tiết từ ID TPOS
       const detailUrl = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
@@ -145,7 +157,19 @@ export function TPOSVariantLookup() {
         throw new Error(`Không tìm thấy sản phẩm với mã "${productCode}"`);
       }
 
-      const productId = searchData.value[0].Id;
+      // ✅ Filter để tìm DefaultCode khớp chính xác (case-insensitive)
+      const exactMatch = searchData.value.find(
+        (item: any) => item.DefaultCode?.toUpperCase() === productCode.toUpperCase()
+      );
+
+      if (!exactMatch) {
+        throw new Error(
+          `Không tìm thấy sản phẩm với mã chính xác "${productCode}". ` +
+          `Tìm thấy các mã tương tự: ${searchData.value.map((v: any) => v.DefaultCode).join(', ')}`
+        );
+      }
+
+      const productId = exactMatch.Id;
 
       // STEP 2: Detail API - Lấy thông tin chi tiết từ ID TPOS
       const detailUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
