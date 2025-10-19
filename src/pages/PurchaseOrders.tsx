@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
 import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-attributes";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { SimpleProductUploadDialog } from "@/components/settings/SimpleProductUploadDialog";
+import { BulkTPOSUploadDialog } from "@/components/purchase-orders/BulkTPOSUploadDialog";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 
 interface PurchaseOrderItem {
@@ -683,7 +683,7 @@ const PurchaseOrders = () => {
         onOpenChange={setIsCreateDialogOpen}
       />
 
-      <SimpleProductUploadDialog
+      <BulkTPOSUploadDialog
         open={isUploadTPOSDialogOpen}
         onOpenChange={setIsUploadTPOSDialogOpen}
         items={getSelectedTPOSItems()}
