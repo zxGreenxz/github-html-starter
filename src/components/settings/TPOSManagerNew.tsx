@@ -476,17 +476,20 @@ export function TPOSManagerNew() {
       
       const variants = generateVariants(name, parseFloat(listPrice), attributeLines);
       
-      // Simplified payload - only IDs, no nested objects
+      // Full payload matching working HTML structure
       const payload = {
         Id: 0,
         Name: name,
         Type: "product",
         ListPrice: parseFloat(listPrice),
         PurchasePrice: parseFloat(purchasePrice),
-        StandardPrice: parseFloat(purchasePrice),
         DefaultCode: code,
         QtyAvailable: parseInt(qtyAvailable),
         Image: imageBase64,
+        ImageUrl: null,
+        Thumbnails: [],
+        AttributeLines: attributeLines,
+        ProductVariants: variants,
         Active: true,
         SaleOK: true,
         PurchaseOK: true,
@@ -500,10 +503,44 @@ export function TPOSManagerNew() {
         AvailableInPOS: true,
         DiscountSale: 0,
         DiscountPurchase: 0,
+        StandardPrice: 0,
         Weight: 0,
         SaleDelay: 0,
-        AttributeLines: attributeLines,
-        ProductVariants: variants
+        UOM: {
+          Id: 1,
+          Name: "Cái",
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị"
+        },
+        UOMPO: {
+          Id: 1,
+          Name: "Cái",
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị"
+        },
+        Categ: {
+          Id: 2,
+          Name: "Có thể bán",
+          CompleteName: "Có thể bán",
+          Type: "normal",
+          PropertyCostMethod: "average",
+          NameNoSign: "Co the ban",
+          IsPos: true
+        },
+        Items: [],
+        UOMLines: [],
+        ComboProducts: [],
+        ProductSupplierInfos: []
       };
       
       const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
