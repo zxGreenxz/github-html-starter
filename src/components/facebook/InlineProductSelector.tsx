@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toVietnamTime, nowVietnamISO } from "@/lib/date-utils";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
+import { ZoomableImage } from "@/components/products/ZoomableImage";
 import {
   DndContext,
   closestCenter,
@@ -133,20 +134,11 @@ function SortableProductItem({
       )}
       
       {/* Product thumbnail */}
-      {product.productInfo?.image_url ? (
-        <img 
-          src={product.productInfo.image_url} 
-          alt={product.productInfo.name}
-          className="w-10 h-10 object-cover rounded flex-shrink-0"
-          onError={(e) => {
-            e.currentTarget.src = '/placeholder.svg';
-          }}
-        />
-      ) : (
-        <div className="w-10 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
-          <Package className="h-5 w-5 text-muted-foreground" />
-        </div>
-      )}
+      <ZoomableImage
+        src={product.productInfo?.image_url}
+        alt={product.productInfo?.name || "Product"}
+        size="sm"
+      />
       
       {/* Product info */}
       <div className="flex-1 min-w-0">
@@ -412,20 +404,11 @@ export function InlineProductSelector({
                   </Badge>
                   
                   {/* Product thumbnail */}
-                  {product.tpos_image_url || (product.product_images && product.product_images[0]) ? (
-                    <img 
-                      src={product.tpos_image_url || product.product_images[0]} 
-                      alt={product.product_name}
-                      className="w-10 h-10 object-cover rounded flex-shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder.svg';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
-                      <Package className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  )}
+                  <ZoomableImage
+                    src={product.tpos_image_url || (product.product_images && product.product_images[0])}
+                    alt={product.product_name}
+                    size="sm"
+                  />
                   
                   {/* Product info */}
                   <div className="flex-1 min-w-0">
