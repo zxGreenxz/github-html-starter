@@ -10,13 +10,25 @@ export interface ProductData {
   supplier_name: string | null;
 }
 
+export interface VariantProduct {
+  product_code: string;
+  product_name: string;
+  variant: string;
+  selling_price: number;
+  purchase_price: number;
+  product_images: string[];
+  price_images: string[];
+  tpos_product_id: number;
+  barcode: string;
+}
+
 export async function uploadToTPOSAndCreateVariants(
   productCode: string,
   productName: string,
   variantText: string,
   productData: ProductData,
   onProgress?: (message: string) => void
-): Promise<void> {
+): Promise<VariantProduct[]> {
   try {
     // Get TPOS token
     const { data: tokenData } = await supabase
@@ -62,11 +74,13 @@ export async function uploadToTPOSAndCreateVariants(
       onProgress?.("✅ Cập nhật TPOS thành công");
       
       // Fetch created variants and save to products table
-      await fetchAndSaveVariantsFromTPOS(tposProductId, productCode, productData, onProgress);
+      const variants = await fetchAndSaveVariantsFromTPOS(tposProductId, productCode, productData, onProgress);
+      return variants;
     } else {
       // Product doesn't exist - create new with variants
       onProgress?.("🆕 Tạo sản phẩm mới trên TPOS...");
-      await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress);
+      const variants = await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress);
+      return variants;
     }
   } catch (error: any) {
     console.error("TPOS upload error:", error);
@@ -81,7 +95,7 @@ async function createNewProductOnTPOS(
   productData: ProductData,
   headers: any,
   onProgress?: (message: string) => void
-): Promise<void> {
+): Promise<VariantProduct[]> {
   // Parse variant text to attribute lines
   const selectedAttributes = parseVariantToAttributes(variantText);
   const attributeLines = createAttributeLines(selectedAttributes);
@@ -172,7 +186,7 @@ async function createNewProductOnTPOS(
   // Handle 204 No Content
   if (response.status === 204) {
     onProgress?.(`✅ Tạo TPOS thành công (${variants.length} variants)`);
-    return;
+    return [];
   }
 
   // Parse response and save variants
@@ -180,8 +194,11 @@ async function createNewProductOnTPOS(
   onProgress?.(`✅ Tạo TPOS thành công - ID: ${data.Id}`);
 
   if (data.Id) {
-    await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
+    const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
+    return variantProducts;
   }
+  
+  return [];
 }
 
 async function fetchAndSaveVariantsFromTPOS(
@@ -189,7 +206,7 @@ async function fetchAndSaveVariantsFromTPOS(
   baseProductCode: string,
   baseProductData: ProductData,
   onProgress?: (message: string) => void
-): Promise<void> {
+): Promise<VariantProduct[]> {
   try {
     // Get TPOS token
     const { data: tokenData } = await supabase
@@ -201,7 +218,7 @@ async function fetchAndSaveVariantsFromTPOS(
       .limit(1)
       .single();
 
-    if (!tokenData?.bearer_token) return;
+    if (!tokenData?.bearer_token) return [];
 
     const headers = {
       'Authorization': `Bearer ${tokenData.bearer_token}`,
@@ -215,14 +232,14 @@ async function fetchAndSaveVariantsFromTPOS(
     const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
     const response = await fetch(url, { headers });
 
-    if (!response.ok) return;
+    if (!response.ok) return [];
 
     const productData = await response.json();
     const variants = productData.ProductVariants || [];
 
     if (variants.length === 0) {
       onProgress?.("⚠️ Không tìm thấy variants trên TPOS");
-      return;
+      return [];
     }
 
     onProgress?.(`💾 Lưu ${variants.length} variants vào kho...`);
@@ -269,6 +286,19 @@ async function fetchAndSaveVariantsFromTPOS(
     }
 
     onProgress?.(`✅ Đã lưu ${variants.length} variants vào kho thành công`);
+    
+    // Return the variant products for adding to purchase order
+    return variantProducts.map(vp => ({
+      product_code: vp.product_code,
+      product_name: vp.product_name,
+      variant: vp.variant || '',
+      selling_price: vp.selling_price / 1000, // Convert back to display format
+      purchase_price: vp.purchase_price / 1000, // Convert back to display format
+      product_images: vp.product_images || [],
+      price_images: vp.price_images || [],
+      tpos_product_id: vp.tpos_product_id,
+      barcode: vp.barcode
+    }));
   } catch (error: any) {
     console.error("Error fetching/saving variants:", error);
     throw error;

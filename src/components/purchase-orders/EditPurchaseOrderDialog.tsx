@@ -523,7 +523,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     try {
       const { uploadToTPOSAndCreateVariants } = await import('@/lib/tpos-variant-uploader');
       
-      await uploadToTPOSAndCreateVariants(
+      const createdVariants = await uploadToTPOSAndCreateVariants(
         productData.product_code,
         productData.product_name,
         variantText,
@@ -538,6 +538,55 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           toast({ description: message, duration: 1500 });
         }
       );
+      
+      // Add created variants to items list
+      if (createdVariants && createdVariants.length > 0) {
+        const newVariantItems = createdVariants.map(variant => ({
+          id: undefined,
+          purchase_order_id: order.id,
+          quantity: 1,
+          notes: "",
+          position: 0,
+          created_at: new Date().toISOString(),
+          tpos_product_id: variant.tpos_product_id,
+          tpos_deleted: false,
+          tpos_deleted_at: null,
+          _isNew: true,
+          _tempProductCode: variant.product_code,
+          _tempProductName: variant.product_name,
+          _tempVariant: variant.variant,
+          _tempUnitPrice: variant.purchase_price,
+          _tempSellingPrice: variant.selling_price,
+          _tempProductImages: variant.product_images,
+          _tempPriceImages: variant.price_images,
+          _tempTotalPrice: variant.purchase_price,
+          product_code: variant.product_code,
+          product_name: variant.product_name,
+          variant: variant.variant,
+          purchase_price: variant.purchase_price * 1000,
+          selling_price: variant.selling_price * 1000,
+          product_images: variant.product_images,
+          price_images: variant.price_images,
+        }));
+        
+        // Insert new variant items after the current base item
+        setItems(prev => {
+          const newItems = [...prev];
+          // Update the base item with variant text
+          newItems[index] = {
+            ...newItems[index],
+            _tempVariant: variantText,
+          };
+          // Insert variant items after the base item
+          newItems.splice(index + 1, 0, ...newVariantItems);
+          return newItems;
+        });
+        
+        toast({
+          title: "✅ Đã thêm variants vào danh sách",
+          description: `Đã thêm ${createdVariants.length} variants vào đơn đặt hàng`,
+        });
+      }
     } catch (error: any) {
       console.error("TPOS upload error:", error);
       toast({
@@ -545,17 +594,17 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         title: "⚠️ Lỗi upload TPOS",
         description: error.message
       });
+      
+      // Still update the variant field even if TPOS upload fails
+      setItems(prev => {
+        const newItems = [...prev];
+        newItems[index] = {
+          ...newItems[index],
+          _tempVariant: variantText,
+        };
+        return newItems;
+      });
     }
-    
-    // Update the variant field in the current item
-    setItems(prev => {
-      const newItems = [...prev];
-      newItems[index] = {
-        ...newItems[index],
-        _tempVariant: variantText,
-      };
-      return newItems;
-    });
   };
 
   const openVariantGenerator = (index: number) => {

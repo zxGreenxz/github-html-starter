@@ -448,7 +448,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     try {
       const { uploadToTPOSAndCreateVariants } = await import('@/lib/tpos-variant-uploader');
       
-      await uploadToTPOSAndCreateVariants(
+      const createdVariants = await uploadToTPOSAndCreateVariants(
         productData.product_code,
         productData.product_name,
         variantText,
@@ -463,6 +463,40 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           toast({ description: message, duration: 1500 });
         }
       );
+      
+      // Add created variants to items list
+      if (createdVariants && createdVariants.length > 0) {
+        const newVariantItems = createdVariants.map(variant => ({
+          quantity: 1,
+          notes: "",
+          product_code: variant.product_code,
+          product_name: variant.product_name,
+          variant: variant.variant,
+          purchase_price: variant.purchase_price,
+          selling_price: variant.selling_price,
+          product_images: variant.product_images,
+          price_images: variant.price_images,
+          _tempTotalPrice: 0,
+        }));
+        
+        // Insert new variant items after the current base item
+        setItems(prev => {
+          const newItems = [...prev];
+          // Update the base item with variant text
+          newItems[index] = {
+            ...newItems[index],
+            variant: variantText,
+          };
+          // Insert variant items after the base item
+          newItems.splice(index + 1, 0, ...newVariantItems);
+          return newItems;
+        });
+        
+        toast({
+          title: "✅ Đã thêm variants vào danh sách",
+          description: `Đã thêm ${createdVariants.length} variants vào đơn đặt hàng`,
+        });
+      }
     } catch (error: any) {
       console.error("TPOS upload error:", error);
       toast({
@@ -470,17 +504,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         title: "⚠️ Lỗi upload TPOS",
         description: error.message
       });
+      
+      // Still update the variant field even if TPOS upload fails
+      setItems(prev => {
+        const newItems = [...prev];
+        newItems[index] = {
+          ...newItems[index],
+          variant: variantText,
+        };
+        return newItems;
+      });
     }
-    
-    // Update the variant field in the current item
-    setItems(prev => {
-      const newItems = [...prev];
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-      };
-      return newItems;
-    });
   };
 
   const openVariantGenerator = (index: number) => {
