@@ -20,7 +20,7 @@ import { VariantTestTool } from "@/components/settings/VariantTestTool";
 import { SimpleProductUploadDialog } from "@/components/settings/SimpleProductUploadDialog";
 import { BarcodeProductTest } from "@/components/settings/BarcodeProductTest";
 import { BarcodeScannerSettings } from "@/components/settings/BarcodeScannerSettings";
-import { ProductUploadTestTool } from "@/components/settings/ProductUploadTestTool";
+import { TPOSManager } from "@/components/settings/TPOSManager";
 import { FetchTPOSProductsDialog } from "@/components/settings/FetchTPOSProductsDialog";
 import { GetTPOSProductTool } from "@/components/settings/GetTPOSProductTool";
 import { FacebookPageManager } from "@/components/facebook/FacebookPageManager";
@@ -1622,8 +1622,8 @@ const Settings = () => {
 
         {/* Tab: Barcode & Test */}
         <TabsContent value="barcode" className="space-y-6 mt-4">
-          {/* Product Upload Test Tool */}
-          <ProductUploadTestTool />
+          {/* TPOS Manager */}
+          <TPOSManager />
           
           {/* Existing test tools */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
