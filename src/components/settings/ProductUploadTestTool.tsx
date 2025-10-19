@@ -1,467 +1,324 @@
-import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Upload, X, Edit, RefreshCw, CheckCircle, AlertCircle, ChevronDown } from "lucide-react";
+import { useEffect } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
-import { AttributeSelectionModal, AttributeLine } from "./AttributeSelectionModal";
-
-interface ProductForm {
-  defaultCode: string;
-  name: string;
-  listPrice: number;
-  purchasePrice: number;
-  qtyAvailable: number;
-}
+import { getActiveTPOSToken } from "@/lib/tpos-config";
 
 export function ProductUploadTestTool() {
-  const [productForm, setProductForm] = useState<ProductForm>({
-    defaultCode: "NTEST",
-    name: "",
-    listPrice: 100000,
-    purchasePrice: 50000,
-    qtyAvailable: 50
-  });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isJsonOpen, setIsJsonOpen] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Handle file upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleImageFile(file);
-    }
-  };
-
-  const handleImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng chọn file hình ảnh",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setImageBase64(dataUrl.split(',')[1]);
-      setImagePreview(dataUrl);
-      setImageFile(file);
-      toast({
-        title: "Thành công",
-        description: `Đã tải ảnh (${(file.size / 1024).toFixed(2)} KB)`
-      });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImageBase64(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    toast({
-      title: "Thành công",
-      description: "Đã xóa ảnh"
-    });
-  };
-
-  // Handle paste image
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      
-      for (let item of items) {
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            handleImageFile(file);
-          }
-        }
+    // Initialize the vanilla JS module when component mounts
+    const initModule = async () => {
+      if (window.ProductModule && window.ProductModule.initProductModule) {
+        // Pass helper functions to vanilla JS
+        window.ProductModule.initProductModule(getHeaders, showMessage);
       }
     };
 
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
+    // Small delay to ensure DOM is ready
+    setTimeout(initModule, 100);
   }, []);
 
-  const resetForm = () => {
-    setProductForm({
-      defaultCode: "NTEST",
-      name: "",
-      listPrice: 100000,
-      purchasePrice: 50000,
-      qtyAvailable: 50
-    });
-    setAttributeLines([]);
-    removeImage();
-    setResult(null);
-    setError(null);
+  // Helper function to get TPOS headers
+  const getHeaders = async () => {
+    const token = await getActiveTPOSToken();
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    };
   };
 
-  const handleCreateProduct = async () => {
-    if (!productForm.defaultCode || !productForm.name) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng nhập đầy đủ thông tin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsCreating(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        throw new Error("Không tìm thấy TPOS token");
-      }
-
-      // Step 1: Check if product exists
-      const checkResponse = await fetch(
-        `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${productForm.defaultCode}`,
-        { headers: getTPOSHeaders(token) }
-      );
-      const checkData = await checkResponse.json();
-
-      if (checkData.value && checkData.value.length > 0) {
-        setError(`❌ Sản phẩm đã tồn tại! Mã: ${productForm.defaultCode}`);
-        setResult(checkData.value[0]);
-        toast({
-          title: "Lỗi",
-          description: "Sản phẩm đã tồn tại trên TPOS",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Step 2: Create product
-      const payload = {
-        Id: 0,
-        Name: productForm.name,
-        Type: "product",
-        ListPrice: productForm.listPrice,
-        PurchasePrice: productForm.purchasePrice,
-        DefaultCode: productForm.defaultCode,
-        QtyAvailable: productForm.qtyAvailable,
-        Image: imageBase64,
-        ImageUrl: null,
-        Thumbnails: [],
-        AttributeLines: attributeLines,
-        Active: true,
-        SaleOK: true,
-        PurchaseOK: true,
-        UOMId: 1,
-        UOMPOId: 1,
-        CategId: 2,
-        CompanyId: 1,
-        Tracking: "none",
-        InvoicePolicy: "order",
-        PurchaseMethod: "receive",
-        AvailableInPOS: true,
-        DiscountSale: 0,
-        DiscountPurchase: 0,
-        StandardPrice: 0,
-        Weight: 0,
-        SaleDelay: 0,
-        UOM: {
-          Id: 1,
-          Name: "Cái",
-          Rounding: 0.001,
-          Active: true,
-          Factor: 1,
-          FactorInv: 1,
-          UOMType: "reference",
-          CategoryId: 1,
-          CategoryName: "Đơn vị"
-        },
-        UOMPO: {
-          Id: 1,
-          Name: "Cái",
-          Rounding: 0.001,
-          Active: true,
-          Factor: 1,
-          FactorInv: 1,
-          UOMType: "reference",
-          CategoryId: 1,
-          CategoryName: "Đơn vị"
-        },
-        Categ: {
-          Id: 2,
-          Name: "Có thể bán",
-          CompleteName: "Có thể bán",
-          Type: "normal",
-          PropertyCostMethod: "average",
-          NameNoSign: "Co the ban",
-          IsPos: true
-        },
-        Items: [],
-        UOMLines: [],
-        ComboProducts: [],
-        ProductSupplierInfos: []
-      };
-
-      const response = await fetch(
-        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO',
-        {
-          method: 'POST',
-          headers: getTPOSHeaders(token),
-          body: JSON.stringify(payload)
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setResult(data);
-        toast({
-          title: "Thành công! 🎉",
-          description: `Đã tạo sản phẩm: ${productForm.defaultCode} (ID: ${data.Id})`
-        });
-        // Don't reset form immediately so user can see the result
-      } else {
-        setError(data.error?.message || 'Lỗi không xác định');
-        setResult(data);
-        toast({
-          title: "Lỗi",
-          description: data.error?.message || "Không thể tạo sản phẩm",
-          variant: "destructive"
-        });
-      }
-    } catch (err: any) {
-      setError(err.message);
-      toast({
-        title: "Lỗi",
-        description: err.message,
-        variant: "destructive"
-      });
-    } finally {
-      setIsCreating(false);
+  // Helper function to show messages using React toast
+  const showMessage = (type: 'success' | 'error' | 'info', message: string) => {
+    if (type === 'success') {
+      toast({ title: "Thành công", description: message });
+    } else if (type === 'error') {
+      toast({ variant: "destructive", title: "Lỗi", description: message });
+    } else {
+      toast({ title: "Thông báo", description: message });
     }
   };
+
+  // Expose functions globally for vanilla JS
+  useEffect(() => {
+    (window as any).getHeaders = getHeaders;
+    (window as any).showMessage = showMessage;
+  }, []);
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Test Upload Sản Phẩm TPOS</CardTitle>
-          <CardDescription>
-            Tạo sản phẩm mới với biến thể trực tiếp trên TPOS. Công cụ này cho phép bạn test việc tạo sản phẩm với AttributeLines.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle>Test Upload Sản Phẩm TPOS</CardTitle>
+        <CardDescription>
+          Tạo sản phẩm mới với biến thể trực tiếp lên TPOS. Công cụ này cho phép bạn test việc tạo sản phẩm với AttributeLines và ProductVariants.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div id="productUploadModule">
           {/* Image Upload Area */}
           <div 
-            className="border-2 border-dashed rounded-lg p-6 transition-colors hover:border-primary cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
+            id="imageUpload" 
+            className="border-2 border-dashed rounded-lg p-6 mb-4 cursor-pointer hover:border-primary transition-colors relative"
           >
-            {!imagePreview ? (
-              <div className="text-center">
-                <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Click để chọn ảnh hoặc paste từ clipboard
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  PNG, JPG, GIF (tối đa 5MB)
-                </p>
-              </div>
-            ) : (
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  className="max-h-64 mx-auto rounded-md border"
-                />
-                <Button 
-                  onClick={removeImage} 
-                  variant="destructive" 
-                  size="sm" 
-                  className="absolute top-2 right-2"
-                >
-                  <X className="h-4 w-4 mr-1" /> Xóa
-                </Button>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
+            <input 
+              type="file" 
+              id="fileInput" 
+              accept="image/*" 
               className="hidden"
             />
+            
+            <div id="imageUploadPlaceholder" className="text-center">
+              <p className="text-muted-foreground">📸 Click hoặc paste ảnh vào đây</p>
+            </div>
+            
+            <div id="imagePreviewContainer" className="hidden relative">
+              <img 
+                id="imagePreview" 
+                alt="Preview" 
+                className="max-h-40 mx-auto rounded"
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (window.ProductModule) window.ProductModule.removeImage(e);
+                }}
+                className="absolute top-2 right-2 bg-destructive text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-destructive/90"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Product Form */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="defaultCode">Mã sản phẩm *</Label>
-              <Input
-                id="defaultCode"
-                value={productForm.defaultCode}
-                onChange={(e) => setProductForm({ ...productForm, defaultCode: e.target.value.toUpperCase() })}
-                placeholder="NTEST001"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">Tên sản phẩm *</Label>
-              <Input
-                id="name"
-                value={productForm.name}
-                onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                placeholder="Áo thun test"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="listPrice">Giá bán</Label>
-              <Input
-                id="listPrice"
-                type="number"
-                value={productForm.listPrice}
-                onChange={(e) => setProductForm({ ...productForm, listPrice: parseFloat(e.target.value) })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="purchasePrice">Giá mua</Label>
-              <Input
-                id="purchasePrice"
-                type="number"
-                value={productForm.purchasePrice}
-                onChange={(e) => setProductForm({ ...productForm, purchasePrice: parseFloat(e.target.value) })}
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="qtyAvailable">Số lượng</Label>
-              <Input
-                id="qtyAvailable"
-                type="number"
-                value={productForm.qtyAvailable}
-                onChange={(e) => setProductForm({ ...productForm, qtyAvailable: parseFloat(e.target.value) })}
-              />
-            </div>
-          </div>
-
-          {/* AttributeLines Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Biến thể (AttributeLines)</Label>
-              <Button onClick={() => setModalOpen(true)} variant="outline" size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                Chọn biến thể
-              </Button>
-            </div>
-            <Textarea
-              value={JSON.stringify(attributeLines, null, 2)}
-              readOnly
-              className="font-mono text-xs"
-              rows={6}
-              placeholder='[]'
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <input 
+              id="defaultCode" 
+              placeholder="Mã sản phẩm (VD: NTEST)" 
+              defaultValue="NTEST"
+              className="px-3 py-2 border rounded-md"
+            />
+            <input 
+              id="productName" 
+              placeholder="Tên sản phẩm" 
+              className="px-3 py-2 border rounded-md"
+            />
+            <input 
+              id="listPrice" 
+              type="number" 
+              placeholder="Giá bán" 
+              defaultValue="100000"
+              className="px-3 py-2 border rounded-md"
+            />
+            <input 
+              id="purchasePrice" 
+              type="number" 
+              placeholder="Giá nhập" 
+              defaultValue="50000"
+              className="px-3 py-2 border rounded-md"
+            />
+            <input 
+              id="qtyAvailable" 
+              type="number" 
+              placeholder="Số lượng" 
+              defaultValue="100"
+              className="px-3 py-2 border rounded-md col-span-2"
             />
           </div>
 
-          {/* Create Button */}
-          <Button
-            onClick={handleCreateProduct}
-            disabled={isCreating || !productForm.defaultCode || !productForm.name}
-            className="w-full"
-            size="lg"
-          >
-            {isCreating ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Đang tạo sản phẩm...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Tạo sản phẩm test
-              </>
-            )}
-          </Button>
+          {/* AttributeLines Display */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              AttributeLines (JSON)
+            </label>
+            <textarea 
+              id="attributeLinesDisplay" 
+              rows={6}
+              defaultValue="[]"
+              className="w-full px-3 py-2 border rounded-md font-mono text-xs"
+              readOnly
+            />
+          </div>
 
-          {/* Result Alert */}
-          {result && !error && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Thành công!</AlertTitle>
-              <AlertDescription className="flex items-center gap-2 flex-wrap">
-                <span>Đã tạo sản phẩm: {result.DefaultCode} (ID: {result.Id})</span>
-                {result.VariantActiveCount > 0 && (
-                  <Badge variant="secondary">{result.VariantActiveCount} biến thể</Badge>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Buttons */}
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.ProductModule) window.ProductModule.openAttributeModal();
+              }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              🎨 Chọn biến thể
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.ProductModule) window.ProductModule.createProductOneClick();
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex-1"
+            >
+              ✨ Tạo sản phẩm test
+            </button>
+          </div>
 
-          {/* Error Alert */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Lỗi</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          {/* Result Display */}
+          <div id="productResult" className="hidden">
+            <div className="border rounded-lg p-4 bg-muted">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-semibold">Kết quả:</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = document.getElementById('productResultContent')?.textContent || '';
+                    navigator.clipboard.writeText(content);
+                    showMessage('success', 'Đã sao chép JSON');
+                  }}
+                  className="px-2 py-1 text-xs bg-secondary rounded hover:bg-secondary/80"
+                >
+                  📋 Copy JSON
+                </button>
+              </div>
+              <pre 
+                id="productResultContent" 
+                className="text-xs overflow-auto max-h-96 bg-background p-3 rounded"
+              />
+            </div>
+          </div>
+        </div>
 
-          {/* JSON Result Collapsible */}
-          {result && (
-            <Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full">
-                  <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${isJsonOpen ? 'rotate-180' : ''}`} />
-                  {isJsonOpen ? 'Ẩn' : 'Xem'} JSON Response
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2">
-                <ScrollArea className="h-96 border rounded-md">
-                  <pre className="p-4 text-xs">{JSON.stringify(result, null, 2)}</pre>
-                </ScrollArea>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+        {/* Attribute Modal */}
+        <div id="attributeModal" className="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Chọn Biến Thể</h2>
+            
+            {/* Tabs */}
+            <div className="flex gap-2 border-b mb-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (window.ProductModule) window.ProductModule.switchAttrTab('sizeText', e);
+                }}
+                className="px-4 py-2 border-b-2 border-primary text-primary"
+              >
+                Size Chữ
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (window.ProductModule) window.ProductModule.switchAttrTab('color', e);
+                }}
+                className="px-4 py-2 text-muted-foreground"
+              >
+                Màu sắc
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (window.ProductModule) window.ProductModule.switchAttrTab('sizeNumber', e);
+                }}
+                className="px-4 py-2 text-muted-foreground"
+              >
+                Size Số
+              </button>
+            </div>
+            
+            {/* Tab Contents */}
+            <div id="tab-sizeText" className="attr-tab-content">
+              <select 
+                id="sizeTextSelect" 
+                className="w-full px-3 py-2 border rounded-md mb-3"
+              >
+                <option value="">-- Chọn Size Chữ --</option>
+              </select>
+              <div id="sizeTextChips" className="flex flex-wrap gap-2 min-h-[40px]" />
+            </div>
 
-          {/* Reset Button */}
-          {(result || error) && (
-            <Button onClick={resetForm} variant="outline" className="w-full">
-              Tạo sản phẩm mới
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+            <div id="tab-color" className="attr-tab-content hidden">
+              <select 
+                id="colorSelect" 
+                className="w-full px-3 py-2 border rounded-md mb-3"
+              >
+                <option value="">-- Chọn Màu --</option>
+              </select>
+              <div id="colorChips" className="flex flex-wrap gap-2 min-h-[40px]" />
+            </div>
 
-      {/* Attribute Selection Modal */}
-      <AttributeSelectionModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        initialAttributeLines={attributeLines}
-        onSave={(lines) => {
-          setAttributeLines(lines);
-          setModalOpen(false);
-        }}
-      />
-    </>
+            <div id="tab-sizeNumber" className="attr-tab-content hidden">
+              <select 
+                id="sizeNumberSelect" 
+                className="w-full px-3 py-2 border rounded-md mb-3"
+              >
+                <option value="">-- Chọn Size Số --</option>
+              </select>
+              <div id="sizeNumberChips" className="flex flex-wrap gap-2 min-h-[40px]" />
+            </div>
+            
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.ProductModule) window.ProductModule.closeAttributeModal();
+                }}
+                className="px-4 py-2 border rounded-md hover:bg-muted"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.ProductModule) window.ProductModule.saveAttributeLines();
+                }}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                💾 Lưu biến thể
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Add styles for chips */}
+        <style>{`
+          .size-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+            border-radius: 9999px;
+            font-size: 0.875rem;
+          }
+          .size-chip-remove {
+            font-size: 1.25rem;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+          }
+          .size-chip-remove:hover {
+            opacity: 1;
+          }
+        `}</style>
+      </CardContent>
+    </Card>
   );
+}
+
+// Extend Window interface for TypeScript
+declare global {
+  interface Window {
+    ProductModule?: {
+      initProductModule: (getHeaders: () => Promise<any>, showMessage: (type: string, message: string) => void) => void;
+      openAttributeModal: () => void;
+      closeAttributeModal: () => void;
+      switchAttrTab: (tab: string, event: any) => void;
+      saveAttributeLines: () => void;
+      removeValue: (type: string, valueId: number) => void;
+      removeImage: (event: any) => void;
+      createProductOneClick: () => void;
+    };
+  }
 }
