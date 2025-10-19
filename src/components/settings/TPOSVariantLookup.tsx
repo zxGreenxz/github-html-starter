@@ -270,7 +270,7 @@ export function TPOSVariantLookup() {
           <TabsContent value="product" className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Nhập ID sản phẩm (VD: 107831)"
+                placeholder="Nhập ID sản phẩm (VD: 108531)"
                 value={productId}
                 onChange={(e) => setProductId(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && loadProductData()}
