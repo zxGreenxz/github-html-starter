@@ -130,82 +130,8 @@ export function VariantGeneratorDialog({
             </div>
           </div>
 
-          {/* Selected Variants Display */}
-          {(selectedSizeText.length > 0 || selectedColors.length > 0 || selectedSizeNumber.length > 0) && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Các Biến Thể Đã Chọn
-                <span className="ml-2 text-muted-foreground">
-                  ({selectedSizeText.length + selectedColors.length + selectedSizeNumber.length})
-                </span>
-              </Label>
-              <div className="border rounded-lg p-3 min-h-[60px] bg-muted/30">
-                <div className="flex flex-wrap gap-2">
-                  {selectedSizeText.map((size) => (
-                    <Badge 
-                      key={`st-${size}`}
-                      variant="secondary" 
-                      className="gap-1.5 pl-3 pr-2 py-1 hover:bg-secondary/80 transition-colors"
-                    >
-                      <span className="text-xs">{size}</span>
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelection('sizeText', size);
-                        }}
-                      />
-                    </Badge>
-                  ))}
-                  
-                  {selectedColors.map((color) => (
-                    <Badge 
-                      key={`c-${color}`}
-                      variant="secondary" 
-                      className="gap-1.5 pl-3 pr-2 py-1 hover:bg-secondary/80 transition-colors"
-                    >
-                      <span className="text-xs">{color}</span>
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelection('color', color);
-                        }}
-                      />
-                    </Badge>
-                  ))}
-                  
-                  {selectedSizeNumber.map((size) => (
-                    <Badge 
-                      key={`sn-${size}`}
-                      variant="secondary" 
-                      className="gap-1.5 pl-3 pr-2 py-1 hover:bg-secondary/80 transition-colors"
-                    >
-                      <span className="text-xs">{size}</span>
-                      <X 
-                        className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelection('sizeNumber', size);
-                        }}
-                      />
-                    </Badge>
-                  ))}
-                  
-                  {selectedSizeText.length === 0 && 
-                   selectedColors.length === 0 && 
-                   selectedSizeNumber.length === 0 && (
-                    <span className="text-muted-foreground text-sm italic">
-                      Chưa chọn biến thể nào
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Selection Columns */}
-          <div className="grid grid-cols-3 gap-4 flex-1 overflow-hidden">
+          {/* Selection Columns - Now with 4 columns including Selected Variants */}
+          <div className="grid grid-cols-4 gap-4 flex-1 overflow-hidden">
             {/* Size Text */}
             <div className={cn(
               "space-y-2 flex flex-col h-full transition-opacity",
@@ -340,6 +266,70 @@ export function VariantGeneratorDialog({
                       </span>
                     </div>
                   ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Selected Variants Column */}
+            <div className="space-y-2 flex flex-col h-full">
+              <Label>
+                Đã Chọn
+                <span className="ml-2 text-muted-foreground">
+                  ({selectedSizeText.length + selectedColors.length + selectedSizeNumber.length})
+                </span>
+              </Label>
+              <ScrollArea className="flex-1 rounded-md border p-3 bg-primary/5 max-h-[400px]">
+                <div className="space-y-2">
+                  {selectedSizeText.length === 0 && 
+                   selectedColors.length === 0 && 
+                   selectedSizeNumber.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground text-sm italic">
+                        Chưa chọn biến thể nào
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {selectedSizeText.map((size) => (
+                        <div 
+                          key={`st-${size}`}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
+                        >
+                          <span className="text-sm font-medium flex-1">{size}</span>
+                          <X 
+                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
+                            onClick={() => toggleSelection('sizeText', size)}
+                          />
+                        </div>
+                      ))}
+                      
+                      {selectedColors.map((color) => (
+                        <div 
+                          key={`c-${color}`}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
+                        >
+                          <span className="text-sm font-medium flex-1">{color}</span>
+                          <X 
+                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
+                            onClick={() => toggleSelection('color', color)}
+                          />
+                        </div>
+                      ))}
+                      
+                      {selectedSizeNumber.map((size) => (
+                        <div 
+                          key={`sn-${size}`}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
+                        >
+                          <span className="text-sm font-medium flex-1">{size}</span>
+                          <X 
+                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
+                            onClick={() => toggleSelection('sizeNumber', size)}
+                          />
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               </ScrollArea>
             </div>
