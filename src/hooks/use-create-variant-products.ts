@@ -1,6 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { 
+  imageUrlToBase64, 
+  detectAttributesFromText, 
+  createAttributeLines,
+  createProductDirectly,
+  type TPOSProductItem
+} from "@/lib/tpos-api";
 
 interface BaseProductData {
   product_code: string;
@@ -81,8 +88,80 @@ export function useCreateVariantProducts() {
         baseAction = 'created';
       }
 
-      // 2. Handle Child Variants
-      // IMPORTANT: Delete ALL existing child variants first to regenerate with correct codes
+      // 2. Handle Child Variants - Upload to TPOS first, then save to DB
+      console.log(`📤 Uploading ${childVariants.length} variants to TPOS...`);
+
+      const tposResults: Array<{
+        variantIndex: number;
+        variantData: ChildVariantData;
+        tposProductId: number | null;
+        error?: string;
+      }> = [];
+
+      // 2A. Upload each variant to TPOS
+      for (let i = 0; i < childVariants.length; i++) {
+        const variant = childVariants[i];
+        
+        try {
+          // Convert image to Base64 (if exists)
+          let imageBase64: string | null = null;
+          if (variant.product_images?.[0]) {
+            imageBase64 = await imageUrlToBase64(variant.product_images[0]);
+          }
+          
+          // Detect attributes from variant text
+          const detected = detectAttributesFromText(variant.variant || '');
+          const attributeLines = createAttributeLines(detected);
+          
+          // Create TPOSProductItem format
+          const tposItem: TPOSProductItem = {
+            id: '',
+            product_code: variant.product_code,
+            base_product_code: variant.base_product_code,
+            product_name: variant.product_name,
+            variant: variant.variant,
+            unit_price: variant.purchase_price,
+            selling_price: variant.selling_price,
+            product_images: variant.product_images,
+            price_images: variant.price_images,
+            supplier_name: variant.supplier_name || '',
+            quantity: 1,
+            purchase_order_id: ''
+          };
+          
+          // Upload to TPOS using createProductDirectly()
+          const createdProduct = await createProductDirectly(
+            tposItem, 
+            imageBase64, 
+            attributeLines
+          );
+          
+          console.log(`✅ Uploaded variant ${i + 1}/${childVariants.length}: ${createdProduct.Id} - ${createdProduct.Name}`);
+          
+          tposResults.push({
+            variantIndex: i,
+            variantData: variant,
+            tposProductId: createdProduct.Id,
+          });
+          
+          // Delay between requests
+          if (i < childVariants.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+        } catch (error) {
+          console.error(`❌ Failed to upload variant ${i + 1}:`, error);
+          
+          tposResults.push({
+            variantIndex: i,
+            variantData: variant,
+            tposProductId: null,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // 2B. Delete old child variants from DB
       const { error: deleteError } = await supabase
         .from("products")
         .delete()
@@ -91,50 +170,58 @@ export function useCreateVariantProducts() {
 
       if (deleteError) throw deleteError;
 
-      // Insert all child variants with correct order and codes
+      // 2C. Save variants to DB with tpos_product_id
       let childrenCreated = 0;
-      if (childVariants.length > 0) {
-        // Insert one by one with small delay to ensure created_at order
-        for (let i = 0; i < childVariants.length; i++) {
-          const c = childVariants[i];
-          const { error } = await supabase
-            .from("products")
-            .insert({
-              product_code: c.product_code,
-              base_product_code: c.base_product_code,
-              product_name: c.product_name,
-              variant: c.variant,
-              purchase_price: c.purchase_price,
-              selling_price: c.selling_price,
-              supplier_name: c.supplier_name || null,
-              stock_quantity: 0,
-              unit: "Cái",
-              product_images: c.product_images,
-              price_images: c.price_images
-            });
+      for (const result of tposResults) {
+        const variant = result.variantData;
+        
+        const { error } = await supabase
+          .from("products")
+          .insert({
+            product_code: variant.product_code,
+            base_product_code: variant.base_product_code,
+            product_name: variant.product_name,
+            variant: variant.variant,
+            purchase_price: variant.purchase_price,
+            selling_price: variant.selling_price,
+            supplier_name: variant.supplier_name || null,
+            stock_quantity: 0,
+            unit: "Cái",
+            product_images: variant.product_images,
+            price_images: variant.price_images,
+            tpos_product_id: result.tposProductId // ⭐ Save TPOS ID
+          });
 
-          if (error) throw error;
-          childrenCreated++;
-          
-          // Small delay to ensure different created_at timestamps
-          if (i < childVariants.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
+        if (error) throw error;
+        childrenCreated++;
+        
+        // Small delay
+        if (result.variantIndex < tposResults.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 10));
         }
       }
 
       return { 
         baseAction, 
         baseProduct: baseProduct.product_code,
-        childrenCreated
+        childrenCreated,
+        tposUploadSuccess: tposResults.filter(r => r.tposProductId !== null).length,
+        tposUploadFailed: tposResults.filter(r => r.tposProductId === null).length
       };
     },
-    onSuccess: ({ baseAction, baseProduct, childrenCreated }, variables) => {
+    onSuccess: ({ baseAction, baseProduct, childrenCreated, tposUploadSuccess, tposUploadFailed }, variables) => {
       const baseActionText = baseAction === 'created' ? 'tạo' : 'cập nhật';
-      const messages = [`Đã ${baseActionText} sản phẩm gốc: ${baseProduct}`];
+      const messages = [
+        `Đã ${baseActionText} sản phẩm gốc: ${baseProduct}`,
+        `Đã tạo ${childrenCreated} biến thể`
+      ];
       
-      if (childrenCreated > 0) {
-        messages.push(`Đã tạo ${childrenCreated} biến thể mới`);
+      if (tposUploadSuccess > 0) {
+        messages.push(`✅ Upload TPOS: ${tposUploadSuccess} thành công`);
+      }
+      
+      if (tposUploadFailed > 0) {
+        messages.push(`⚠️ Upload TPOS: ${tposUploadFailed} thất bại`);
       }
 
       toast({
