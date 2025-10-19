@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
+import { queryWithAutoRefresh } from "@/lib/query-with-auto-refresh";
 
 export function TPOSVariantLookup() {
   // Tab Biến thể
@@ -45,21 +46,24 @@ export function TPOSVariantLookup() {
     setVariantError(null);
 
     try {
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        throw new Error("Không tìm thấy TPOS bearer token");
-      }
-
-      const headers = getTPOSHeaders(token);
       const url = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
 
-      const response = await fetch(url, { method: "GET", headers });
+      const data = await queryWithAutoRefresh(async () => {
+        const token = await getActiveTPOSToken();
+        if (!token) {
+          throw new Error("Không tìm thấy TPOS bearer token");
+        }
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+        const headers = getTPOSHeaders(token);
+        const response = await fetch(url, { method: "GET", headers });
 
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.json();
+      }, 'tpos');
+
       setVariantData(data);
       toast({
         title: "Thành công",
@@ -92,21 +96,24 @@ export function TPOSVariantLookup() {
     setProductError(null);
 
     try {
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        throw new Error("Không tìm thấy TPOS bearer token");
-      }
-
-      const headers = getTPOSHeaders(token);
       const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
 
-      const response = await fetch(url, { method: "GET", headers });
+      const data = await queryWithAutoRefresh(async () => {
+        const token = await getActiveTPOSToken();
+        if (!token) {
+          throw new Error("Không tìm thấy TPOS bearer token");
+        }
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+        const headers = getTPOSHeaders(token);
+        const response = await fetch(url, { method: "GET", headers });
 
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.json();
+      }, 'tpos');
+
       setProductData(data);
       toast({
         title: "Thành công",
