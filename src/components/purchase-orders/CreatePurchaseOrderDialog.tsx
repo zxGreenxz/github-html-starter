@@ -420,8 +420,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       }
 
       toast({
-        title: "Đã cập nhật sản phẩm",
-        description: `${productData.product_code} - ${variantText}`,
+        title: "✅ Cập nhật kho thành công",
+        description: `${productData.product_code}`,
       });
     } else {
       // Insert new product
@@ -439,8 +439,36 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       }
 
       toast({
-        title: "Đã tạo sản phẩm mới",
-        description: `${productData.product_code} - ${variantText}`,
+        title: "✅ Tạo vào kho thành công",
+        description: `${productData.product_code}`,
+      });
+    }
+    
+    // Upload to TPOS and create variants
+    try {
+      const { uploadToTPOSAndCreateVariants } = await import('@/lib/tpos-variant-uploader');
+      
+      await uploadToTPOSAndCreateVariants(
+        productData.product_code,
+        productData.product_name,
+        variantText,
+        {
+          selling_price: productData.selling_price / 1000,
+          purchase_price: productData.purchase_price / 1000,
+          product_images: productData.product_images,
+          price_images: productData.price_images,
+          supplier_name: productData.supplier_name
+        },
+        (message) => {
+          toast({ description: message, duration: 1500 });
+        }
+      );
+    } catch (error: any) {
+      console.error("TPOS upload error:", error);
+      toast({
+        variant: "destructive",
+        title: "⚠️ Lỗi upload TPOS",
+        description: error.message
       });
     }
     
