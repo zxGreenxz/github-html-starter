@@ -23,8 +23,6 @@ import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 
-import { useCreateVariantProducts } from "@/hooks/use-create-variant-products";
-
 interface PurchaseOrderItem {
   quantity: number;
   notes: string;
@@ -91,8 +89,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
-  
-  const createVariantProducts = useCreateVariantProducts();
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -374,106 +370,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     setIsSelectProductOpen(true);
   };
 
-  const handleVariantsGenerated = (
-    index: number,
-    variants: Array<{
-      fullCode: string;
-      variantCode: string;
-      productName: string;
-      variantText: string;
-      hasCollision: boolean;
-    }>
-  ) => {
-    const baseItem = items[index];
-
-    // Extract all individual variant parts from all child variants
-    // IMPORTANT: Keep original order, do NOT sort
-    const allVariantParts: string[] = [];
-    const seenParts = new Set<string>();
+  const handleVariantsGenerated = (index: number, variantText: string) => {
+    // Simply update the variant field for the current item
+    setItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = {
+        ...newItems[index],
+        variant: variantText,
+      };
+      return newItems;
+    });
     
-    for (const v of variants) {
-      const parts = v.variantText.split(',').map(s => s.trim()).filter(Boolean);
-      for (const part of parts) {
-        if (!seenParts.has(part)) {
-          seenParts.add(part);
-          allVariantParts.push(part);
-        }
-      }
-    }
-    
-    const mergedVariant = allVariantParts.join(', ');
-
-    // Prepare base product data
-    const baseProductData = {
-      product_code: baseItem.product_code.trim().toUpperCase(),
-      product_name: baseItem.product_name.trim().toUpperCase(),
-      variant: mergedVariant || null,
-      purchase_price: Number(baseItem.purchase_price) * 1000,
-      selling_price: Number(baseItem.selling_price) * 1000,
-      supplier_name: formData.supplier_name || undefined,
-      stock_quantity: 0,
-      product_images: [...baseItem.product_images],
-      price_images: [...baseItem.price_images]
-    };
-
-    // Prepare child variants data
-    const childVariantsData = variants.map(v => ({
-      product_code: v.fullCode.toUpperCase(),
-      base_product_code: baseItem.product_code.trim().toUpperCase(),
-      product_name: v.productName.toUpperCase(),
-      variant: v.variantText,
-      purchase_price: Number(baseItem.purchase_price) * 1000,
-      selling_price: Number(baseItem.selling_price) * 1000,
-      supplier_name: formData.supplier_name || undefined,
-      product_images: baseItem.product_images,
-      price_images: baseItem.price_images
-    }));
-
-    // Call mutation to upsert base product and create child variants
-    createVariantProducts.mutate({ 
-      baseProduct: baseProductData,
-      childVariants: childVariantsData,
-      onSuccessCallback: () => {
-        // Fill first line + add new lines for remaining variants
-        setItems(prev => {
-          const newItems = [...prev];
-          
-          // Fill first line with first variant
-          const firstVariant = variants[0];
-          newItems[index] = {
-            ...newItems[index],
-            product_code: firstVariant.fullCode,
-            product_name: firstVariant.productName,
-            variant: firstVariant.variantText,
-          };
-          
-          // Add additional lines for remaining variants
-          if (variants.length > 1) {
-            const additionalItems = variants.slice(1).map(variant => ({
-              quantity: 1,
-              notes: "",
-              product_name: variant.productName,
-              product_code: variant.fullCode,
-              variant: variant.variantText,
-              purchase_price: baseItem.purchase_price,
-              selling_price: baseItem.selling_price,
-              product_images: [...baseItem.product_images],
-              price_images: [...baseItem.price_images],
-              _tempTotalPrice: Number(baseItem.purchase_price) * 1,
-            }));
-            
-            // Insert after current line
-            newItems.splice(index + 1, 0, ...additionalItems);
-          }
-          
-          return newItems;
-        });
-        
-        toast({
-          title: "Đã thêm biến thể",
-          description: `Đã thêm ${variants.length} biến thể vào đơn hàng`,
-        });
-      }
+    toast({
+      title: "Đã thêm biến thể",
+      description: variantText,
     });
   };
 
@@ -894,8 +804,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             product_code: items[variantGeneratorIndex].product_code,
             product_name: items[variantGeneratorIndex].product_name
           }}
-          onVariantsGenerated={(variants) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants);
+          onVariantsGenerated={(variantText) => {
+            handleVariantsGenerated(variantGeneratorIndex, variantText);
             setVariantGeneratorIndex(null);
           }}
         />

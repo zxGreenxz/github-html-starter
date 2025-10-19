@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Search, Check, X } from "lucide-react";
-import { generateAllVariants } from "@/lib/variant-code-generator";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 import { cn } from "@/lib/utils";
 
@@ -17,15 +16,7 @@ interface VariantGeneratorDialogProps {
     product_code: string;
     product_name: string;
   };
-  onVariantsGenerated: (
-    variants: Array<{
-      fullCode: string;
-      variantCode: string;
-      productName: string;
-      variantText: string;
-      hasCollision: boolean;
-    }>
-  ) => void;
+  onVariantsGenerated: (variantText: string) => void;
 }
 
 export function VariantGeneratorDialog({
@@ -41,49 +32,7 @@ export function VariantGeneratorDialog({
   const [sizeTextFilter, setSizeTextFilter] = useState("");
   const [colorFilter, setColorFilter] = useState("");
   const [sizeNumberFilter, setSizeNumberFilter] = useState("");
-  const [previewResults, setPreviewResults] = useState<Array<{
-    fullCode: string;
-    variantCode: string;
-    productName: string;
-    variantText: string;
-    hasCollision: boolean;
-  }>>([]);
 
-  // Auto-generate preview on selection change
-  useEffect(() => {
-    if (!currentItem.product_code || !currentItem.product_name) {
-      setPreviewResults([]);
-      return;
-    }
-
-    if (selectedSizeText.length === 0 && selectedColors.length === 0 && selectedSizeNumber.length === 0) {
-      setPreviewResults([]);
-      return;
-    }
-
-    try {
-      const variants = generateAllVariants({
-        productCode: currentItem.product_code.trim(),
-        productName: currentItem.product_name.trim(),
-        sizeTexts: selectedSizeText,
-        colors: selectedColors,
-        sizeNumbers: selectedSizeNumber
-      });
-
-      const formatted = variants.map(v => ({
-        fullCode: v.fullCode,
-        variantCode: v.variantCode,
-        productName: v.productName,
-        variantText: v.variantText,
-        hasCollision: v.hasCollision
-      }));
-
-      setPreviewResults(formatted);
-    } catch (error) {
-      console.error('Error generating variants:', error);
-      setPreviewResults([]);
-    }
-  }, [selectedSizeText, selectedColors, selectedSizeNumber, currentItem.product_code, currentItem.product_name]);
 
 
   const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
@@ -114,8 +63,11 @@ export function VariantGeneratorDialog({
   };
 
   const handleConfirm = () => {
-    if (previewResults.length > 0) {
-      onVariantsGenerated(previewResults);
+    // Combine all selected variants into a comma-separated string
+    const allVariants = [...selectedSizeText, ...selectedColors, ...selectedSizeNumber];
+    if (allVariants.length > 0) {
+      const variantText = allVariants.join(', ');
+      onVariantsGenerated(variantText);
       onOpenChange(false);
       // Reset selections and filters
       setSelectedSizeText([]);
@@ -393,20 +345,6 @@ export function VariantGeneratorDialog({
             </div>
           </div>
 
-          {/* Generated Variants Summary */}
-          {previewResults.length > 0 && (
-            <div className="p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <span className="font-medium">Tổng số biến thể sẽ được tạo:</span>
-                </div>
-                <Badge variant="secondary" className="text-lg px-4 py-1">
-                  {previewResults.length}
-                </Badge>
-              </div>
-            </div>
-          )}
         </div>
 
         <DialogFooter>
@@ -415,11 +353,11 @@ export function VariantGeneratorDialog({
           </Button>
           <Button 
             onClick={handleConfirm} 
-            disabled={previewResults.length === 0}
+            disabled={selectedSizeText.length === 0 && selectedColors.length === 0 && selectedSizeNumber.length === 0}
             className="gap-2"
           >
             <Sparkles className="h-4 w-4" />
-            Xác Nhận Tạo {previewResults.length > 0 ? `${previewResults.length} Biến Thể` : ''}
+            Xác Nhận
           </Button>
         </DialogFooter>
       </DialogContent>

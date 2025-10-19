@@ -16,7 +16,6 @@ import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
-import { useCreateVariantProducts } from "@/hooks/use-create-variant-products";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
@@ -116,8 +115,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
-
-  const createVariantProducts = useCreateVariantProducts();
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -448,115 +445,20 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     setIsSelectProductOpen(true);
   };
 
-  const handleVariantsGenerated = (
-    index: number,
-    variants: Array<{
-      fullCode: string;
-      variantCode: string;
-      productName: string;
-      variantText: string;
-      hasCollision: boolean;
-    }>
-  ) => {
-    const baseItem = items[index];
-
-    // Extract all individual variant parts from all child variants
-    // IMPORTANT: Keep original order, do NOT sort
-    const allVariantParts: string[] = [];
-    const seenParts = new Set<string>();
+  const handleVariantsGenerated = (index: number, variantText: string) => {
+    // Simply update the variant field for the current item
+    setItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = {
+        ...newItems[index],
+        _tempVariant: variantText,
+      };
+      return newItems;
+    });
     
-    for (const v of variants) {
-      const parts = v.variantText.split(',').map(s => s.trim()).filter(Boolean);
-      for (const part of parts) {
-        if (!seenParts.has(part)) {
-          seenParts.add(part);
-          allVariantParts.push(part);
-        }
-      }
-    }
-    
-    const mergedVariant = allVariantParts.join(', ');
-
-    // Prepare base product data
-    const baseProductData = {
-      product_code: baseItem._tempProductCode.trim().toUpperCase(),
-      product_name: baseItem._tempProductName.trim().toUpperCase(),
-      variant: mergedVariant || null,
-      purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-      selling_price: Number(baseItem._tempSellingPrice) * 1000,
-      supplier_name: supplierName || undefined,
-      stock_quantity: 0,
-      product_images: [...baseItem._tempProductImages],
-      price_images: [...baseItem._tempPriceImages]
-    };
-
-    // Prepare child variants data
-    const childVariantsData = variants.map(v => ({
-      product_code: v.fullCode.toUpperCase(),
-      base_product_code: baseItem._tempProductCode.trim().toUpperCase(),
-      product_name: v.productName.toUpperCase(),
-      variant: v.variantText,
-      purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-      selling_price: Number(baseItem._tempSellingPrice) * 1000,
-      supplier_name: supplierName || undefined,
-      product_images: baseItem._tempProductImages,
-      price_images: baseItem._tempPriceImages
-    }));
-
-    // Call mutation to upsert base product and create child variants
-    createVariantProducts.mutate({ 
-      baseProduct: baseProductData,
-      childVariants: childVariantsData,
-      onSuccessCallback: () => {
-        // Fill first line + add new lines for remaining variants
-        setItems(prev => {
-          const newItems = [...prev];
-          
-          // Fill first line with first variant
-          const firstVariant = variants[0];
-          newItems[index] = {
-            ...newItems[index],
-            _tempProductCode: firstVariant.fullCode,
-            _tempProductName: firstVariant.productName,
-            _tempVariant: firstVariant.variantText,
-          };
-          
-          // Add additional lines for remaining variants
-          if (variants.length > 1) {
-            const additionalItems = variants.slice(1).map(variant => ({
-              id: undefined,
-              product_code: variant.fullCode,
-              product_name: variant.productName,
-              variant: variant.variantText,
-              purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-              selling_price: Number(baseItem._tempSellingPrice) * 1000,
-              product_images: [...baseItem._tempProductImages],
-              price_images: [...baseItem._tempPriceImages],
-              quantity: 1,
-              notes: "",
-              position: undefined,
-              _tempProductName: variant.productName,
-              _tempVariant: variant.variantText,
-              _tempProductCode: variant.fullCode,
-              _tempUnitPrice: baseItem._tempUnitPrice,
-              _tempSellingPrice: baseItem._tempSellingPrice,
-              _tempTotalPrice: Number(baseItem._tempUnitPrice) * 1,
-              _tempProductImages: [...baseItem._tempProductImages],
-              _tempPriceImages: [...baseItem._tempPriceImages]
-            }));
-            
-            // Insert after current line
-            newItems.splice(index + 1, 0, ...additionalItems);
-          }
-          
-          return newItems;
-        });
-        
-        toast({
-          title: "Đã thêm biến thể",
-          description: `Đã thêm ${variants.length} biến thể vào đơn hàng`,
-        });
-      }
+    toast({
+      title: "Đã thêm biến thể",
+      description: variantText,
     });
   };
 
@@ -1078,8 +980,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             product_code: items[variantGeneratorIndex]._tempProductCode,
             product_name: items[variantGeneratorIndex]._tempProductName
           }}
-          onVariantsGenerated={(variants) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants);
+          onVariantsGenerated={(variantText) => {
+            handleVariantsGenerated(variantGeneratorIndex, variantText);
             setVariantGeneratorIndex(null);
           }}
         />
