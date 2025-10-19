@@ -466,22 +466,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       
       console.log('🔍 Created variants from TPOS:', createdVariants);
       
-      // Add created variants to items list
+      // Add created variants to items list  
       if (createdVariants && createdVariants.length > 0) {
         console.log(`📦 Adding ${createdVariants.length} variants to purchase order`);
+        console.log('📊 First variant sample:', createdVariants[0]);
         
-        const newVariantItems = createdVariants.map(variant => ({
-          quantity: 1,
-          notes: "",
-          product_code: variant.product_code,
-          product_name: variant.product_name,
-          variant: variant.variant,
-          purchase_price: variant.purchase_price,
-          selling_price: variant.selling_price,
-          product_images: variant.product_images,
-          price_images: variant.price_images,
-          _tempTotalPrice: 0,
-        }));
+        const newVariantItems = createdVariants.map((variant, i) => {
+          console.log(`🔢 Variant ${i}: price=${variant.purchase_price}, sell=${variant.selling_price}`);
+          return {
+            quantity: 1,
+            notes: "",
+            product_code: variant.product_code,
+            product_name: variant.product_name,
+            variant: variant.variant,
+            purchase_price: variant.purchase_price,
+            selling_price: variant.selling_price,
+            product_images: variant.product_images,
+            price_images: variant.price_images,
+            _tempTotalPrice: variant.purchase_price,
+          };
+        });
         
         // Insert new variant items after the current base item
         setItems(prev => {
