@@ -433,9 +433,10 @@ async function createProductOneClick() {
     showMessage('info', '🔍 Đang kiểm tra...');
     
     // Check if product exists
+    const headers = await getHeaders();
     const checkResponse = await fetch(
       `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${defaultCode}`,
-      { headers: getHeaders() }
+      { headers }
     );
     const checkData = await checkResponse.json();
     
@@ -520,7 +521,7 @@ async function createProductOneClick() {
       'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO',
       {
         method: 'POST',
-        headers: getHeaders(),
+        headers,
         body: JSON.stringify(payload)
       }
     );
