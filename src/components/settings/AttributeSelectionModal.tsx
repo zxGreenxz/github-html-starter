@@ -76,35 +76,22 @@ export function AttributeSelectionModal({ open, onOpenChange, initialAttributeLi
     
     if (!selectedValue) return;
     
-    // Find or create AttributeLine
-    let attrLine = currentLines.find(line => line.AttributeId === config.id);
-    
-    if (!attrLine) {
-      attrLine = {
-        Attribute: {
-          Id: config.id,
-          Name: config.name,
-          Code: config.code,
-          Sequence: null,
-          CreateVariant: true
-        },
-        Values: [],
-        AttributeId: config.id
-      };
-      setCurrentLines([...currentLines, attrLine]);
-    }
+    // Find existing AttributeLine
+    const existingLineIndex = currentLines.findIndex(line => line.AttributeId === config.id);
     
     // Check duplicate
-    if (attrLine.Values.find(v => v.Id === valueId)) {
-      toast({
-        title: "Lỗi",
-        description: "Giá trị đã được thêm",
-        variant: "destructive"
-      });
-      return;
+    if (existingLineIndex !== -1) {
+      if (currentLines[existingLineIndex].Values.find(v => v.Id === valueId)) {
+        toast({
+          title: "Lỗi",
+          description: "Giá trị đã được thêm",
+          variant: "destructive"
+        });
+        return;
+      }
     }
     
-    // Add value
+    // Create new value
     const newValue = {
       Id: selectedValue.Id,
       Name: selectedValue.Name,
@@ -117,8 +104,28 @@ export function AttributeSelectionModal({ open, onOpenChange, initialAttributeLi
       DateCreated: null
     };
     
-    attrLine.Values.push(newValue);
-    setCurrentLines([...currentLines]);
+    // Update or create AttributeLine
+    if (existingLineIndex !== -1) {
+      const updatedLines = [...currentLines];
+      updatedLines[existingLineIndex] = {
+        ...updatedLines[existingLineIndex],
+        Values: [...updatedLines[existingLineIndex].Values, newValue]
+      };
+      setCurrentLines(updatedLines);
+    } else {
+      const newLine: AttributeLine = {
+        Attribute: {
+          Id: config.id,
+          Name: config.name,
+          Code: config.code,
+          Sequence: null,
+          CreateVariant: true
+        },
+        Values: [newValue],
+        AttributeId: config.id
+      };
+      setCurrentLines([...currentLines, newLine]);
+    }
   };
 
   const handleRemoveValue = (type: keyof typeof ATTRIBUTE_CONFIGS, valueId: number) => {
