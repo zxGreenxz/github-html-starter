@@ -33,7 +33,15 @@ interface PurchaseOrderItem {
     product_name: string;
     purchase_price: number;
     product_images: string[] | null;
-  };
+  } | null;
+  // Snapshot fields
+  product_code_snapshot?: string;
+  product_name_snapshot?: string;
+  variant_snapshot?: string | null;
+  purchase_price_snapshot?: number;
+  selling_price_snapshot?: number;
+  product_images_snapshot?: string[];
+  price_images_snapshot?: string[];
 }
 
 interface PurchaseOrderDetailDialogProps {
@@ -71,7 +79,8 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
   // Calculate totals from items for verification
   const itemsTotalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const itemsTotalAmount = orderItems.reduce((sum, item) => {
-    const price = item.product?.purchase_price || 0;
+    // Ưu tiên snapshot data, fallback sang product data
+    const price = item.purchase_price_snapshot || item.product?.purchase_price || 0;
     return sum + (item.quantity * price);
   }, 0);
 
@@ -171,23 +180,29 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
                       </TableRow>
                     </TableHeader>
                   <TableBody>
-                     {orderItems.map((item) => (
+                     {orderItems.map((item) => {
+                       // Ưu tiên snapshot data, fallback sang product data
+                       const productName = item.product_name_snapshot || item.product?.product_name || "Sản phẩm đã xóa";
+                       const productImages = item.product_images_snapshot || item.product?.product_images || [];
+                       const purchasePrice = item.purchase_price_snapshot || item.product?.purchase_price || 0;
+                       
+                       return (
                        <TableRow key={item.id}>
                          <TableCell>
-                           {item.product?.product_images && item.product.product_images.length > 0 ? (
+                           {productImages && productImages.length > 0 ? (
                              <div className="flex flex-wrap gap-1">
-                               {item.product.product_images.slice(0, 2).map((imageUrl, index) => (
+                               {productImages.slice(0, 2).map((imageUrl, index) => (
                                  <img
                                    key={index}
                                    src={imageUrl}
-                                   alt={`${item.product?.product_name} ${index + 1}`}
+                                   alt={`${productName} ${index + 1}`}
                                    className="w-10 h-10 object-cover rounded border cursor-pointer hover:opacity-75 transition-opacity"
                                    onClick={() => window.open(imageUrl, '_blank')}
                                  />
                                ))}
-                               {item.product.product_images.length > 2 && (
+                               {productImages.length > 2 && (
                                  <div className="w-10 h-10 bg-muted rounded border flex items-center justify-center text-xs text-muted-foreground">
-                                   +{item.product.product_images.length - 2}
+                                   +{productImages.length - 2}
                                  </div>
                                )}
                              </div>
@@ -197,7 +212,7 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
                          </TableCell>
                          <TableCell>
                            <div className="space-y-1">
-                             <div className="font-medium">{item.product?.product_name || "N/A"}</div>
+                             <div className="font-medium">{productName}</div>
                              {item.notes && (
                                <div className="text-xs text-muted-foreground italic">
                                  Ghi chú: {item.notes}
@@ -209,13 +224,14 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
                            {item.quantity}
                          </TableCell>
                          <TableCell className="text-right">
-                           {formatVND(item.product?.purchase_price || 0)}
+                           {formatVND(purchasePrice)}
                          </TableCell>
                          <TableCell className="text-right font-medium">
-                           {formatVND((item.product?.purchase_price || 0) * item.quantity)}
+                           {formatVND(purchasePrice * item.quantity)}
                          </TableCell>
                        </TableRow>
-                     ))}
+                       );
+                     })}
                   </TableBody>
                 </Table>
               </ScrollArea>

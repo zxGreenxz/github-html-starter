@@ -43,6 +43,15 @@ interface PurchaseOrderItem {
     price_images: string[] | null;
   };
   
+  // Snapshot fields from database
+  product_code_snapshot?: string;
+  product_name_snapshot?: string;
+  variant_snapshot?: string | null;
+  purchase_price_snapshot?: number;
+  selling_price_snapshot?: number;
+  product_images_snapshot?: string[];
+  price_images_snapshot?: string[];
+  
   // Temporary UI fields
   _tempProductName: string;
   _tempProductCode: string;
@@ -183,22 +192,33 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   // Load items when existingItems change
   useEffect(() => {
     if (existingItems && existingItems.length > 0) {
-      setItems(existingItems.map(item => ({
-        id: item.id,
-        product_id: item.product_id,
-        product: item.product,
-        quantity: item.quantity || 1,
-        notes: item.notes || "",
-        position: item.position,
-        _tempProductName: item.product?.product_name || "",
-        _tempProductCode: item.product?.product_code || "",
-        _tempVariant: item.product?.variant || "",
-        _tempUnitPrice: item.product ? Number(item.product.purchase_price) / 1000 : 0,
-        _tempSellingPrice: item.product ? Number(item.product.selling_price) / 1000 : 0,
-        _tempTotalPrice: item.product ? (item.quantity * Number(item.product.purchase_price) / 1000) : 0,
-        _tempProductImages: item.product?.product_images || [],
-        _tempPriceImages: item.product?.price_images || [],
-      })));
+      setItems(existingItems.map(item => {
+        // Ưu tiên sử dụng snapshot data, fallback sang product data
+        const productName = item.product_name_snapshot || item.product?.product_name || "";
+        const productCode = item.product_code_snapshot || item.product?.product_code || "";
+        const variant = item.variant_snapshot || item.product?.variant || "";
+        const purchasePrice = item.purchase_price_snapshot || item.product?.purchase_price || 0;
+        const sellingPrice = item.selling_price_snapshot || item.product?.selling_price || 0;
+        const productImages = item.product_images_snapshot || item.product?.product_images || [];
+        const priceImages = item.price_images_snapshot || item.product?.price_images || [];
+
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          product: item.product,
+          quantity: item.quantity || 1,
+          notes: item.notes || "",
+          position: item.position,
+          _tempProductName: productName,
+          _tempProductCode: productCode,
+          _tempVariant: variant,
+          _tempUnitPrice: Number(purchasePrice) / 1000,
+          _tempSellingPrice: Number(sellingPrice) / 1000,
+          _tempTotalPrice: (item.quantity * Number(purchasePrice)) / 1000,
+          _tempProductImages: productImages,
+          _tempPriceImages: priceImages,
+        };
+      }));
     } else if (open && existingItems) {
       // If no existing items, add one empty row
       setItems([{
