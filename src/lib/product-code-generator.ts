@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { convertVietnameseToUpperCase } from "./utils";
+import { searchTPOSProduct } from "./tpos-api";
 
 // Keywords for product categories
 const CATEGORY_N_KEYWORDS = ["QUAN", "AO", "DAM", "SET", "JUM", "AOKHOAC"];
@@ -146,45 +147,6 @@ export function getMaxNumberFromItems(
   return maxNumber;
 }
 
-/**
- * Get max product number from database for a category
- * @param category - 'N' or 'P'
- * @returns Max number found, or 0 if none
- */
-export async function getMaxNumberFromDatabase(
-  category: 'N' | 'P'
-): Promise<number> {
-  try {
-    // Query for ALL codes in this category
-    const { data, error } = await supabase
-      .from("products")
-      .select("product_code")
-      .like("product_code", `${category}%`);
-    
-    if (error) throw error;
-    
-    if (!data || data.length === 0) {
-      return 0;
-    }
-    
-    // Parse all numbers and find the maximum
-    let maxNumber = 0;
-    data.forEach(item => {
-      const match = item.product_code.match(/\d+$/);
-      if (match) {
-        const num = parseInt(match[0], 10);
-        if (num > maxNumber) {
-          maxNumber = num;
-        }
-      }
-    });
-    
-    return maxNumber;
-  } catch (error) {
-    console.error("Error getting max number from database:", error);
-    return 0;
-  }
-}
 
 /**
  * Get max product number from purchase order items for a category
@@ -195,9 +157,9 @@ export async function getMaxNumberFromPurchaseOrderItems(
   category: 'N' | 'P'
 ): Promise<number> {
   try {
-    // Query for ALL codes in this category from products table
+    // Query for ALL codes in this category from purchase_order_items table
     const { data, error } = await supabase
-      .from("products")
+      .from("purchase_order_items")
       .select("product_code")
       .like("product_code", `${category}%`);
     
@@ -242,16 +204,31 @@ export async function generateProductCodeFromMax(
   
   const category = detectProductCategory(productName);
   
-  // Get max from all three sources
+  // Get max from two sources (form and purchase orders only)
   const maxFromForm = getMaxNumberFromItems(formItems, category);
-  const maxFromDB = await getMaxNumberFromDatabase(category);
   const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
   
   // Take the largest one and add 1
-  const maxNumber = Math.max(maxFromForm, maxFromDB, maxFromPurchaseOrders);
-  const nextNumber = maxNumber + 1;
+  const maxNumber = Math.max(maxFromForm, maxFromPurchaseOrders);
+  let nextNumber = maxNumber + 1;
+  let candidateCode = `${category}${nextNumber}`;
   
-  return `${category}${nextNumber}`;
+  // Check TPOS API to ensure code doesn't exist
+  while (true) {
+    const tposProduct = await searchTPOSProduct(candidateCode);
+    
+    if (!tposProduct) {
+      // Code doesn't exist on TPOS - use it
+      break;
+    }
+    
+    // Code exists on TPOS - increment and try again
+    console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS, thử mã tiếp theo...`);
+    nextNumber++;
+    candidateCode = `${category}${nextNumber}`;
+  }
+  
+  return candidateCode;
 }
 
 /**
