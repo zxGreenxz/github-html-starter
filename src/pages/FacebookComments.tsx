@@ -1,4 +1,4 @@
-import { MessageSquare, Barcode } from "lucide-react";
+import { Barcode } from "lucide-react";
 import { FacebookCommentsManager } from "@/components/facebook/FacebookCommentsManager";
 import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { ScannedBarcodesPanel } from "@/components/facebook/ScannedBarcodesPanel";
@@ -91,41 +91,14 @@ const FacebookComments = () => {
 
   return (
     <div className={cn(
-      "transition-all duration-300 ease-in-out",
+      "transition-all duration-300 ease-in-out h-screen flex flex-col",
       isCommentsOpen && !isMobile ? "mr-[450px]" : "mr-0"
     )}>
       <div className={cn(
-        "mx-auto space-y-6",
+        "flex-1 overflow-hidden",
         isMobile ? "p-4" : "container p-6"
       )}>
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 p-3 rounded-lg">
-            <MessageSquare 
-              className={cn(
-                "text-primary",
-                isMobile ? "h-5 w-5" : "h-6 w-6"
-              )}
-              aria-hidden="true"
-            />
-          </div>
-          <div>
-            <h1 className={cn(
-              "font-bold text-foreground",
-              isMobile ? "text-xl" : "text-2xl"
-            )}>
-              Livestream Comment
-            </h1>
-            <p className={cn(
-              "text-muted-foreground",
-              isMobile ? "text-xs" : "text-sm"
-            )}>
-              Quản lý comment và đơn hàng từ Facebook Live
-            </p>
-          </div>
-        </div>
-
-        {/* Facebook Comments Manager */}
+        {/* Facebook Comments Manager - Full Height */}
         <FacebookCommentsManager />
       </div>
 

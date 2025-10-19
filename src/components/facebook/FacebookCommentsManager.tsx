@@ -1866,10 +1866,7 @@ export function FacebookCommentsManager({
 
                 <ScrollArea
                   className={cn(
-                    isMobile && isFullscreen
-                      ? "h-[calc(100vh-180px)]"
-                      : "h-[500px]",
-                    "pr-4",
+                    "h-[calc(100vh-320px)] pr-4"
                   )}
                   ref={scrollRef}
                 >
