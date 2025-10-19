@@ -382,8 +382,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       productName: string;
       variantText: string;
       hasCollision: boolean;
-    }>,
-    selectedIndices: number[]
+    }>
   ) => {
     const baseItem = items[index];
 
@@ -435,64 +434,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       baseProduct: baseProductData,
       childVariants: childVariantsData,
       onSuccessCallback: () => {
-        // New logic based on selectedIndices
-        if (selectedIndices.length === 0) {
-          // No checkboxes selected → Clear the line
-          const emptyItem: PurchaseOrderItem = {
-            quantity: 1,
-            notes: "",
-            product_code: "",
-            product_name: "",
-            variant: "",
-            purchase_price: "",
-            selling_price: "",
-            product_images: [],
-            price_images: [],
-            _tempTotalPrice: 0,
+        // Fill first line + add new lines for remaining variants
+        setItems(prev => {
+          const newItems = [...prev];
+          
+          // Fill first line with first variant
+          const firstVariant = variants[0];
+          newItems[index] = {
+            ...newItems[index],
+            product_code: firstVariant.fullCode,
+            product_name: firstVariant.productName,
+            variant: firstVariant.variantText,
           };
           
-          setItems(prev => {
-            const newItems = [...prev];
-            newItems[index] = emptyItem;
-            return newItems;
-          });
-        } else if (selectedIndices.length === 1) {
-          // 1 checkbox selected → Fill current line
-          const selectedVariant = variants[selectedIndices[0]];
-          
-          setItems(prev => {
-            const newItems = [...prev];
-            newItems[index] = {
-              ...newItems[index],
-              product_code: selectedVariant.fullCode,
-              product_name: selectedVariant.productName,
-              variant: selectedVariant.variantText,
-            };
-            return newItems;
-          });
-          
-          toast({
-            title: "Đã điền thông tin biến thể",
-            description: `Mã sản phẩm: ${selectedVariant.fullCode}`,
-          });
-        } else {
-          // Multiple checkboxes selected → Fill first line + add new lines
-          const selectedVariants = selectedIndices.map(i => variants[i]);
-          
-          setItems(prev => {
-            const newItems = [...prev];
-            
-            // Fill first line
-            const firstVariant = selectedVariants[0];
-            newItems[index] = {
-              ...newItems[index],
-              product_code: firstVariant.fullCode,
-              product_name: firstVariant.productName,
-              variant: firstVariant.variantText,
-            };
-            
-            // Add additional lines
-            const additionalItems = selectedVariants.slice(1).map(variant => ({
+          // Add additional lines for remaining variants
+          if (variants.length > 1) {
+            const additionalItems = variants.slice(1).map(variant => ({
               quantity: 1,
               notes: "",
               product_name: variant.productName,
@@ -507,15 +464,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             
             // Insert after current line
             newItems.splice(index + 1, 0, ...additionalItems);
-            
-            return newItems;
-          });
+          }
           
-          toast({
-            title: "Đã thêm biến thể",
-            description: `Đã thêm ${selectedVariants.length} biến thể vào đơn hàng`,
-          });
-        }
+          return newItems;
+        });
+        
+        toast({
+          title: "Đã thêm biến thể",
+          description: `Đã thêm ${variants.length} biến thể vào đơn hàng`,
+        });
       }
     });
   };
@@ -937,8 +894,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             product_code: items[variantGeneratorIndex].product_code,
             product_name: items[variantGeneratorIndex].product_name
           }}
-          onVariantsGenerated={(variants, selectedIndices) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants, selectedIndices);
+          onVariantsGenerated={(variants) => {
+            handleVariantsGenerated(variantGeneratorIndex, variants);
             setVariantGeneratorIndex(null);
           }}
         />

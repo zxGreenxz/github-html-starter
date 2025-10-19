@@ -456,8 +456,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       productName: string;
       variantText: string;
       hasCollision: boolean;
-    }>,
-    selectedIndices: number[]
+    }>
   ) => {
     const baseItem = items[index];
 
@@ -509,73 +508,22 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       baseProduct: baseProductData,
       childVariants: childVariantsData,
       onSuccessCallback: () => {
-        // New logic based on selectedIndices
-        if (selectedIndices.length === 0) {
-          // No checkboxes selected → Clear the line
-          const emptyItem: PurchaseOrderItem = {
-            id: undefined,
-            product_code: "",
-            product_name: "",
-            variant: "",
-            purchase_price: 0,
-            selling_price: 0,
-            product_images: [],
-            price_images: [],
-            quantity: 1,
-            notes: "",
-            position: items[index].position,
-            _tempProductName: "",
-            _tempVariant: "",
-            _tempProductCode: "",
-            _tempUnitPrice: "",
-            _tempSellingPrice: "",
-            _tempTotalPrice: 0,
-            _tempProductImages: [],
-            _tempPriceImages: []
+        // Fill first line + add new lines for remaining variants
+        setItems(prev => {
+          const newItems = [...prev];
+          
+          // Fill first line with first variant
+          const firstVariant = variants[0];
+          newItems[index] = {
+            ...newItems[index],
+            _tempProductCode: firstVariant.fullCode,
+            _tempProductName: firstVariant.productName,
+            _tempVariant: firstVariant.variantText,
           };
           
-          setItems(prev => {
-            const newItems = [...prev];
-            newItems[index] = emptyItem;
-            return newItems;
-          });
-        } else if (selectedIndices.length === 1) {
-          // 1 checkbox selected → Fill current line
-          const selectedVariant = variants[selectedIndices[0]];
-          
-          setItems(prev => {
-            const newItems = [...prev];
-            newItems[index] = {
-              ...newItems[index],
-              _tempProductCode: selectedVariant.fullCode,
-              _tempProductName: selectedVariant.productName,
-              _tempVariant: selectedVariant.variantText,
-            };
-            return newItems;
-          });
-          
-          toast({
-            title: "Đã điền thông tin biến thể",
-            description: `Mã sản phẩm: ${selectedVariant.fullCode}`,
-          });
-        } else {
-          // Multiple checkboxes selected → Fill first line + add new lines
-          const selectedVariants = selectedIndices.map(i => variants[i]);
-          
-          setItems(prev => {
-            const newItems = [...prev];
-            
-            // Fill first line
-            const firstVariant = selectedVariants[0];
-            newItems[index] = {
-              ...newItems[index],
-              _tempProductCode: firstVariant.fullCode,
-              _tempProductName: firstVariant.productName,
-              _tempVariant: firstVariant.variantText,
-            };
-            
-            // Add additional lines
-            const additionalItems = selectedVariants.slice(1).map(variant => ({
+          // Add additional lines for remaining variants
+          if (variants.length > 1) {
+            const additionalItems = variants.slice(1).map(variant => ({
               id: undefined,
               product_code: variant.fullCode,
               product_name: variant.productName,
@@ -599,15 +547,15 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             
             // Insert after current line
             newItems.splice(index + 1, 0, ...additionalItems);
-            
-            return newItems;
-          });
+          }
           
-          toast({
-            title: "Đã thêm biến thể",
-            description: `Đã thêm ${selectedVariants.length} biến thể vào đơn hàng`,
-          });
-        }
+          return newItems;
+        });
+        
+        toast({
+          title: "Đã thêm biến thể",
+          description: `Đã thêm ${variants.length} biến thể vào đơn hàng`,
+        });
       }
     });
   };
@@ -1130,8 +1078,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             product_code: items[variantGeneratorIndex]._tempProductCode,
             product_name: items[variantGeneratorIndex]._tempProductName
           }}
-          onVariantsGenerated={(variants, selectedIndices) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants, selectedIndices);
+          onVariantsGenerated={(variants) => {
+            handleVariantsGenerated(variantGeneratorIndex, variants);
             setVariantGeneratorIndex(null);
           }}
         />

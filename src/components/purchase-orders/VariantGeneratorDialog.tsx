@@ -5,9 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sparkles, AlertTriangle, Search, Check, ChevronRight, X, Trash2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Sparkles, Search, Check, X } from "lucide-react";
 import { generateAllVariants } from "@/lib/variant-code-generator";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 import { cn } from "@/lib/utils";
@@ -26,8 +24,7 @@ interface VariantGeneratorDialogProps {
       productName: string;
       variantText: string;
       hasCollision: boolean;
-    }>,
-    selectedIndices: number[]
+    }>
   ) => void;
 }
 
@@ -51,8 +48,6 @@ export function VariantGeneratorDialog({
     variantText: string;
     hasCollision: boolean;
   }>>([]);
-  const [selectedVariantIndices, setSelectedVariantIndices] = useState<Set<number>>(new Set());
-  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
 
   // Auto-generate preview on selection change
   useEffect(() => {
@@ -90,14 +85,6 @@ export function VariantGeneratorDialog({
     }
   }, [selectedSizeText, selectedColors, selectedSizeNumber, currentItem.product_code, currentItem.product_name]);
 
-  // Auto-select all preview results when they change
-  useEffect(() => {
-    if (previewResults.length > 0) {
-      setSelectedVariantIndices(new Set(previewResults.map((_, i) => i)));
-    } else {
-      setSelectedVariantIndices(new Set());
-    }
-  }, [previewResults]);
 
   const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
     // Block if different type is already active
@@ -128,76 +115,18 @@ export function VariantGeneratorDialog({
 
   const handleConfirm = () => {
     if (previewResults.length > 0) {
-      const selectedIndicesArray = Array.from(selectedVariantIndices).sort((a, b) => a - b);
-      onVariantsGenerated(previewResults, selectedIndicesArray);
+      onVariantsGenerated(previewResults);
       onOpenChange(false);
       // Reset selections and filters
       setSelectedSizeText([]);
       setSelectedColors([]);
       setSelectedSizeNumber([]);
-      setSelectedVariantIndices(new Set());
-      setIsPreviewExpanded(false);
       setSizeTextFilter("");
       setColorFilter("");
       setSizeNumberFilter("");
     }
   };
 
-  const handleRemoveVariantFromPreview = (index: number) => {
-    const variantToRemove = previewResults[index];
-    
-    // Parse variant text to get individual attributes
-    const variantParts = variantToRemove.variantText.split(',').map(s => s.trim()).filter(Boolean);
-    
-    // Check which attributes from this variant are ONLY used by this variant
-    const attributesToRemove = {
-      sizeText: [] as string[],
-      colors: [] as string[],
-      sizeNumbers: [] as string[]
-    };
-    
-    for (const part of variantParts) {
-      // Count how many variants use this attribute
-      const usageCount = previewResults.filter((r, i) => 
-        i !== index && r.variantText.includes(part)
-      ).length;
-      
-      // If only this variant uses this attribute, mark for removal
-      if (usageCount === 0) {
-        // Check which category this attribute belongs to
-        if (TPOS_ATTRIBUTES.sizeText.some(st => st.Name === part)) {
-          attributesToRemove.sizeText.push(part);
-        } else if (TPOS_ATTRIBUTES.color.some(c => c.Name === part)) {
-          attributesToRemove.colors.push(part);
-        } else if (TPOS_ATTRIBUTES.sizeNumber.some(sn => sn.Name === part)) {
-          attributesToRemove.sizeNumbers.push(part);
-        }
-      }
-    }
-    
-    // Remove attributes that are no longer needed
-    if (attributesToRemove.sizeText.length > 0) {
-      setSelectedSizeText(prev => prev.filter(s => !attributesToRemove.sizeText.includes(s)));
-    }
-    if (attributesToRemove.colors.length > 0) {
-      setSelectedColors(prev => prev.filter(c => !attributesToRemove.colors.includes(c)));
-    }
-    if (attributesToRemove.sizeNumbers.length > 0) {
-      setSelectedSizeNumber(prev => prev.filter(s => !attributesToRemove.sizeNumbers.includes(s)));
-    }
-    
-    // Update active attribute type if needed
-    const hasAnySelection = 
-      (selectedSizeText.length - attributesToRemove.sizeText.length) > 0 ||
-      (selectedColors.length - attributesToRemove.colors.length) > 0 ||
-      (selectedSizeNumber.length - attributesToRemove.sizeNumbers.length) > 0;
-    
-    if (!hasAnySelection) {
-      setActiveAttributeType(null);
-    }
-    
-    // Note: previewResults will be auto-updated by useEffect when selections change
-  };
 
   const handleCancel = () => {
     onOpenChange(false);
@@ -206,8 +135,6 @@ export function VariantGeneratorDialog({
     setSelectedColors([]);
     setSelectedSizeNumber([]);
     setActiveAttributeType(null);
-    setSelectedVariantIndices(new Set());
-    setIsPreviewExpanded(false);
     setSizeTextFilter("");
     setColorFilter("");
     setSizeNumberFilter("");
@@ -325,8 +252,8 @@ export function VariantGeneratorDialog({
             </div>
           )}
 
-          {/* Selection Columns and Preview */}
-          <div className="grid grid-cols-[15%_15%_15%_55%] gap-4 flex-1 overflow-hidden">
+          {/* Selection Columns */}
+          <div className="grid grid-cols-3 gap-4 flex-1 overflow-hidden">
             {/* Size Text */}
             <div className={cn(
               "space-y-2 flex flex-col h-full transition-opacity",
@@ -464,104 +391,22 @@ export function VariantGeneratorDialog({
                 </div>
               </ScrollArea>
             </div>
-
-            {/* Preview Results - Always Visible */}
-            <div className="space-y-2 flex flex-col h-full">
-              <div className="flex items-center justify-between">
-                <Label className="text-base">Xem trước kết quả</Label>
-                {previewResults.length > 0 && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    {previewResults.length} biến thể
-                  </Badge>
-                )}
-              </div>
-              
-              {previewResults.length > 0 ? (
-                <div className="border rounded-lg overflow-hidden flex-1">
-                  <ScrollArea className="h-full">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">
-                            <Checkbox
-                              checked={selectedVariantIndices.size === previewResults.length && previewResults.length > 0}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedVariantIndices(new Set(previewResults.map((_, i) => i)));
-                                } else {
-                                  setSelectedVariantIndices(new Set());
-                                }
-                              }}
-                            />
-                          </TableHead>
-                          <TableHead className="w-12"></TableHead>
-                          <TableHead className="w-[110px]">Mã Đầy Đủ</TableHead>
-                          <TableHead>Tên Sản Phẩm</TableHead>
-                          <TableHead>Biến thể</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {previewResults.map((result, index) => (
-                          <TableRow 
-                            key={index}
-                            className={cn(
-                              selectedVariantIndices.has(index) && "bg-primary/5 border-l-2 border-l-primary"
-                            )}
-                          >
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={selectedVariantIndices.has(index)}
-                                onCheckedChange={(checked) => {
-                                  const newSet = new Set(selectedVariantIndices);
-                                  if (checked) {
-                                    newSet.add(index);
-                                  } else {
-                                    newSet.delete(index);
-                                  }
-                                  setSelectedVariantIndices(newSet);
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveVariantFromPreview(index);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {result.fullCode}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium text-sm">
-                              {result.productName}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {result.variantText}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </ScrollArea>
-                </div>
-              ) : (
-                <div className="border rounded-lg flex-1 flex items-center justify-center bg-muted/30">
-                  <p className="text-sm text-muted-foreground">
-                    Chọn thuộc tính để xem trước biến thể
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
+
+          {/* Generated Variants Summary */}
+          {previewResults.length > 0 && (
+            <div className="p-4 bg-muted/30 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Tổng số biến thể sẽ được tạo:</span>
+                </div>
+                <Badge variant="secondary" className="text-lg px-4 py-1">
+                  {previewResults.length}
+                </Badge>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
