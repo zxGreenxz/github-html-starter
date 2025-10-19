@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, X, Plus, Trash2 } from "lucide-react";
 
 // Available attributes from HTML (complete data with 94 colors)
@@ -1177,39 +1178,89 @@ export function TPOSManagerNew() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-muted rounded-lg">
-                  <div><span className="font-semibold">ID:</span> {variantData.Id}</div>
-                  <div><span className="font-semibold">Tên:</span> {variantData.Name}</div>
-                  <div><span className="font-semibold">Mã:</span> {variantData.DefaultCode}</div>
-                  <div><span className="font-semibold">Giá Bán:</span> {variantData.ListPrice?.toLocaleString('vi-VN')}₫</div>
-                  <div><span className="font-semibold">Giá Mua:</span> {variantData.PurchasePrice?.toLocaleString('vi-VN')}₫</div>
-                  <div><span className="font-semibold">Tồn Kho:</span> {variantData.QtyAvailable}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 p-4 bg-gray-50 rounded-lg">
+                  {/* Cột trái */}
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-semibold">ID:</span>{" "}
+                      <span className="text-orange-600">{variantData.Id}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Mã:</span>{" "}
+                      <span className="font-bold">{variantData.DefaultCode}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Giá Mua:</span>{" "}
+                      <span className="text-blue-600 font-semibold">
+                        {variantData.PurchasePrice?.toLocaleString('vi-VN')}₫
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Cột phải */}
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-semibold">Tên:</span>{" "}
+                      <span className="text-red-700">{variantData.Name}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Giá Bán:</span>{" "}
+                      <span className="text-green-600 font-semibold">
+                        {variantData.ListPrice?.toLocaleString('vi-VN')}₫
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Tồn Kho:</span>{" "}
+                      <span>{variantData.QtyAvailable}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
                   <h3 className="text-lg font-bold mb-4">Danh Sách Variants</h3>
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-2">
-                      {variantData.ProductVariants?.map((variant: any, index: number) => (
-                        <div key={index} className="border rounded-lg p-4">
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div><span className="font-semibold">ID:</span> {variant.Id}</div>
-                            <div><span className="font-semibold">Mã:</span> {variant.DefaultCode || 'N/A'}</div>
-                            <div className="col-span-2"><span className="font-semibold">Tên:</span> {variant.Name}</div>
-                            <div className="text-green-600 font-semibold">
-                              Giá Bán: {variant.PriceVariant?.toLocaleString('vi-VN')}₫
-                            </div>
-                            <div className="text-blue-600 font-semibold">
-                              Giá Mua: {variant.StandardPrice?.toLocaleString('vi-VN')}₫
-                            </div>
-                            <div className="col-span-2 text-muted-foreground">
-                              <span className="font-semibold">Thuộc Tính:</span>{' '}
-                              {variant.AttributeValues?.map((attr: any) => attr.NameGet).join(', ') || 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <ScrollArea className="h-[500px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-100">
+                          <TableHead className="font-bold">ID</TableHead>
+                          <TableHead className="font-bold">Mã SP</TableHead>
+                          <TableHead className="font-bold">Tên Sản Phẩm</TableHead>
+                          <TableHead className="font-bold">Giá Bán</TableHead>
+                          <TableHead className="font-bold">Giá Mua</TableHead>
+                          <TableHead className="font-bold">Thuộc Tính</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {variantData.ProductVariants?.map((variant: any) => {
+                          const attributes = variant.AttributeValues
+                            ?.map((attr: any) => attr.NameGet)
+                            .join(', ') || 'N/A';
+                          
+                          return (
+                            <TableRow key={variant.Id} className="hover:bg-gray-50">
+                              <TableCell className="font-medium text-orange-600">
+                                {variant.Id}
+                              </TableCell>
+                              <TableCell className="font-bold">
+                                {variant.DefaultCode || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-red-700">
+                                {variant.Name}
+                              </TableCell>
+                              <TableCell className="font-semibold text-green-600">
+                                {variant.PriceVariant?.toLocaleString('vi-VN')}₫
+                              </TableCell>
+                              <TableCell className="font-semibold text-blue-600">
+                                {variant.StandardPrice?.toLocaleString('vi-VN')}₫
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600">
+                                {attributes}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </ScrollArea>
                 </div>
               </CardContent>
