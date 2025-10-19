@@ -367,8 +367,8 @@ export function InlineProductSelector({
       </div>
 
       {/* Products List */}
-      <ScrollArea className="max-h-[300px]">
-        <div className="space-y-2">
+      <ScrollArea className="h-[300px] w-full">
+        <div className="space-y-2 pr-4">
           {/* Scanned Products Section - Draggable */}
           {displayProducts.length > 0 && (
             <DndContext
