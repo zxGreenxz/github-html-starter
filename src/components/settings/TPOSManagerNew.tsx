@@ -353,23 +353,99 @@ export function TPOSManagerNew() {
       const variantName = attrs.map(a => a.Name).join(', ');
       return {
         Id: 0,
+        EAN13: null,
+        DefaultCode: null,
+        NameTemplate: productName,
+        NameNoSign: null,
+        ProductTmplId: 0,
+        UOMId: 0,
+        UOMName: null,
+        UOMPOId: 0,
+        QtyAvailable: 0,
+        VirtualAvailable: 0,
+        OutgoingQty: null,
+        IncomingQty: null,
         NameGet: `${productName} (${variantName})`,
-        Name: `${productName} (${variantName})`,
+        POSCategId: null,
+        Price: null,
+        Barcode: null,
+        Image: null,
+        ImageUrl: null,
+        Thumbnails: [],
         PriceVariant: listPrice,
+        SaleOK: true,
+        PurchaseOK: true,
+        DisplayAttributeValues: null,
+        LstPrice: 0,
+        Active: true,
+        ListPrice: 0,
+        PurchasePrice: null,
+        DiscountSale: null,
+        DiscountPurchase: null,
+        StandardPrice: 0,
+        Weight: 0,
+        Volume: null,
+        OldPrice: null,
+        IsDiscount: false,
+        ProductTmplEnableAll: false,
+        Version: 0,
+        Description: null,
+        LastUpdated: null,
+        Type: "product",
+        CategId: 0,
+        CostMethod: null,
+        InvoicePolicy: "order",
+        Variant_TeamId: 0,
+        Name: `${productName} (${variantName})`,
+        PropertyCostMethod: null,
+        PropertyValuation: null,
+        PurchaseMethod: "receive",
+        SaleDelay: 0,
+        Tracking: null,
+        Valuation: null,
+        AvailableInPOS: true,
+        CompanyId: null,
+        IsCombo: null,
+        NameTemplateNoSign: productName,
+        TaxesIds: [],
+        StockValue: null,
+        SaleValue: null,
+        PosSalesCount: null,
+        Factor: null,
+        CategName: null,
+        AmountTotal: null,
+        NameCombos: [],
+        RewardName: null,
+        Product_UOMId: null,
+        Tags: null,
+        DateCreated: null,
+        InitInventory: 0,
+        OrderTag: null,
+        StringExtraProperties: null,
+        CreatedById: null,
+        TaxAmount: null,
+        Error: null,
         AttributeValues: attrs.map(a => ({
           Id: a.Id,
           Name: a.Name,
-          NameGet: a.NameGet,
+          Code: null,
+          Sequence: null,
           AttributeId: a.AttributeId,
-          AttributeName: a.AttributeName
+          AttributeName: a.AttributeName,
+          PriceExtra: null,
+          NameGet: a.NameGet,
+          DateCreated: null
         }))
       };
     });
   };
 
   const createProductOneClick = async () => {
-    if (!productName.trim()) {
-      toast({ variant: "destructive", title: "❌ Lỗi", description: "Vui lòng nhập tên sản phẩm" });
+    const code = defaultCode.trim().toUpperCase();
+    const name = productName.trim();
+    
+    if (!code || !name) {
+      toast({ variant: "destructive", title: "❌ Lỗi", description: "Vui lòng nhập đầy đủ thông tin" });
       return;
     }
 
@@ -379,28 +455,95 @@ export function TPOSManagerNew() {
     try {
       const headers = await getHeaders();
       
-      // Generate variants
-      const variants = generateVariants(productName, parseFloat(listPrice), attributeLines);
+      // BƯỚC 1: Kiểm tra sản phẩm đã tồn tại chưa
+      toast({ description: "🔍 Đang kiểm tra...", duration: 2000 });
+      const checkUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${code}`;
+      const checkResponse = await fetch(checkUrl, { headers });
+      const checkData = await checkResponse.json();
       
+      if (checkData.value && checkData.value.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "❌ Sản phẩm đã tồn tại!",
+          description: `Mã: ${code} - ${checkData.value[0].Name}`
+        });
+        return;
+      }
+      
+      // BƯỚC 2: Tạo sản phẩm mới
+      toast({ description: "✅ Đang tạo mới...", duration: 2000 });
+      
+      const variants = generateVariants(name, parseFloat(listPrice), attributeLines);
+      
+      // Full payload theo HTML
       const payload = {
-        Name: productName,
-        DefaultCode: defaultCode.toUpperCase(),
+        Id: 0,
+        Name: name,
+        Type: "product",
         ListPrice: parseFloat(listPrice),
         PurchasePrice: parseFloat(purchasePrice),
+        DefaultCode: code,
         QtyAvailable: parseInt(qtyAvailable),
-        Type: "product",
-        SaleOK: true,
-        PurchaseOK: true,
-        Active: true,
-        UOMId: 1,
-        UOMPOId: 1,
-        CategId: 1,
+        Image: imageBase64,
+        ImageUrl: null,
+        Thumbnails: [],
         AttributeLines: attributeLines,
         ProductVariants: variants,
-        Images: imageBase64 ? [{ Image: imageBase64 }] : []
+        Active: true,
+        SaleOK: true,
+        PurchaseOK: true,
+        UOMId: 1,
+        UOMPOId: 1,
+        CategId: 2,
+        CompanyId: 1,
+        Tracking: "none",
+        InvoicePolicy: "order",
+        PurchaseMethod: "receive",
+        AvailableInPOS: true,
+        DiscountSale: 0,
+        DiscountPurchase: 0,
+        StandardPrice: 0,
+        Weight: 0,
+        SaleDelay: 0,
+        UOM: {
+          Id: 1,
+          Name: "Cái",
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị"
+        },
+        UOMPO: {
+          Id: 1,
+          Name: "Cái",
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị"
+        },
+        Categ: {
+          Id: 2,
+          Name: "Có thể bán",
+          CompleteName: "Có thể bán",
+          Type: "normal",
+          PropertyCostMethod: "average",
+          NameNoSign: "Co the ban",
+          IsPos: true
+        },
+        Items: [],
+        UOMLines: [],
+        ComboProducts: [],
+        ProductSupplierInfos: []
       };
-
-      const response = await fetch('https://tomato.tpos.vn/odata/ProductTemplate', {
+      
+      const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
+      const response = await fetch(createUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
@@ -411,15 +554,43 @@ export function TPOSManagerNew() {
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
+      // ✅ KIỂM TRA 204 NO CONTENT
+      if (response.status === 204) {
+        toast({
+          title: "🎉 Tạo sản phẩm thành công!",
+          description: `Mã: ${code} với ${variants.length} variants`
+        });
+        
+        // Reset form
+        setProductName("");
+        setDefaultCode("NTEST");
+        setAttributeLines([]);
+        setImageBase64(null);
+        setImagePreview(null);
+        
+        return; // Không fetch variants vì không có Product ID
+      }
+
+      // ✅ CHỈ PARSE JSON KHI CÓ CONTENT (200/201)
       const data = await response.json();
       
-      // Fetch created variants
-      await fetchAndDisplayCreatedVariants(data.Id);
-      
       toast({
-        title: "✅ Thành công",
-        description: `Đã tạo sản phẩm với ${variants.length} variants!`
+        title: "🎉 Tạo sản phẩm thành công!",
+        description: `Mã: ${code} - ID: ${data.Id}`
       });
+      
+      // Fetch variants nếu có Product ID
+      if (data.Id) {
+        await fetchAndDisplayCreatedVariants(data.Id);
+      }
+      
+      // Reset form
+      setProductName("");
+      setDefaultCode("NTEST");
+      setAttributeLines([]);
+      setImageBase64(null);
+      setImagePreview(null);
+      
     } catch (error: any) {
       toast({
         variant: "destructive",
