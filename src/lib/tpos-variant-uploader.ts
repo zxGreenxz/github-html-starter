@@ -29,6 +29,7 @@ export async function uploadToTPOSAndCreateVariants(
   productData: ProductData,
   onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
+  console.log('🚀 START uploadToTPOSAndCreateVariants:', { productCode, productName, variantText });
   try {
     // Get TPOS token
     const { data: tokenData } = await supabase
@@ -41,9 +42,11 @@ export async function uploadToTPOSAndCreateVariants(
       .single();
 
     if (!tokenData?.bearer_token) {
+      console.error('❌ No TPOS token found');
       throw new Error("Không tìm thấy TPOS token");
     }
 
+    console.log('✅ Got TPOS token');
     const bearerToken = tokenData.bearer_token;
     const headers = {
       'Authorization': `Bearer ${bearerToken}`,
@@ -185,19 +188,24 @@ async function createNewProductOnTPOS(
 
   // Handle 204 No Content
   if (response.status === 204) {
+    console.log('⚠️ TPOS returned 204 No Content');
     onProgress?.(`✅ Tạo TPOS thành công (${variants.length} variants)`);
     return [];
   }
 
   // Parse response and save variants
   const data = await response.json();
+  console.log('📦 TPOS response data:', { Id: data.Id, Name: data.Name, ProductVariantCount: data.ProductVariants?.length });
   onProgress?.(`✅ Tạo TPOS thành công - ID: ${data.Id}`);
 
   if (data.Id) {
+    console.log(`🔍 Calling fetchAndSaveVariantsFromTPOS with ID: ${data.Id}`);
     const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
+    console.log(`✅ fetchAndSaveVariantsFromTPOS returned ${variantProducts.length} variants`);
     return variantProducts;
   }
   
+  console.log('⚠️ No data.Id found, returning empty array');
   return [];
 }
 
@@ -207,6 +215,7 @@ async function fetchAndSaveVariantsFromTPOS(
   baseProductData: ProductData,
   onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
+  console.log('🔄 START fetchAndSaveVariantsFromTPOS:', { tposProductId, baseProductCode });
   try {
     // Get TPOS token
     const { data: tokenData } = await supabase
@@ -218,7 +227,10 @@ async function fetchAndSaveVariantsFromTPOS(
       .limit(1)
       .single();
 
-    if (!tokenData?.bearer_token) return [];
+    if (!tokenData?.bearer_token) {
+      console.error('❌ No TPOS token in fetchAndSaveVariantsFromTPOS');
+      return [];
+    }
 
     const headers = {
       'Authorization': `Bearer ${tokenData.bearer_token}`,
@@ -230,7 +242,9 @@ async function fetchAndSaveVariantsFromTPOS(
     
     // Fetch product with variants from TPOS
     const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
+    console.log('📡 Fetching from TPOS URL:', url);
     const response = await fetch(url, { headers });
+    console.log('📡 TPOS fetch response status:', response.status);
 
     if (!response.ok) {
       console.error('❌ Failed to fetch variants from TPOS:', response.status);

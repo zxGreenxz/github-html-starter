@@ -371,7 +371,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   };
 
   const handleVariantsGenerated = async (index: number, variantText: string) => {
+    console.log('🎯 handleVariantsGenerated called:', { index, variantText, itemsLength: items.length });
     const baseItem = items[index];
+    console.log('📦 Base item:', { product_code: baseItem.product_code, product_name: baseItem.product_name });
     
     // Prepare product data for upsert
     const productData = {
@@ -387,6 +389,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       price_images: baseItem.price_images || [],
       base_product_code: baseItem.product_code.trim().toUpperCase()
     };
+    console.log('💾 Product data:', { code: productData.product_code, name: productData.product_name, prices: { purchase: productData.purchase_price, sell: productData.selling_price } });
 
     // Check if product exists
     const { data: existingProduct } = await supabase
