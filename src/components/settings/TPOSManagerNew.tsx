@@ -469,18 +469,6 @@ export function TPOSManagerNew() {
       // ✅ CHỈ PARSE JSON KHI CÓ CONTENT (200/201)
       const data = await response.json();
       
-      // ✅ Copy ImageUrl & Thumbnails từ product template sang tất cả variants
-      if (data.ProductVariants && data.ProductVariants.length > 0) {
-        const templateImageUrl = data.ImageUrl;
-        const templateThumbnails = data.Thumbnails || [];
-        
-        data.ProductVariants = data.ProductVariants.map(variant => ({
-          ...variant,
-          ImageUrl: templateImageUrl,
-          Thumbnails: [...templateThumbnails]
-        }));
-      }
-      
       toast({
         title: "🎉 Tạo sản phẩm thành công!",
         description: `Mã: ${code} - ID: ${data.Id}`
@@ -518,19 +506,6 @@ export function TPOSManagerNew() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      
-      // ✅ Copy ImageUrl & Thumbnails từ product template sang tất cả variants
-      if (data.ProductVariants && data.ProductVariants.length > 0) {
-        const templateImageUrl = data.ImageUrl;
-        const templateThumbnails = data.Thumbnails || [];
-        
-        data.ProductVariants = data.ProductVariants.map(variant => ({
-          ...variant,
-          ImageUrl: templateImageUrl,
-          Thumbnails: [...templateThumbnails]
-        }));
-      }
-      
       setCreatedVariants(data.ProductVariants || []);
     } catch (error: any) {
       console.error("Fetch variants error:", error);
