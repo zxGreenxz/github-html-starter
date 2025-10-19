@@ -5,16 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Package, FileText, Download, ShoppingCart, FileSpreadsheet, Trash2, X, Upload, RefreshCw } from "lucide-react";
+import { Plus, Package, FileText, Download, ShoppingCart, FileSpreadsheet, Trash2, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { PurchaseOrderList } from "@/components/purchase-orders/PurchaseOrderList";
 import { CreatePurchaseOrderDialog } from "@/components/purchase-orders/CreatePurchaseOrderDialog";
 import { PurchaseOrderStats } from "@/components/purchase-orders/PurchaseOrderStats";
-import { ExportTPOSDialog } from "@/components/purchase-orders/ExportTPOSDialog";
-
-import type { TPOSProductItem } from "@/lib/tpos-api";
-import { checkTPOSProductsExist } from "@/lib/tpos-api";
 import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
 import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-attributes";
@@ -26,9 +22,6 @@ interface PurchaseOrderItem {
   quantity: number;
   position?: number;
   notes?: string | null;
-  tpos_product_id?: number | null;
-  tpos_deleted?: boolean;
-  tpos_deleted_at?: string | null;
   product?: {
     product_name: string;
     product_code: string;
@@ -65,11 +58,7 @@ interface PurchaseOrder {
 const PurchaseOrders = () => {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isTPOSDialogOpen, setIsTPOSDialogOpen] = useState(false);
-  const [tposItems, setTposItems] = useState<TPOSProductItem[]>([]);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
-  const [isCheckingTPOS, setIsCheckingTPOS] = useState(false);
-  const [deletedTPOSIds, setDeletedTPOSIds] = useState<Set<number>>(new Set());
   const isMobile = useIsMobile();
   
   const queryClient = useQueryClient();
@@ -110,89 +99,6 @@ const PurchaseOrders = () => {
 
   const clearSelection = () => {
     setSelectedOrders([]);
-  };
-
-  // Check TPOS sync status
-  const handleCheckTPOSSync = async () => {
-    const allItems = orders?.flatMap(order => order.items || []) || [];
-    const tposIds = allItems
-      .filter(item => item.tpos_product_id)
-      .map(item => item.tpos_product_id as number);
-
-    if (tposIds.length === 0) {
-      toast({
-        title: "Không có sản phẩm để kiểm tra",
-        description: "Chưa có sản phẩm nào được đồng bộ lên TPOS",
-      });
-      return;
-    }
-
-    setIsCheckingTPOS(true);
-    toast({
-      title: "Đang kiểm tra TPOS...",
-      description: `Đang kiểm tra ${tposIds.length} sản phẩm trên TPOS`,
-    });
-
-    try {
-      const existenceMap = await checkTPOSProductsExist(tposIds);
-      const deletedIds = new Set<number>();
-      const itemsToUpdate: string[] = [];
-      
-      existenceMap.forEach((exists, id) => {
-        if (!exists) {
-          deletedIds.add(id);
-          // Find all item IDs with this TPOS ID
-          const itemIds = allItems
-            .filter(item => item.tpos_product_id === id && item.id)
-            .map(item => item.id as string);
-          itemsToUpdate.push(...itemIds);
-        }
-      });
-
-      setDeletedTPOSIds(deletedIds);
-
-      // Update database: set tpos_product_id to null and mark as deleted
-      if (itemsToUpdate.length > 0) {
-        const { error: updateError } = await supabase
-          .from("purchase_order_items")
-          .update({ 
-            tpos_product_id: null,
-            tpos_deleted: true,
-            tpos_deleted_at: new Date().toISOString()
-          })
-          .in("id", itemsToUpdate);
-
-        if (updateError) {
-          console.error("Error updating items:", updateError);
-          toast({
-            title: "⚠️ Lỗi cập nhật",
-            description: "Không thể cập nhật trạng thái sản phẩm trong database",
-            variant: "destructive",
-          });
-        } else {
-          // Refresh data after update
-          queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-        }
-      }
-
-      const deletedCount = deletedIds.size;
-      const activeCount = tposIds.length - deletedCount;
-
-      toast({
-        title: "✅ Kiểm tra hoàn tất",
-        description: `Còn ${activeCount}/${tposIds.length} sản phẩm trên TPOS${deletedCount > 0 ? ` (${deletedCount} đã bị xóa và đã xóa TPOS ID khỏi database)` : ''}`,
-        duration: 5000,
-      });
-    } catch (error) {
-      console.error("Error checking TPOS sync:", error);
-      toast({
-        title: "❌ Lỗi kiểm tra",
-        description: "Không thể kiểm tra trạng thái trên TPOS",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCheckingTPOS(false);
-    }
   };
 
   // Filter states moved from PurchaseOrderList
@@ -263,9 +169,6 @@ const PurchaseOrders = () => {
             quantity,
             position,
             notes,
-            tpos_product_id,
-            tpos_deleted,
-            tpos_deleted_at,
             product_code_snapshot,
             product_name_snapshot,
             variant_snapshot,
@@ -518,45 +421,6 @@ const PurchaseOrders = () => {
         variant: "destructive",
       });
     }
-  };
-
-
-  const handleExportToTPOS = async () => {
-    // Use selected orders if any, otherwise use filtered orders
-    const ordersToExport = selectedOrders.length > 0 
-      ? orders?.filter(order => selectedOrders.includes(order.id)) || []
-      : filteredOrders;
-
-    // Flatten all items from orders to export
-    const allItems: TPOSProductItem[] = ordersToExport.flatMap(order => 
-      (order.items || []).map(item => ({
-        id: item.id || crypto.randomUUID(),
-        product_code: item.product?.product_code,
-        base_product_code: item.product?.base_product_code,
-        product_name: item.product?.product_name,
-        variant: item.product?.variant,
-        quantity: item.quantity,
-        unit_price: item.product?.purchase_price || 0,
-        selling_price: item.product?.selling_price || 0,
-        product_images: item.product?.product_images,
-        price_images: item.product?.price_images,
-        purchase_order_id: order.id,
-        supplier_name: order.supplier_name || '',
-        tpos_product_id: item.tpos_product_id,
-      }))
-    );
-
-    if (allItems.length === 0) {
-      toast({
-        title: "Không có dữ liệu",
-        description: "Không có sản phẩm nào để xuất",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setTposItems(allItems);
-    setIsTPOSDialogOpen(true);
   };
 
   const handleExportVariantsExcel = () => {
@@ -837,25 +701,12 @@ const PurchaseOrders = () => {
                         <FileSpreadsheet className="w-4 h-4 mr-2" />
                         Xuất Excel Biến thể
                       </Button>
-                      <Button onClick={handleExportToTPOS} variant="default" size="sm">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Export & Upload TPOS
-                      </Button>
                     </div>
                   </div>
                 )}
 
                 {/* Regular export actions */}
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={handleCheckTPOSSync} 
-                    variant="outline" 
-                    className="gap-2"
-                    disabled={isCheckingTPOS}
-                  >
-                    <RefreshCw className={cn("w-4 h-4", isCheckingTPOS && "animate-spin")} />
-                    {isCheckingTPOS ? "Đang kiểm tra..." : "Kiểm tra TPOS Sync"}
-                  </Button>
                   <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
                     <ShoppingCart className="w-4 h-4" />
                     Xuất Excel mua hàng
@@ -867,10 +718,6 @@ const PurchaseOrders = () => {
                   <Button onClick={handleExportVariantsExcel} variant="outline" className="gap-2">
                     <FileSpreadsheet className="w-4 h-4" />
                     Xuất Excel Biến thể
-                  </Button>
-                  <Button onClick={handleExportToTPOS} variant="default" className="gap-2">
-                    <Upload className="w-4 h-4" />
-                    Export & Upload TPOS
                   </Button>
                 </div>
               </div>
@@ -892,7 +739,6 @@ const PurchaseOrders = () => {
               selectedOrders={selectedOrders}
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
-              deletedTPOSIds={deletedTPOSIds}
             />
             </CardContent>
           </Card>
@@ -920,15 +766,6 @@ const PurchaseOrders = () => {
       <CreatePurchaseOrderDialog 
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
-      />
-
-      <ExportTPOSDialog
-        open={isTPOSDialogOpen}
-        onOpenChange={setIsTPOSDialogOpen}
-        items={tposItems}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-        }}
       />
 
     </div>

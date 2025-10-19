@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Pencil, Search, Filter, Calendar, Trash2, Check, ExternalLink } from "lucide-react";
+import { Pencil, Search, Filter, Calendar, Trash2, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
-import { generateTPOSProductLink } from "@/lib/tpos-api";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -26,9 +25,6 @@ interface PurchaseOrderItem {
   quantity: number;
   position?: number;
   notes?: string | null;
-  tpos_product_id?: number | null;
-  tpos_deleted?: boolean;
-  tpos_deleted_at?: string | null;
   product?: {
     product_name: string;
     product_code: string;
@@ -85,7 +81,6 @@ interface PurchaseOrderListProps {
   selectedOrders: string[];
   onToggleSelect: (orderId: string) => void;
   onToggleSelectAll: () => void;
-  deletedTPOSIds: Set<number>;
 }
 
 export function PurchaseOrderList({
@@ -104,7 +99,6 @@ export function PurchaseOrderList({
   selectedOrders,
   onToggleSelect,
   onToggleSelectAll,
-  deletedTPOSIds
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -390,7 +384,6 @@ export function PurchaseOrderList({
               <TableHead>Hóa đơn (VND)</TableHead>
               <TableHead>Tên sản phẩm</TableHead>
               <TableHead>Mã sản phẩm</TableHead>
-              <TableHead>TPOS ID</TableHead>
               <TableHead>Biến thể</TableHead>
               <TableHead>Số lượng</TableHead>
               <TableHead>Giá mua (VND)</TableHead>
@@ -412,7 +405,7 @@ export function PurchaseOrderList({
           <TableBody>
             {flattenedItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   Không có đơn hàng nào
                 </TableCell>
               </TableRow>
@@ -524,23 +517,6 @@ export function PurchaseOrderList({
                   </TableCell>
                   <TableCell className="border-r">
                     {productCode}
-                  </TableCell>
-                  <TableCell className="border-r">
-                    {flatItem.item?.tpos_product_id ? (
-                      <div className="flex items-center gap-1">
-                        <a 
-                          href={generateTPOSProductLink(flatItem.item.tpos_product_id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                        >
-                          {flatItem.item.tpos_product_id}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
                   </TableCell>
                     <TableCell className="border-r">
                       {variant}
