@@ -133,52 +133,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       const shippingFee = formData.shipping_fee * 1000;
       const finalAmount = totalAmount - discountAmount + shippingFee;
 
-      // Step 1: Create/update products and collect product_ids
-      const productIds: (string | null)[] = [];
-      
-      for (const item of items) {
-        if (!item._tempProductCode.trim()) {
-          productIds.push(null);
-          continue;
-        }
-        
-        if (item.product_id) {
-          productIds.push(item.product_id);
-          continue;
-        }
-        
-        const productCode = item._tempProductCode.trim().toUpperCase();
-        
-        const { data: existingProduct } = await supabase
-          .from("products")
-          .select("id")
-          .eq("product_code", productCode)
-          .maybeSingle();
-        
-        if (existingProduct) {
-          productIds.push(existingProduct.id);
-        } else {
-          const { data: newProduct } = await supabase
-            .from("products")
-            .insert({
-              product_code: productCode,
-              base_product_code: productCode,
-              product_name: item._tempProductName.trim().toUpperCase(),
-              variant: item._tempVariant?.trim().toUpperCase() || null,
-              purchase_price: Number(item._tempUnitPrice || 0) * 1000,
-              selling_price: Number(item._tempSellingPrice || 0) * 1000,
-              supplier_name: formData.supplier_name.trim().toUpperCase(),
-              stock_quantity: 0,
-              unit: "Cái",
-              product_images: item._tempProductImages || [],
-              price_images: item._tempPriceImages || []
-            })
-            .select("id")
-            .single();
-          
-          productIds.push(newProduct?.id || null);
-        }
-      }
+      // Step 1: Collect product_ids from items (no creation/update)
+      const productIds: (string | null)[] = items.map(item => item.product_id || null);
 
       // Step 2: Create purchase_order
       const { data: order, error: orderError } = await supabase

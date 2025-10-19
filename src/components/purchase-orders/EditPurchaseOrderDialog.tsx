@@ -590,63 +590,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
       const finalAmount = totalAmount - (discountAmount * 1000) + (shippingFee * 1000);
 
-      // Step 1: Create/update products first
-      const productIds: (string | null)[] = [];
-      
-      for (const item of items) {
-        if (!item._tempProductCode.trim()) {
-          productIds.push(null);
-          continue;
-        }
-        
-        if (item.product_id) {
-          // Update existing product
-          await supabase
-            .from("products")
-            .update({
-              product_name: item._tempProductName.trim().toUpperCase(),
-              purchase_price: Number(item._tempUnitPrice || 0) * 1000,
-              selling_price: Number(item._tempSellingPrice || 0) * 1000,
-              variant: item._tempVariant.trim().toUpperCase() || null,
-              product_images: item._tempProductImages,
-              price_images: item._tempPriceImages
-            })
-            .eq("id", item.product_id);
-          
-          productIds.push(item.product_id);
-        } else {
-          // Check if product exists by code
-          const { data: existingProduct } = await supabase
-            .from("products")
-            .select("id")
-            .eq("product_code", item._tempProductCode.trim().toUpperCase())
-            .maybeSingle();
-          
-          if (existingProduct) {
-            productIds.push(existingProduct.id);
-          } else {
-            // Create new product
-            const { data: newProduct } = await supabase
-              .from("products")
-              .insert({
-                product_code: item._tempProductCode.trim().toUpperCase(),
-                base_product_code: item._tempProductCode.trim().toUpperCase(),
-                product_name: item._tempProductName.trim().toUpperCase(),
-                variant: item._tempVariant.trim().toUpperCase() || null,
-                purchase_price: Number(item._tempUnitPrice || 0) * 1000,
-                selling_price: Number(item._tempSellingPrice || 0) * 1000,
-                supplier_name: supplierName.trim().toUpperCase(),
-                stock_quantity: 0,
-                product_images: item._tempProductImages || [],
-                price_images: item._tempPriceImages || []
-              })
-              .select("id")
-              .single();
-            
-            productIds.push(newProduct?.id || null);
-          }
-        }
-      }
+      // Step 1: Collect product_ids from items (no creation/update)
+      const productIds: (string | null)[] = items.map(item => item.product_id || null);
 
       // Step 2: Update purchase order
       const { error: orderError } = await supabase
