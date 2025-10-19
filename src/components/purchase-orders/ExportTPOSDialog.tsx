@@ -5,9 +5,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2, CheckSquare, Square, Copy, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Download, Loader2, CheckSquare, Square, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadToTPOS, type TPOSProductItem } from "@/lib/tpos-api";
+import { uploadToTPOS, generateTPOSExcel, type TPOSProductItem } from "@/lib/tpos-api";
 import { createTPOSVariants } from "@/lib/tpos-variant-creator";
 import { formatVND } from "@/lib/currency-utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -186,6 +186,49 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
 
   const isAllSelected = filteredItems.length > 0 && filteredItems.every(item => selectedIds.has(item.id));
   const isSomeSelected = selectedItems.length > 0 && !isAllSelected;
+
+  const handleDownloadExcel = () => {
+    if (selectedItems.length === 0) {
+      toast({
+        title: "Chưa chọn sản phẩm",
+        description: "Vui lòng chọn ít nhất một sản phẩm",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if any selected items already have TPOS ID
+    const itemsWithTPOS = selectedItems.filter(item => item.tpos_product_id);
+    if (itemsWithTPOS.length > 0) {
+      toast({
+        title: "⚠️ Cảnh báo",
+        description: `${itemsWithTPOS.length} sản phẩm đã có TPOS ID. Bạn có chắc muốn tải lại?`,
+      });
+    }
+
+    try {
+      const excelBlob = generateTPOSExcel(selectedItems);
+      const url = URL.createObjectURL(excelBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `TPOS_Export_${Date.now()}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "📥 Tải xuống thành công",
+        description: `Đã tạo file Excel với ${selectedItems.length} sản phẩm`,
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Lỗi",
+        description: "Không thể tạo file Excel",
+        variant: "destructive",
+      });
+    }
+  };
 
   /**
    * Create product entries in inventory
@@ -970,6 +1013,14 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
             disabled={isUploading}
           >
             Hủy
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleDownloadExcel}
+            disabled={isUploading || selectedItems.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Chỉ tải Excel ({selectedItems.length})
           </Button>
           <Button
             onClick={handleUploadToTPOS}
