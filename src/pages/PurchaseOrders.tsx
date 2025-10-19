@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Package, FileText, Download, ShoppingCart, Trash2, X } from "lucide-react";
+import { Plus, Package, FileText, Download, ShoppingCart, Trash2, X, Upload } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { PurchaseOrderList } from "@/components/purchase-orders/PurchaseOrderList";
@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
 import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-attributes";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { SimpleProductUploadDialog } from "@/components/settings/SimpleProductUploadDialog";
+import type { TPOSProductItem } from "@/lib/tpos-api";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -56,6 +58,7 @@ const PurchaseOrders = () => {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [isUploadTPOSDialogOpen, setIsUploadTPOSDialogOpen] = useState(false);
   const isMobile = useIsMobile();
   
   const queryClient = useQueryClient();
@@ -487,6 +490,33 @@ const PurchaseOrders = () => {
     }
   };
 
+  // Convert selected purchase orders to TPOSProductItem format
+  const getSelectedTPOSItems = (): TPOSProductItem[] => {
+    const selectedOrdersData = orders?.filter(order => selectedOrders.includes(order.id)) || [];
+    
+    const items: TPOSProductItem[] = [];
+    selectedOrdersData.forEach(order => {
+      order.items?.forEach(item => {
+        items.push({
+          id: item.id || crypto.randomUUID(),
+          product_code: item.product_code,
+          base_product_code: item.product_code,
+          product_name: item.product_name,
+          variant: item.variant,
+          quantity: item.quantity,
+          unit_price: item.purchase_price,
+          selling_price: item.selling_price,
+          product_images: item.product_images,
+          price_images: item.price_images,
+          purchase_order_id: order.id,
+          supplier_name: order.supplier_name,
+        });
+      });
+    });
+    
+    return items;
+  };
+
   return (
     <div className={cn(
       "mx-auto space-y-6",
@@ -566,6 +596,14 @@ const PurchaseOrders = () => {
                         Bỏ chọn
                       </Button>
                       <Button 
+                        onClick={() => setIsUploadTPOSDialogOpen(true)} 
+                        variant="default" 
+                        size="sm"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload TPOS
+                      </Button>
+                      <Button 
                         onClick={handleBulkDelete} 
                         variant="destructive" 
                         size="sm"
@@ -643,6 +681,19 @@ const PurchaseOrders = () => {
       <CreatePurchaseOrderDialog 
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
+      />
+
+      <SimpleProductUploadDialog
+        open={isUploadTPOSDialogOpen}
+        onOpenChange={setIsUploadTPOSDialogOpen}
+        items={getSelectedTPOSItems()}
+        onSuccess={() => {
+          toast({
+            title: "Upload thành công",
+            description: "Các sản phẩm đã được upload lên TPOS",
+          });
+          setIsUploadTPOSDialogOpen(false);
+        }}
       />
 
     </div>
