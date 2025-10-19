@@ -13,13 +13,13 @@ import { queryWithAutoRefresh } from "@/lib/query-with-auto-refresh";
 
 export function TPOSVariantLookup() {
   // Tab Biến thể
-  const [variantId, setVariantId] = useState("");
+  const [variantCode, setVariantCode] = useState("");
   const [isLoadingVariant, setIsLoadingVariant] = useState(false);
   const [variantData, setVariantData] = useState<any>(null);
   const [variantError, setVariantError] = useState<string | null>(null);
 
   // Tab Sản phẩm
-  const [productId, setProductId] = useState("");
+  const [productCode, setProductCode] = useState("");
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [productData, setProductData] = useState<any>(null);
   const [productError, setProductError] = useState<string | null>(null);
@@ -32,11 +32,11 @@ export function TPOSVariantLookup() {
   };
 
   const loadVariantData = async () => {
-    if (!variantId.trim()) {
+    if (!variantCode.trim()) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Vui lòng nhập ID biến thể",
+        description: "Vui lòng nhập mã biến thể",
       });
       return;
     }
@@ -46,8 +46,34 @@ export function TPOSVariantLookup() {
     setVariantError(null);
 
     try {
-      const url = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
+      // STEP 1: Search API - Tìm ID TPOS từ mã biến thể
+      const searchUrl = `https://tomato.tpos.vn/odata/Product/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(variantCode)}`;
+      
+      const searchData = await queryWithAutoRefresh(async () => {
+        const token = await getActiveTPOSToken();
+        if (!token) {
+          throw new Error("Không tìm thấy TPOS bearer token");
+        }
+        
+        const headers = getTPOSHeaders(token);
+        const response = await fetch(searchUrl, { method: "GET", headers });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+      }, "tpos");
 
+      if (!searchData.value || searchData.value.length === 0) {
+        throw new Error(`Không tìm thấy biến thể với mã "${variantCode}"`);
+      }
+
+      const variantId = searchData.value[0].Id;
+
+      // STEP 2: Detail API - Lấy thông tin chi tiết từ ID TPOS
+      const detailUrl = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
+      
       const data = await queryWithAutoRefresh(async () => {
         const token = await getActiveTPOSToken();
         if (!token) {
@@ -55,7 +81,7 @@ export function TPOSVariantLookup() {
         }
 
         const headers = getTPOSHeaders(token);
-        const response = await fetch(url, { method: "GET", headers });
+        const response = await fetch(detailUrl, { method: "GET", headers });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -67,7 +93,7 @@ export function TPOSVariantLookup() {
       setVariantData(data);
       toast({
         title: "Thành công",
-        description: "Đã lấy thông tin biến thể",
+        description: `Đã lấy thông tin biến thể "${data.NameGet}"`,
       });
     } catch (error: any) {
       setVariantError(error.message);
@@ -82,11 +108,11 @@ export function TPOSVariantLookup() {
   };
 
   const loadProductData = async () => {
-    if (!productId.trim()) {
+    if (!productCode.trim()) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Vui lòng nhập ID sản phẩm",
+        description: "Vui lòng nhập mã sản phẩm",
       });
       return;
     }
@@ -96,8 +122,34 @@ export function TPOSVariantLookup() {
     setProductError(null);
 
     try {
-      const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+      // STEP 1: Search API - Tìm ID TPOS từ mã sản phẩm
+      const searchUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(productCode)}`;
+      
+      const searchData = await queryWithAutoRefresh(async () => {
+        const token = await getActiveTPOSToken();
+        if (!token) {
+          throw new Error("Không tìm thấy TPOS bearer token");
+        }
+        
+        const headers = getTPOSHeaders(token);
+        const response = await fetch(searchUrl, { method: "GET", headers });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+      }, "tpos");
 
+      if (!searchData.value || searchData.value.length === 0) {
+        throw new Error(`Không tìm thấy sản phẩm với mã "${productCode}"`);
+      }
+
+      const productId = searchData.value[0].Id;
+
+      // STEP 2: Detail API - Lấy thông tin chi tiết từ ID TPOS
+      const detailUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+      
       const data = await queryWithAutoRefresh(async () => {
         const token = await getActiveTPOSToken();
         if (!token) {
@@ -105,7 +157,7 @@ export function TPOSVariantLookup() {
         }
 
         const headers = getTPOSHeaders(token);
-        const response = await fetch(url, { method: "GET", headers });
+        const response = await fetch(detailUrl, { method: "GET", headers });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -117,7 +169,7 @@ export function TPOSVariantLookup() {
       setProductData(data);
       toast({
         title: "Thành công",
-        description: `Đã lấy thông tin sản phẩm (${data.ProductVariantCount || 0} biến thể)`,
+        description: `Đã lấy thông tin sản phẩm "${data.NameGet}" (${data.ProductVariantCount || 0} biến thể)`,
       });
     } catch (error: any) {
       setProductError(error.message);
@@ -164,21 +216,22 @@ export function TPOSVariantLookup() {
           <TabsContent value="variant" className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Nhập ID biến thể (VD: 130689)"
-                value={variantId}
-                onChange={(e) => setVariantId(e.target.value)}
+                placeholder="Nhập mã biến thể (VD: NTESTD1)"
+                value={variantCode}
+                onChange={(e) => setVariantCode(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && loadVariantData()}
+                disabled={isLoadingVariant}
               />
               <Button onClick={loadVariantData} disabled={isLoadingVariant}>
                 {isLoadingVariant ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Đang lấy...
+                    Đang tải...
                   </>
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    Lấy biến thể
+                    Lấy sản phẩm
                   </>
                 )}
               </Button>
@@ -270,20 +323,21 @@ export function TPOSVariantLookup() {
           <TabsContent value="product" className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Nhập ID sản phẩm (VD: 108531)"
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
+                placeholder="Nhập mã sản phẩm (VD: NTEST)"
+                value={productCode}
+                onChange={(e) => setProductCode(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && loadProductData()}
+                disabled={isLoadingProduct}
               />
               <Button onClick={loadProductData} disabled={isLoadingProduct}>
                 {isLoadingProduct ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Đang lấy...
+                    Đang tải...
                   </>
                 ) : (
                   <>
-                    <Package className="mr-2 h-4 w-4" />
+                    <Search className="mr-2 h-4 w-4" />
                     Lấy sản phẩm
                   </>
                 )}
