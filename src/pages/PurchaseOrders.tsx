@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Package, FileText, Download, ShoppingCart, FileSpreadsheet, Trash2, X } from "lucide-react";
+import { Plus, Package, FileText, Download, ShoppingCart, Trash2, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { PurchaseOrderList } from "@/components/purchase-orders/PurchaseOrderList";
@@ -423,104 +423,6 @@ const PurchaseOrders = () => {
     }
   };
 
-  const handleExportVariantsExcel = () => {
-    // Use selected orders if any, otherwise use filtered orders
-    const ordersToExport = selectedOrders.length > 0 
-      ? orders?.filter(order => selectedOrders.includes(order.id)) || []
-      : filteredOrders;
-
-    // Flatten all items from orders to export
-    const products = ordersToExport.flatMap(order => 
-      (order.items || []).map(item => ({
-        ...item,
-        order_id: order.id,
-        order_date: order.created_at,
-        supplier_name: order.supplier_name,
-        order_notes: order.notes
-      }))
-    );
-
-    if (products.length === 0) {
-      toast({
-        title: "Không có dữ liệu",
-        description: "Không có sản phẩm nào để xuất",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Step 1: Group products by product_code
-      const productGroups = new Map<string, Array<typeof products[0]>>();
-      
-      products.forEach(item => {
-        const code = item.product?.product_code?.toUpperCase() || "";
-        if (!productGroups.has(code)) {
-          productGroups.set(code, []);
-        }
-        productGroups.get(code)!.push(item);
-      });
-
-      // Step 2: Process each product group with its own variant code tracker
-      const excelData: any[] = [];
-      
-      productGroups.forEach((items, productCode) => {
-        // Reset usedVariantCodes for EACH product!
-        const usedVariantCodes = new Set<string>();
-        
-        items.forEach(item => {
-          let finalCode = productCode;
-          let finalProductName = item.product?.product_name?.toString() || "";
-          
-          if (item.product?.variant) {
-            const variantCode = generateVariantCode(item.product.variant, usedVariantCodes);
-            finalCode = `${productCode}${variantCode}`;
-            finalProductName = generateProductNameWithVariant(finalProductName, item.product.variant);
-          }
-          
-          excelData.push({
-            "Loại sản phẩm": "Có thể lưu trữ",
-            "Mã sản phẩm": finalCode || undefined,
-            "Mã chốt đơn": undefined,
-            "Tên sản phẩm": finalProductName || undefined,
-            "Giá bán": item.product?.selling_price || 0,
-            "Giá mua": item.product?.purchase_price || 0,
-            "Đơn vị": "CÁI",
-            "Nhóm sản phẩm": "QUẦN ÁO",
-            "Mã vạch": finalCode || undefined,
-            "Khối lượng": undefined,
-            "Chiết khấu bán": undefined,
-            "Chiết khấu mua": undefined,
-            "Tồn kho": undefined,
-            "Giá vốn": undefined,
-            "Ghi chú": undefined,
-            "Cho phép bán ở công ty khác": "FALSE",
-            "Thuộc tính": undefined,
-          });
-        });
-      });
-
-      // Create Excel file
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Đặt Hàng");
-      
-      const fileName = `TaoMaSP_BienThe_${formatDateDDMM()}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-
-      toast({
-        title: "Xuất Excel thành công!",
-        description: `Đã tạo file ${fileName}`,
-      });
-    } catch (error) {
-      console.error("Error exporting Excel:", error);
-      toast({
-        title: "Lỗi khi xuất Excel!",
-        description: "Vui lòng thử lại",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Bulk delete mutation
   const deleteBulkOrdersMutation = useMutation({
@@ -697,10 +599,6 @@ const PurchaseOrders = () => {
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
                       </Button>
-                      <Button onClick={handleExportVariantsExcel} variant="outline" size="sm">
-                        <FileSpreadsheet className="w-4 h-4 mr-2" />
-                        Xuất Excel Biến thể
-                      </Button>
                     </div>
                   </div>
                 )}
@@ -714,10 +612,6 @@ const PurchaseOrders = () => {
                   <Button onClick={handleExportExcel} variant="outline" className="gap-2">
                     <Download className="w-4 h-4" />
                     Xuất Excel Thêm SP
-                  </Button>
-                  <Button onClick={handleExportVariantsExcel} variant="outline" className="gap-2">
-                    <FileSpreadsheet className="w-4 h-4" />
-                    Xuất Excel Biến thể
                   </Button>
                 </div>
               </div>
