@@ -943,66 +943,56 @@ export type Database = {
           id: string
           notes: string | null
           position: number
-          price_images_snapshot: string[] | null
-          product_code_snapshot: string | null
-          product_id: string | null
-          product_images_snapshot: string[] | null
-          product_name_snapshot: string | null
+          price_images: string[] | null
+          product_code: string
+          product_images: string[] | null
+          product_name: string
           purchase_order_id: string
-          purchase_price_snapshot: number | null
+          purchase_price: number
           quantity: number
-          selling_price_snapshot: number | null
+          selling_price: number
           tpos_deleted: boolean | null
           tpos_deleted_at: string | null
           tpos_product_id: number | null
-          variant_snapshot: string | null
+          variant: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           notes?: string | null
           position?: number
-          price_images_snapshot?: string[] | null
-          product_code_snapshot?: string | null
-          product_id?: string | null
-          product_images_snapshot?: string[] | null
-          product_name_snapshot?: string | null
+          price_images?: string[] | null
+          product_code: string
+          product_images?: string[] | null
+          product_name: string
           purchase_order_id: string
-          purchase_price_snapshot?: number | null
+          purchase_price: number
           quantity?: number
-          selling_price_snapshot?: number | null
+          selling_price: number
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
-          variant_snapshot?: string | null
+          variant?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           notes?: string | null
           position?: number
-          price_images_snapshot?: string[] | null
-          product_code_snapshot?: string | null
-          product_id?: string | null
-          product_images_snapshot?: string[] | null
-          product_name_snapshot?: string | null
+          price_images?: string[] | null
+          product_code?: string
+          product_images?: string[] | null
+          product_name?: string
           purchase_order_id?: string
-          purchase_price_snapshot?: number | null
+          purchase_price?: number
           quantity?: number
-          selling_price_snapshot?: number | null
+          selling_price?: number
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
-          variant_snapshot?: string | null
+          variant?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "purchase_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
             columns: ["purchase_order_id"]

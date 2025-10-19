@@ -26,21 +26,22 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useCreateVariantProducts } from "@/hooks/use-create-variant-products";
 
 interface PurchaseOrderItem {
-  product_id: string | null;
   quantity: number;
   notes: string;
   position?: number;
   
-  // Temporary fields for UI only (not saved to DB)
-  _tempProductName: string;
-  _tempVariant: string;
-  _tempProductCode: string;
-  _tempBaseProductCode?: string;
-  _tempUnitPrice: number | string;
-  _tempSellingPrice: number | string;
+  // Primary fields (saved directly to DB)
+  product_code: string;
+  product_name: string;
+  variant: string;
+  base_product_code?: string;
+  purchase_price: number | string;
+  selling_price: number | string;
+  product_images: string[];
+  price_images: string[];
+  
+  // UI only
   _tempTotalPrice: number;
-  _tempProductImages: string[];
-  _tempPriceImages: string[];
 }
 
 interface CreatePurchaseOrderDialogProps {
@@ -72,17 +73,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
   const [items, setItems] = useState<PurchaseOrderItem[]>([
     { 
-      product_id: null,
       quantity: 1,
       notes: "",
-      _tempProductName: "",
-      _tempVariant: "",
-      _tempProductCode: "",
-      _tempUnitPrice: "",
-      _tempSellingPrice: "",
+      product_code: "",
+      product_name: "",
+      variant: "",
+      purchase_price: "",
+      selling_price: "",
+      product_images: [],
+      price_images: [],
       _tempTotalPrice: 0,
-      _tempProductImages: [],
-      _tempPriceImages: []
     }
   ]);
 
@@ -96,21 +96,21 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
-    items.map(i => i._tempProductName).join('|'),
+    items.map(i => i.product_name).join('|'),
     500
   );
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
-      if (item._tempProductName.trim() && !item._tempProductCode.trim()) {
+      if (item.product_name.trim() && !item.product_code.trim()) {
         try {
-          const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
-          const code = await generateProductCodeFromMax(item._tempProductName, tempItems);
+          const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
+          const code = await generateProductCodeFromMax(item.product_name, tempItems);
           setItems(prev => {
             const newItems = [...prev];
-            if (newItems[index] && !newItems[index]._tempProductCode.trim()) {
-              newItems[index] = { ...newItems[index], _tempProductCode: code };
+            if (newItems[index] && !newItems[index].product_code.trim()) {
+              newItems[index] = { ...newItems[index], product_code: code };
             }
             return newItems;
           });
@@ -133,10 +133,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       const shippingFee = formData.shipping_fee * 1000;
       const finalAmount = totalAmount - discountAmount + shippingFee;
 
-      // Step 1: Collect product_ids from items (no creation/update)
-      const productIds: (string | null)[] = items.map(item => item.product_id || null);
-
-      // Step 2: Create purchase_order
+      // Step 1: Create purchase_order
       const { data: order, error: orderError } = await supabase
         .from("purchase_orders")
         .insert({
@@ -154,23 +151,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
       if (orderError) throw orderError;
 
-      // Step 3: Create purchase_order_items with product_id and snapshot data
+      // Step 2: Create purchase_order_items with primary data
       const orderItems = items
-        .filter((item, index) => item._tempProductName.trim() && productIds[index])
+        .filter(item => item.product_name.trim())
         .map((item, index) => ({
           purchase_order_id: order.id,
-          product_id: productIds[index],
           quantity: item.quantity,
           position: index + 1,
           notes: item.notes.trim().toUpperCase() || null,
-          // Snapshot data
-          product_code_snapshot: item._tempProductCode.trim().toUpperCase(),
-          product_name_snapshot: item._tempProductName.trim().toUpperCase(),
-          variant_snapshot: item._tempVariant?.trim().toUpperCase() || null,
-          purchase_price_snapshot: Number(item._tempUnitPrice || 0) * 1000,
-          selling_price_snapshot: Number(item._tempSellingPrice || 0) * 1000,
-          product_images_snapshot: item._tempProductImages || [],
-          price_images_snapshot: item._tempPriceImages || []
+          // Primary data fields
+          product_code: item.product_code.trim().toUpperCase(),
+          product_name: item.product_name.trim().toUpperCase(),
+          variant: item.variant?.trim().toUpperCase() || null,
+          purchase_price: Number(item.purchase_price || 0) * 1000,
+          selling_price: Number(item.selling_price || 0) * 1000,
+          product_images: item.product_images || [],
+          price_images: item.price_images || []
         }));
 
       if (orderItems.length > 0) {
@@ -214,17 +210,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     setShowShippingFee(false);
     setItems([
       { 
-        product_id: null,
         quantity: 1,
         notes: "",
-        _tempProductName: "",
-        _tempVariant: "",
-        _tempProductCode: "",
-        _tempUnitPrice: "",
-        _tempSellingPrice: "",
+        product_code: "",
+        product_name: "",
+        variant: "",
+        purchase_price: "",
+        selling_price: "",
+        product_images: [],
+        price_images: [],
         _tempTotalPrice: 0,
-        _tempProductImages: [],
-        _tempPriceImages: []
       }
     ]);
   };
@@ -233,8 +228,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     
-    if (field === "quantity" || field === "_tempUnitPrice") {
-      newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index]._tempUnitPrice || 0);
+    if (field === "quantity" || field === "purchase_price") {
+      newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index].purchase_price || 0);
     }
     
     setItems(newItems);
@@ -242,33 +237,31 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
   const addItem = () => {
     setItems([...items, { 
-      product_id: null,
       quantity: 1,
       notes: "",
-      _tempProductName: "",
-      _tempVariant: "",
-      _tempProductCode: "",
-      _tempUnitPrice: "",
-      _tempSellingPrice: "",
+      product_code: "",
+      product_name: "",
+      variant: "",
+      purchase_price: "",
+      selling_price: "",
+      product_images: [],
+      price_images: [],
       _tempTotalPrice: 0,
-      _tempProductImages: [],
-      _tempPriceImages: []
     }]);
   };
 
   const copyItem = async (index: number) => {
     const itemToCopy = { ...items[index] };
-    itemToCopy.product_id = null; // Clear product_id for new item
     // Deep copy the image arrays
-    itemToCopy._tempProductImages = [...itemToCopy._tempProductImages];
-    itemToCopy._tempPriceImages = [...itemToCopy._tempPriceImages];
+    itemToCopy.product_images = [...itemToCopy.product_images];
+    itemToCopy.price_images = [...itemToCopy.price_images];
     
     // Generate product code using generateProductCodeFromMax logic
-    if (itemToCopy._tempProductName.trim()) {
+    if (itemToCopy.product_name.trim()) {
       try {
-        const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
-        const newCode = await generateProductCodeFromMax(itemToCopy._tempProductName, tempItems);
-        itemToCopy._tempProductCode = newCode;
+        const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
+        const newCode = await generateProductCodeFromMax(itemToCopy.product_name, tempItems);
+        itemToCopy.product_code = newCode;
         toast({
           title: "Đã sao chép và tạo mã SP mới",
           description: `Mã mới: ${newCode}`,
@@ -289,17 +282,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     } else {
       // Reset the last item to empty state instead of removing
       setItems([{ 
-        product_id: null,
         quantity: 1,
         notes: "",
-        _tempProductName: "",
-        _tempVariant: "",
-        _tempProductCode: "",
-        _tempUnitPrice: "",
-        _tempSellingPrice: "",
+        product_code: "",
+        product_name: "",
+        variant: "",
+        purchase_price: "",
+        selling_price: "",
+        product_images: [],
+        price_images: [],
         _tempTotalPrice: 0,
-        _tempProductImages: [],
-        _tempPriceImages: []
       }]);
     }
   };
@@ -309,14 +301,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       const newItems = [...items];
       newItems[currentItemIndex] = {
         ...newItems[currentItemIndex],
-        product_id: product.id,
-        _tempProductName: product.product_name,
-        _tempProductCode: product.product_code,
-        _tempVariant: product.variant || "",
-        _tempUnitPrice: product.purchase_price / 1000,
-        _tempSellingPrice: product.selling_price / 1000,
-        _tempProductImages: product.product_images || [],
-        _tempPriceImages: product.price_images || [],
+        product_name: product.product_name,
+        product_code: product.product_code,
+        variant: product.variant || "",
+        purchase_price: product.purchase_price / 1000,
+        selling_price: product.selling_price / 1000,
+        product_images: product.product_images || [],
+        price_images: product.price_images || [],
         _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000)
       };
       setItems(newItems);
@@ -338,30 +329,28 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     const firstProduct = products[0];
     newItems[currentItemIndex] = {
       ...newItems[currentItemIndex],
-      product_id: firstProduct.id,
-      _tempProductName: firstProduct.product_name,
-      _tempProductCode: firstProduct.product_code,
-      _tempVariant: firstProduct.variant || "",
-      _tempUnitPrice: firstProduct.purchase_price / 1000,
-      _tempSellingPrice: firstProduct.selling_price / 1000,
-      _tempProductImages: firstProduct.product_images || [],
-      _tempPriceImages: firstProduct.price_images || [],
+      product_name: firstProduct.product_name,
+      product_code: firstProduct.product_code,
+      variant: firstProduct.variant || "",
+      purchase_price: firstProduct.purchase_price / 1000,
+      selling_price: firstProduct.selling_price / 1000,
+      product_images: firstProduct.product_images || [],
+      price_images: firstProduct.price_images || [],
       _tempTotalPrice: newItems[currentItemIndex].quantity * (firstProduct.purchase_price / 1000)
     };
 
     // Add remaining products as new lines after current line
     const additionalItems = products.slice(1).map(product => ({
-      product_id: product.id,
       quantity: 1,
       notes: "",
-      _tempProductName: product.product_name,
-      _tempProductCode: product.product_code,
-      _tempVariant: product.variant || "",
-      _tempUnitPrice: product.purchase_price / 1000,
-      _tempSellingPrice: product.selling_price / 1000,
+      product_name: product.product_name,
+      product_code: product.product_code,
+      variant: product.variant || "",
+      purchase_price: product.purchase_price / 1000,
+      selling_price: product.selling_price / 1000,
+      product_images: product.product_images || [],
+      price_images: product.price_images || [],
       _tempTotalPrice: product.purchase_price / 1000,
-      _tempProductImages: product.product_images || [],
-      _tempPriceImages: product.price_images || []
     }));
 
     newItems.splice(currentItemIndex + 1, 0, ...additionalItems);
@@ -417,28 +406,28 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
     // Prepare base product data
     const baseProductData = {
-      product_code: baseItem._tempProductCode.trim().toUpperCase(),
-      product_name: baseItem._tempProductName.trim().toUpperCase(),
+      product_code: baseItem.product_code.trim().toUpperCase(),
+      product_name: baseItem.product_name.trim().toUpperCase(),
       variant: mergedVariant || null,
-      purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-      selling_price: Number(baseItem._tempSellingPrice) * 1000,
+      purchase_price: Number(baseItem.purchase_price) * 1000,
+      selling_price: Number(baseItem.selling_price) * 1000,
       supplier_name: formData.supplier_name || undefined,
       stock_quantity: 0,
-      product_images: [...baseItem._tempProductImages],
-      price_images: [...baseItem._tempPriceImages]
+      product_images: [...baseItem.product_images],
+      price_images: [...baseItem.price_images]
     };
 
     // Prepare child variants data
     const childVariantsData = variants.map(v => ({
       product_code: v.fullCode.toUpperCase(),
-      base_product_code: baseItem._tempProductCode.trim().toUpperCase(),
+      base_product_code: baseItem.product_code.trim().toUpperCase(),
       product_name: v.productName.toUpperCase(),
       variant: v.variantText,
-      purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-      selling_price: Number(baseItem._tempSellingPrice) * 1000,
+      purchase_price: Number(baseItem.purchase_price) * 1000,
+      selling_price: Number(baseItem.selling_price) * 1000,
       supplier_name: formData.supplier_name || undefined,
-      product_images: baseItem._tempProductImages,
-      price_images: baseItem._tempPriceImages
+      product_images: baseItem.product_images,
+      price_images: baseItem.price_images
     }));
 
     // Call mutation to upsert base product and create child variants
@@ -450,17 +439,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         if (selectedIndices.length === 0) {
           // No checkboxes selected → Clear the line
           const emptyItem: PurchaseOrderItem = {
-            product_id: null,
             quantity: 1,
             notes: "",
-            _tempProductName: "",
-            _tempVariant: "",
-            _tempProductCode: "",
-            _tempUnitPrice: "",
-            _tempSellingPrice: "",
+            product_code: "",
+            product_name: "",
+            variant: "",
+            purchase_price: "",
+            selling_price: "",
+            product_images: [],
+            price_images: [],
             _tempTotalPrice: 0,
-            _tempProductImages: [],
-            _tempPriceImages: []
           };
           
           setItems(prev => {
@@ -476,9 +464,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             const newItems = [...prev];
             newItems[index] = {
               ...newItems[index],
-              _tempProductCode: selectedVariant.fullCode,
-              _tempProductName: selectedVariant.productName,
-              _tempVariant: selectedVariant.variantText,
+              product_code: selectedVariant.fullCode,
+              product_name: selectedVariant.productName,
+              variant: selectedVariant.variantText,
             };
             return newItems;
           });
@@ -498,24 +486,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             const firstVariant = selectedVariants[0];
             newItems[index] = {
               ...newItems[index],
-              _tempProductCode: firstVariant.fullCode,
-              _tempProductName: firstVariant.productName,
-              _tempVariant: firstVariant.variantText,
+              product_code: firstVariant.fullCode,
+              product_name: firstVariant.productName,
+              variant: firstVariant.variantText,
             };
             
             // Add additional lines
             const additionalItems = selectedVariants.slice(1).map(variant => ({
-              product_id: null,
               quantity: 1,
               notes: "",
-              _tempProductName: variant.productName,
-              _tempVariant: variant.variantText,
-              _tempProductCode: variant.fullCode,
-              _tempUnitPrice: baseItem._tempUnitPrice,
-              _tempSellingPrice: baseItem._tempSellingPrice,
-              _tempTotalPrice: Number(baseItem._tempUnitPrice) * 1,
-              _tempProductImages: [...baseItem._tempProductImages],
-              _tempPriceImages: [...baseItem._tempPriceImages]
+              product_name: variant.productName,
+              product_code: variant.fullCode,
+              variant: variant.variantText,
+              purchase_price: baseItem.purchase_price,
+              selling_price: baseItem.selling_price,
+              product_images: [...baseItem.product_images],
+              price_images: [...baseItem.price_images],
+              _tempTotalPrice: Number(baseItem.purchase_price) * 1,
             }));
             
             // Insert after current line
@@ -539,11 +526,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     // Validation: Check all required fields
     const missingFields = [];
     
-    if (!item._tempProductName.trim()) missingFields.push("Tên sản phẩm");
-    if (!item._tempProductCode.trim()) missingFields.push("Mã sản phẩm");
-    if (!item._tempUnitPrice || Number(item._tempUnitPrice) <= 0) missingFields.push("Giá mua");
-    if (!item._tempSellingPrice || Number(item._tempSellingPrice) <= 0) missingFields.push("Giá bán");
-    if (!item._tempProductImages || item._tempProductImages.length === 0) missingFields.push("Hình ảnh sản phẩm");
+    if (!item.product_name.trim()) missingFields.push("Tên sản phẩm");
+    if (!item.product_code.trim()) missingFields.push("Mã sản phẩm");
+    if (!item.purchase_price || Number(item.purchase_price) <= 0) missingFields.push("Giá mua");
+    if (!item.selling_price || Number(item.selling_price) <= 0) missingFields.push("Giá bán");
+    if (!item.product_images || item.product_images.length === 0) missingFields.push("Hình ảnh sản phẩm");
     
     if (missingFields.length > 0) {
       toast({
@@ -664,7 +651,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1]._tempProductName ? items.length : items.length - 1)}
+                onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1].product_name ? items.length : items.length - 1)}
               >
                 <Warehouse className="h-4 w-4 mr-2" />
                 Chọn từ Kho SP
@@ -697,8 +684,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                       <TableCell>
                         <Textarea
                           placeholder="Nhập tên sản phẩm"
-                          value={item._tempProductName}
-                          onChange={(e) => updateItem(index, "_tempProductName", e.target.value)}
+                          value={item.product_name}
+                          onChange={(e) => updateItem(index, "product_name", e.target.value)}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
                           rows={2}
                         />
@@ -706,8 +693,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             <TableCell>
               <Input
                 placeholder="Mã SP"
-                value={item._tempProductCode}
-                onChange={(e) => updateItem(index, "_tempProductCode", e.target.value)}
+                value={item.product_code}
+                onChange={(e) => updateItem(index, "product_code", e.target.value)}
                 className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs"
                 maxLength={10}
               />
@@ -726,8 +713,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                           type="text"
                           inputMode="numeric"
                           placeholder=""
-                          value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
-                          onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
+                          value={item.purchase_price === 0 || item.purchase_price === "" ? "" : item.purchase_price}
+                          onChange={(e) => updateItem(index, "purchase_price", parseNumberInput(e.target.value))}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm"
                         />
                       </TableCell>
@@ -736,8 +723,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                           type="text"
                           inputMode="numeric"
                           placeholder=""
-                          value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
-                          onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
+                          value={item.selling_price === 0 || item.selling_price === "" ? "" : item.selling_price}
+                          onChange={(e) => updateItem(index, "selling_price", parseNumberInput(e.target.value))}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm"
                         />
                       </TableCell>
@@ -746,28 +733,28 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                       </TableCell>
                       <TableCell>
                         <ImageUploadCell
-                          images={item._tempProductImages}
-                          onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
+                          images={item.product_images}
+                          onImagesChange={(images) => updateItem(index, "product_images", images)}
                           itemIndex={index}
                         />
                       </TableCell>
                       <TableCell>
                         <ImageUploadCell
-                          images={item._tempPriceImages}
-                          onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
+                          images={item.price_images}
+                          onImagesChange={(images) => updateItem(index, "price_images", images)}
                           itemIndex={index}
                         />
                       </TableCell>
             <TableCell>
               <div className="flex items-center gap-1">
                 <VariantDropdownSelector
-                  baseProductCode={item._tempProductCode}
-                  value={item._tempVariant}
-                  onChange={(value) => updateItem(index, "_tempVariant", value)}
+                  baseProductCode={item.product_code}
+                  value={item.variant}
+                  onChange={(value) => updateItem(index, "variant", value)}
                   onVariantSelect={(data) => {
-                    updateItem(index, "_tempProductCode", data.productCode);
-                    updateItem(index, "_tempProductName", data.productName);
-                    updateItem(index, "_tempVariant", data.variant);
+                    updateItem(index, "product_code", data.productCode);
+                    updateItem(index, "product_name", data.productName);
+                    updateItem(index, "variant", data.variant);
                   }}
                   className="flex-1"
                 />
@@ -947,8 +934,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           open={isVariantDialogOpen}
           onOpenChange={setIsVariantDialogOpen}
           currentItem={{
-            product_code: items[variantGeneratorIndex]._tempProductCode,
-            product_name: items[variantGeneratorIndex]._tempProductName
+            product_code: items[variantGeneratorIndex].product_code,
+            product_name: items[variantGeneratorIndex].product_name
           }}
           onVariantsGenerated={(variants, selectedIndices) => {
             handleVariantsGenerated(variantGeneratorIndex, variants, selectedIndices);
