@@ -69,7 +69,6 @@ export function TPOSManagerNew() {
   const [productName, setProductName] = useState("");
   const [listPrice, setListPrice] = useState("200000");
   const [purchasePrice, setPurchasePrice] = useState("100000");
-  const [qtyAvailable, setQtyAvailable] = useState("1");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
@@ -732,15 +731,6 @@ export function TPOSManagerNew() {
                     type="number"
                     value={purchasePrice}
                     onChange={(e) => setPurchasePrice(e.target.value)}
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label>Số Lượng *</Label>
-                  <Input
-                    type="number"
-                    value={qtyAvailable}
-                    onChange={(e) => setQtyAvailable(e.target.value)}
                     min="0"
                   />
                 </div>
