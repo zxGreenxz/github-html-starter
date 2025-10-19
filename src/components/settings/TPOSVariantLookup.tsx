@@ -62,7 +62,7 @@ export function TPOSVariantLookup() {
         }
 
         return response.json();
-      }, 'tpos');
+      }, "tpos");
 
       setVariantData(data);
       toast({
@@ -112,7 +112,7 @@ export function TPOSVariantLookup() {
         }
 
         return response.json();
-      }, 'tpos');
+      }, "tpos");
 
       setProductData(data);
       toast({
@@ -146,9 +146,7 @@ export function TPOSVariantLookup() {
           <Search className="h-5 w-5" />
           TPOS Variant & Product Lookup
         </CardTitle>
-        <CardDescription>
-          Tra cứu thông tin biến thể và sản phẩm từ TPOS
-        </CardDescription>
+        <CardDescription>Tra cứu thông tin biến thể và sản phẩm từ TPOS</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="variant">
@@ -166,15 +164,12 @@ export function TPOSVariantLookup() {
           <TabsContent value="variant" className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Nhập ID biến thể (VD: 108531)"
+                placeholder="Nhập ID biến thể (VD: 130689)"
                 value={variantId}
                 onChange={(e) => setVariantId(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && loadVariantData()}
               />
-              <Button
-                onClick={loadVariantData}
-                disabled={isLoadingVariant}
-              >
+              <Button onClick={loadVariantData} disabled={isLoadingVariant}>
                 {isLoadingVariant ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -199,11 +194,7 @@ export function TPOSVariantLookup() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Thông tin biến thể</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyToClipboard(variantData)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(variantData)}>
                     <Copy className="mr-2 h-4 w-4" />
                     Copy JSON
                   </Button>
@@ -221,9 +212,7 @@ export function TPOSVariantLookup() {
                       <TableRow>
                         <TableCell className="font-medium">Mã sản phẩm</TableCell>
                         <TableCell>
-                          <code className="bg-muted px-2 py-1 rounded text-sm">
-                            {variantData.DefaultCode || "-"}
-                          </code>
+                          <code className="bg-muted px-2 py-1 rounded text-sm">{variantData.DefaultCode || "-"}</code>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -286,10 +275,7 @@ export function TPOSVariantLookup() {
                 onChange={(e) => setProductId(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && loadProductData()}
               />
-              <Button
-                onClick={loadProductData}
-                disabled={isLoadingProduct}
-              >
+              <Button onClick={loadProductData} disabled={isLoadingProduct}>
                 {isLoadingProduct ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -314,11 +300,7 @@ export function TPOSVariantLookup() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Thông tin sản phẩm gốc</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyToClipboard(productData)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(productData)}>
                     <Copy className="mr-2 h-4 w-4" />
                     Copy JSON
                   </Button>
@@ -336,9 +318,7 @@ export function TPOSVariantLookup() {
                       <TableRow>
                         <TableCell className="font-medium">Mã sản phẩm</TableCell>
                         <TableCell>
-                          <code className="bg-muted px-2 py-1 rounded text-sm">
-                            {productData.DefaultCode || "-"}
-                          </code>
+                          <code className="bg-muted px-2 py-1 rounded text-sm">{productData.DefaultCode || "-"}</code>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -378,9 +358,7 @@ export function TPOSVariantLookup() {
                 {/* Danh sách biến thể */}
                 {productData.ProductVariants && productData.ProductVariants.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold">
-                      Danh sách Biến thể ({productData.ProductVariants.length})
-                    </h3>
+                    <h3 className="text-lg font-semibold">Danh sách Biến thể ({productData.ProductVariants.length})</h3>
                     <div className="border rounded-lg overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -400,16 +378,12 @@ export function TPOSVariantLookup() {
                                 <Badge variant="secondary">{variant.Id}</Badge>
                               </TableCell>
                               <TableCell>
-                                <code className="bg-muted px-2 py-1 rounded text-xs">
-                                  {variant.DefaultCode || "-"}
-                                </code>
+                                <code className="bg-muted px-2 py-1 rounded text-xs">{variant.DefaultCode || "-"}</code>
                               </TableCell>
                               <TableCell>
                                 <Badge variant="outline">{variant.ProductTmplId}</Badge>
                               </TableCell>
-                              <TableCell className="max-w-xs truncate">
-                                {variant.NameGet}
-                              </TableCell>
+                              <TableCell className="max-w-xs truncate">{variant.NameGet}</TableCell>
                               <TableCell className="text-right text-green-600 font-medium">
                                 {formatNumber(variant.PriceVariant)} đ
                               </TableCell>
