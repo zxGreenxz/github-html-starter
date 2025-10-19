@@ -484,8 +484,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             variant: variant.variant,
             purchase_price: variant.purchase_price,
             selling_price: variant.selling_price,
-            product_images: variant.product_images,
-            price_images: variant.price_images,
+            product_images: [...(variant.product_images || [])],
+            price_images: [...(variant.price_images || [])],
             _tempTotalPrice: variant.purchase_price,
           };
         });
