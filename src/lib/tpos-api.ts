@@ -893,10 +893,10 @@ export function createAttributeValues(detected: DetectedAttributes): any[] {
   if (detected.sizeText && detected.sizeText.length > 0) {
     const config = getAttributeConfig('sizeText');
     detected.sizeText.forEach(size => {
-      const valueId = TPOS_SIZE_TEXT_MAP[size];
-      if (valueId) {
+      const valueData = TPOS_SIZE_TEXT_MAP[size];
+      if (valueData) {
         attributeValues.push({
-          Id: valueId,
+          Id: valueData.Id,
           Name: size,
           Code: null,
           Sequence: null,
@@ -914,10 +914,10 @@ export function createAttributeValues(detected: DetectedAttributes): any[] {
   if (detected.color && detected.color.length > 0) {
     const config = getAttributeConfig('color');
     detected.color.forEach(color => {
-      const valueId = TPOS_COLOR_MAP[color];
-      if (valueId) {
+      const valueData = TPOS_COLOR_MAP[color];
+      if (valueData) {
         attributeValues.push({
-          Id: valueId,
+          Id: valueData.Id,
           Name: color,
           Code: null,
           Sequence: null,
@@ -935,10 +935,10 @@ export function createAttributeValues(detected: DetectedAttributes): any[] {
   if (detected.sizeNumber && detected.sizeNumber.length > 0) {
     const config = getAttributeConfig('sizeNumber');
     detected.sizeNumber.forEach(size => {
-      const valueId = TPOS_SIZE_NUMBER_MAP[size];
-      if (valueId) {
+      const valueData = TPOS_SIZE_NUMBER_MAP[size];
+      if (valueData) {
         attributeValues.push({
-          Id: valueId,
+          Id: valueData.Id,
           Name: size,
           Code: null,
           Sequence: null,
@@ -979,10 +979,10 @@ export function createAttributeLines(detected: DetectedAttributes): any[] {
     const config = getAttributeConfig('sizeText');
     const values = detected.sizeText
       .map(size => {
-        const id = TPOS_SIZE_TEXT_MAP[size];
-        if (!id) return null;
+        const data = TPOS_SIZE_TEXT_MAP[size];
+        if (!data) return null;
         return {
-          Id: id,
+          Id: data.Id,
           Name: size,
           Code: size,
           Sequence: null,
@@ -1015,10 +1015,10 @@ export function createAttributeLines(detected: DetectedAttributes): any[] {
     const config = getAttributeConfig('color');
     const values = detected.color
       .map(color => {
-        const id = TPOS_COLOR_MAP[color];
-        if (!id) return null;
+        const data = TPOS_COLOR_MAP[color];
+        if (!data) return null;
         return {
-          Id: id,
+          Id: data.Id,
           Name: color,
           Code: color.toLowerCase().replace(/\s+/g, ''),
           Sequence: null,
@@ -1051,10 +1051,10 @@ export function createAttributeLines(detected: DetectedAttributes): any[] {
     const config = getAttributeConfig('sizeNumber');
     const values = detected.sizeNumber
       .map(size => {
-        const id = TPOS_SIZE_NUMBER_MAP[size];
-        if (!id) return null;
+        const data = TPOS_SIZE_NUMBER_MAP[size];
+        if (!data) return null;
         return {
-          Id: id,
+          Id: data.Id,
           Name: size,
           Code: size,
           Sequence: null,
