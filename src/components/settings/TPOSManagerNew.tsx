@@ -476,20 +476,17 @@ export function TPOSManagerNew() {
       
       const variants = generateVariants(name, parseFloat(listPrice), attributeLines);
       
-      // Full payload theo HTML
+      // Simplified payload - only IDs, no nested objects
       const payload = {
         Id: 0,
         Name: name,
         Type: "product",
         ListPrice: parseFloat(listPrice),
         PurchasePrice: parseFloat(purchasePrice),
+        StandardPrice: parseFloat(purchasePrice),
         DefaultCode: code,
         QtyAvailable: parseInt(qtyAvailable),
         Image: imageBase64,
-        ImageUrl: null,
-        Thumbnails: [],
-        AttributeLines: attributeLines,
-        ProductVariants: variants,
         Active: true,
         SaleOK: true,
         PurchaseOK: true,
@@ -503,44 +500,10 @@ export function TPOSManagerNew() {
         AvailableInPOS: true,
         DiscountSale: 0,
         DiscountPurchase: 0,
-        StandardPrice: 0,
         Weight: 0,
         SaleDelay: 0,
-        UOM: {
-          Id: 1,
-          Name: "Cái",
-          Rounding: 0.001,
-          Active: true,
-          Factor: 1,
-          FactorInv: 1,
-          UOMType: "reference",
-          CategoryId: 1,
-          CategoryName: "Đơn vị"
-        },
-        UOMPO: {
-          Id: 1,
-          Name: "Cái",
-          Rounding: 0.001,
-          Active: true,
-          Factor: 1,
-          FactorInv: 1,
-          UOMType: "reference",
-          CategoryId: 1,
-          CategoryName: "Đơn vị"
-        },
-        Categ: {
-          Id: 2,
-          Name: "Có thể bán",
-          CompleteName: "Có thể bán",
-          Type: "normal",
-          PropertyCostMethod: "average",
-          NameNoSign: "Co the ban",
-          IsPos: true
-        },
-        Items: [],
-        UOMLines: [],
-        ComboProducts: [],
-        ProductSupplierInfos: []
+        AttributeLines: attributeLines,
+        ProductVariants: variants
       };
       
       const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
@@ -552,7 +515,13 @@ export function TPOSManagerNew() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        console.error('❌ TPOS API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          payload: JSON.stringify(payload, null, 2)
+        });
+        throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
       }
 
       // ✅ KIỂM TRA 204 NO CONTENT
