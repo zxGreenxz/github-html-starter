@@ -374,7 +374,6 @@ export function TPOSManagerNew() {
         ListPrice: parseFloat(listPrice),
         PurchasePrice: parseFloat(purchasePrice),
         DefaultCode: code,
-        QtyAvailable: parseInt(qtyAvailable),
         Image: imageBase64,
         ImageUrl: null,
         Thumbnails: [],

@@ -622,7 +622,6 @@ export async function createProductDirectly(
     ListPrice: item.selling_price || 0,
     PurchasePrice: item.unit_price || 0,
     DefaultCode: item.base_product_code || item.product_code,
-    QtyAvailable: item.quantity || 0,
     Image: imageBase64 ? cleanBase64(imageBase64) : null,
     ImageUrl: null,
     Thumbnails: [],
