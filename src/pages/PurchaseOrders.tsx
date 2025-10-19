@@ -18,20 +18,17 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface PurchaseOrderItem {
   id?: string;
-  product_id: string;
   quantity: number;
   position?: number;
   notes?: string | null;
-  product?: {
-    product_name: string;
-    product_code: string;
-    variant: string | null;
-    purchase_price: number;
-    selling_price: number;
-    product_images: string[] | null;
-    price_images: string[] | null;
-    base_product_code: string | null;
-  };
+  // Primary fields (renamed from snapshot)
+  product_code: string;
+  product_name: string;
+  variant: string | null;
+  purchase_price: number;
+  selling_price: number;
+  product_images: string[] | null;
+  price_images: string[] | null;
 }
 
 interface PurchaseOrder {
@@ -158,34 +155,23 @@ const PurchaseOrders = () => {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["purchase-orders"],
     queryFn: async () => {
-      // Single optimized query with JOIN to fetch orders, items, and receiving data
+      // Single optimized query to fetch orders, items, and receiving data
       const { data: ordersData, error: ordersError } = await supabase
         .from("purchase_orders")
         .select(`
           *,
           items:purchase_order_items(
             id,
-            product_id,
             quantity,
             position,
             notes,
-            product_code_snapshot,
-            product_name_snapshot,
-            variant_snapshot,
-            purchase_price_snapshot,
-            selling_price_snapshot,
-            product_images_snapshot,
-            price_images_snapshot,
-            product:products(
-              product_name,
-              product_code,
-              variant,
-              purchase_price,
-              selling_price,
-              product_images,
-              price_images,
-              base_product_code
-            )
+            product_code,
+            product_name,
+            variant,
+            purchase_price,
+            selling_price,
+            product_images,
+            price_images
           ),
           receiving:goods_receiving(
             id,
@@ -219,14 +205,11 @@ const PurchaseOrders = () => {
           (a.position || 0) - (b.position || 0)
         );
 
-        // Check for items with deleted products
-        const hasDeletedProduct = sortedItems.some((item: any) => !item.product);
-
         return {
           ...order,
           items: sortedItems,
           hasShortage,
-          hasDeletedProduct
+          hasDeletedProduct: false // No longer checking product relationship
         };
       });
 
@@ -261,8 +244,8 @@ const PurchaseOrders = () => {
       format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
       format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
       order.items?.some(item => 
-        item.product?.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.product?.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
+        item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     
     // Status filter
@@ -301,14 +284,14 @@ const PurchaseOrders = () => {
       // Mapping according to the Excel template format (17 columns)
       const excelData = products.map(item => ({
         "Loại sản phẩm": "Có thể lưu trữ",
-        "Mã sản phẩm": item.product?.product_code?.toString() || undefined,
+        "Mã sản phẩm": item.product_code?.toString() || undefined,
         "Mã chốt đơn": undefined,
-        "Tên sản phẩm": item.product?.product_name?.toString() || undefined,
-        "Giá bán": item.product?.selling_price || 0,
-        "Giá mua": item.product?.purchase_price || 0,
+        "Tên sản phẩm": item.product_name?.toString() || undefined,
+        "Giá bán": item.selling_price || 0,
+        "Giá mua": item.purchase_price || 0,
         "Đơn vị": "CÁI",
         "Nhóm sản phẩm": "QUẦN ÁO",
-        "Mã vạch": item.product?.product_code?.toString() || undefined,
+        "Mã vạch": item.product_code?.toString() || undefined,
         "Khối lượng": undefined,
         "Chiết khấu bán": undefined,
         "Chiết khấu mua": undefined,
@@ -394,9 +377,9 @@ const PurchaseOrders = () => {
       // Calculate discount percentage for each item
       const excelData = products.map(item => {
         return {
-          "Mã sản phẩm (*)": item.product?.product_code?.toString() || "",
+          "Mã sản phẩm (*)": item.product_code?.toString() || "",
           "Số lượng (*)": item.quantity || 0,
-          "Đơn giá": item.product?.purchase_price || 0,
+          "Đơn giá": item.purchase_price || 0,
           "Chiết khấu (%)": 0,
         };
       });

@@ -21,28 +21,17 @@ import { formatVND } from "@/lib/currency-utils";
 
 interface PurchaseOrderItem {
   id?: string;
-  product_id: string | null;
   quantity: number;
   position?: number;
   notes?: string | null;
-  product?: {
-    product_name: string;
-    product_code: string;
-    variant: string | null;
-    purchase_price: number;
-    selling_price: number;
-    product_images: string[] | null;
-    price_images: string[] | null;
-    base_product_code: string | null;
-  };
-  // Snapshot fields
-  product_code_snapshot?: string;
-  product_name_snapshot?: string;
-  variant_snapshot?: string;
-  purchase_price_snapshot?: number;
-  selling_price_snapshot?: number;
-  product_images_snapshot?: string[];
-  price_images_snapshot?: string[];
+  // Primary fields (renamed from snapshot)
+  product_code: string;
+  product_name: string;
+  variant: string | null;
+  purchase_price: number;
+  selling_price: number;
+  product_images: string[] | null;
+  price_images: string[] | null;
 }
 
 interface PurchaseOrder {
@@ -413,14 +402,14 @@ export function PurchaseOrderList({
               flattenedItems?.map((flatItem, index) => {
                 const isSelected = selectedOrders.includes(flatItem.id);
                 
-                // Lấy thông tin từ product hoặc snapshot
-                const productName = flatItem.item?.product?.product_name || flatItem.item?.product_name_snapshot || "Sản phẩm đã xóa";
-                const productCode = flatItem.item?.product?.product_code || flatItem.item?.product_code_snapshot || "-";
-                const variant = flatItem.item?.product?.variant || flatItem.item?.variant_snapshot || "-";
-                const purchasePrice = flatItem.item?.product?.purchase_price || flatItem.item?.purchase_price_snapshot || 0;
-                const sellingPrice = flatItem.item?.product?.selling_price || flatItem.item?.selling_price_snapshot || 0;
-                const productImages = flatItem.item?.product?.product_images || flatItem.item?.product_images_snapshot || [];
-                const priceImages = flatItem.item?.product?.price_images || flatItem.item?.price_images_snapshot || [];
+                // Use direct fields from purchase_order_items
+                const productName = flatItem.item?.product_name || "Sản phẩm đã xóa";
+                const productCode = flatItem.item?.product_code || "-";
+                const variant = flatItem.item?.variant || "-";
+                const purchasePrice = flatItem.item?.purchase_price || 0;
+                const sellingPrice = flatItem.item?.selling_price || 0;
+                const productImages = flatItem.item?.product_images || [];
+                const priceImages = flatItem.item?.price_images || [];
 
                 return (
                   <TableRow 
@@ -466,7 +455,7 @@ export function PurchaseOrderList({
                         className={`overflow-visible border-r ${
                           (() => {
                             const calculatedTotal = (flatItem.items || []).reduce((sum, item) => 
-                              sum + ((item.product?.purchase_price || item.purchase_price_snapshot || 0) * (item.quantity || 0)), 
+                              sum + ((item.purchase_price || 0) * (item.quantity || 0)), 
                             0);
                             const calculatedFinalAmount = calculatedTotal - (flatItem.discount_amount || 0) + (flatItem.shipping_fee || 0);
                             const hasMismatch = Math.abs(calculatedFinalAmount - (flatItem.final_amount || 0)) > 0.01;
@@ -489,7 +478,7 @@ export function PurchaseOrderList({
                             </div>
                             {(() => {
                               const calculatedTotal = (flatItem.items || []).reduce((sum, item) => 
-                                sum + ((item.product?.purchase_price || item.purchase_price_snapshot || 0) * (item.quantity || 0)), 
+                                sum + ((item.purchase_price || 0) * (item.quantity || 0)), 
                               0);
                               const calculatedFinalAmount = calculatedTotal - (flatItem.discount_amount || 0) + (flatItem.shipping_fee || 0);
                               const hasMismatch = Math.abs(calculatedFinalAmount - (flatItem.final_amount || 0)) > 0.01;

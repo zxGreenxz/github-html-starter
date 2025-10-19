@@ -6,23 +6,20 @@ import { cn } from "@/lib/utils";
 
 interface PurchaseOrderItem {
   id?: string;
-  product_id: string;
   quantity: number;
   position?: number;
   notes?: string | null;
   tpos_product_id?: number | null;
   tpos_deleted?: boolean;
   tpos_deleted_at?: string | null;
-  product?: {
-    product_name: string;
-    product_code: string;
-    variant: string | null;
-    purchase_price: number;
-    selling_price: number;
-    product_images: string[] | null;
-    price_images: string[] | null;
-    base_product_code: string | null;
-  };
+  // Primary fields (renamed from snapshot)
+  product_code: string;
+  product_name: string;
+  variant: string | null;
+  purchase_price: number;
+  selling_price: number;
+  product_images: string[] | null;
+  price_images: string[] | null;
 }
 
 interface PurchaseOrder {
