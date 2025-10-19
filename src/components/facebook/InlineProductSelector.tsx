@@ -313,6 +313,8 @@ export function InlineProductSelector({
       };
       
       await onAddToScannedList(scannedProduct);
+      // Tự động chọn sản phẩm cho comment luôn
+      onProductSelect(scannedProduct);
       setSearchQuery("");
     }
   };
