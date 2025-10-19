@@ -1194,19 +1194,35 @@ export function TPOSManagerNew() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Thông Tin Sản Phẩm</CardTitle>
-                  <Badge variant="secondary">
-                    Tổng: {variantData.ProductVariants?.length || 0} variants
+                  <Badge variant="secondary" className="text-sm">
+                    Tổng: <span className="font-bold text-blue-600">{variantData.ProductVariants?.length || 0}</span> variants
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-muted rounded-lg">
-                  <div><span className="font-semibold">ID:</span> {variantData.Id}</div>
-                  <div><span className="font-semibold">Tên:</span> {variantData.Name}</div>
-                  <div><span className="font-semibold">Mã:</span> {variantData.DefaultCode}</div>
-                  <div><span className="font-semibold">Giá Bán:</span> {variantData.ListPrice?.toLocaleString('vi-VN')}₫</div>
-                  <div><span className="font-semibold">Giá Mua:</span> {variantData.PurchasePrice?.toLocaleString('vi-VN')}₫</div>
-                  <div><span className="font-semibold">Tồn Kho:</span> {variantData.QtyAvailable}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 p-4 bg-muted rounded-lg">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-semibold">ID:</span> <span className="ml-2">{variantData.Id}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Mã:</span> <span className="ml-2">{variantData.DefaultCode}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Giá Mua:</span> <span className="ml-2 text-blue-600 font-semibold">{variantData.PurchasePrice?.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-semibold">Tên:</span> <span className="ml-2">{variantData.Name}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Giá Bán:</span> <span className="ml-2 text-green-600 font-semibold">{variantData.ListPrice?.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Tồn Kho:</span> <span className="ml-2">{variantData.QtyAvailable}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
