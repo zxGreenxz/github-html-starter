@@ -650,15 +650,78 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
     setCurrentStep("Đang bắt đầu...");
 
     try {
-      console.log(`📦 Uploading ${selectedItems.length} products to TPOS...`);
+      console.log(`📦 Processing ${selectedItems.length} selected items...`);
       
-      // ========================================
-      // GỌI uploadToTPOS() CHỈ MỘT LẦN
-      // Không cần phân biệt variant hay không
-      // uploadToTPOS() tự detect attributes và tạo variants
-      // ========================================
+      // ============================================
+      // BƯỚC 1: GROUP BY BASE_PRODUCT_CODE
+      // ============================================
+      const groupedByBase = new Map<string, {
+        baseProductCode: string;
+        items: TPOSProductItem[];
+        representativeItem: TPOSProductItem;
+        allVariants: string[];
+      }>();
+
+      for (const item of selectedItems) {
+        const baseCode = item.base_product_code 
+          || item.product_code?.match(/^[A-Z]+\d+/)?.[0] 
+          || item.product_code 
+          || 'AUTO';
+        
+        if (!groupedByBase.has(baseCode)) {
+          groupedByBase.set(baseCode, {
+            baseProductCode: baseCode,
+            items: [],
+            representativeItem: item,
+            allVariants: []
+          });
+        }
+
+        const group = groupedByBase.get(baseCode)!;
+        group.items.push(item);
+
+        // Collect variants
+        if (item.variant) {
+          group.allVariants.push(item.variant);
+        }
+
+        // Use item with images as representative
+        if (item.product_images && item.product_images.length > 0) {
+          group.representativeItem = item;
+        }
+      }
+
+      console.log(`📦 Grouped ${selectedItems.length} items into ${groupedByBase.size} base products`);
+
+      // ============================================
+      // BƯỚC 2: TẠO ITEMS ĐỂ UPLOAD
+      // ============================================
+      const itemsToUpload: TPOSProductItem[] = [];
+
+      for (const group of groupedByBase.values()) {
+        const mergedItem: TPOSProductItem = {
+          ...group.representativeItem,
+          product_code: group.baseProductCode,
+          base_product_code: group.baseProductCode,
+          // Merge all variants into comma-separated string
+          variant: group.allVariants.length > 0 
+            ? group.allVariants.join(', ') 
+            : group.representativeItem.variant,
+          // Sum quantities
+          quantity: group.items.reduce((sum, item) => sum + (item.quantity || 0), 0),
+        };
+
+        itemsToUpload.push(mergedItem);
+      }
+
+      console.log(`📤 Uploading ${itemsToUpload.length} base products to TPOS...`);
+      setCurrentStep(`Đang upload ${itemsToUpload.length} sản phẩm gốc...`);
+
+      // ============================================
+      // BƯỚC 3: UPLOAD TO TPOS
+      // ============================================
       const uploadResult = await uploadToTPOS(
-        selectedItems, 
+        itemsToUpload,
         (step, total, message) => {
           setProgress((step / total) * 100);
           setCurrentStep(message);
