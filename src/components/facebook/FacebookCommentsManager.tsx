@@ -1299,6 +1299,18 @@ export function FacebookCommentsManager({
         title: "✅ Đã chọn sản phẩm",
         description: `${productCode} cho ${comment.from.name}`,
       });
+
+      // Auto-create order after selecting product
+      if (selectedVideo) {
+        // Wait a bit for the comment update to propagate
+        setTimeout(() => {
+          createOrderMutation.mutate({ 
+            comment: { ...comment, message: updatedMessage }, 
+            video: selectedVideo, 
+            commentType: "hang_dat" 
+          });
+        }, 300);
+      }
     } catch (error) {
       console.error('Error in handleProductSelect:', error);
       toast({
