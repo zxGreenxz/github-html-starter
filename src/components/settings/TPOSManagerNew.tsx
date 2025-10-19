@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -917,29 +918,51 @@ export function TPOSManagerNew() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>✅ Danh Sách Variants Đã Tạo</CardTitle>
-                  <Badge variant="secondary">
-                    Tổng: {createdVariants.length} variants
+                  <Badge variant="secondary" className="text-sm">
+                    Tổng: <span className="font-bold text-blue-600">{createdVariants.length}</span> variants
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px]">
-                  <div className="space-y-2">
-                    {createdVariants.map((variant, index) => (
-                      <div key={index} className="border rounded-lg p-4">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div><span className="font-semibold">ID:</span> {variant.Id}</div>
-                          <div><span className="font-semibold">Mã:</span> {variant.DefaultCode || 'N/A'}</div>
-                          <div className="col-span-2"><span className="font-semibold">Tên:</span> {variant.Name}</div>
-                          <div><span className="font-semibold">Giá Bán:</span> {variant.PriceVariant?.toLocaleString('vi-VN')}₫</div>
-                          <div>
-                            <span className="font-semibold">Thuộc Tính:</span>{' '}
-                            {variant.AttributeValues?.map((attr: any) => attr.Name).join(', ') || 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-green-100 to-blue-100">
+                        <TableHead className="font-bold">ID</TableHead>
+                        <TableHead className="font-bold">Mã SP</TableHead>
+                        <TableHead className="font-bold">Tên Sản Phẩm</TableHead>
+                        <TableHead className="font-bold">Giá Bán</TableHead>
+                        <TableHead className="font-bold">Giá Mua</TableHead>
+                        <TableHead className="font-bold">Thuộc Tính</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {createdVariants.map((variant) => {
+                        const attributes = variant.AttributeValues
+                          ?.map((attr: any) => attr.Name)
+                          .join(", ") || "N/A";
+                        
+                        return (
+                          <TableRow key={variant.Id} className="hover:bg-green-50">
+                            <TableCell className="font-medium">{variant.Id}</TableCell>
+                            <TableCell className="font-bold text-purple-600">
+                              {variant.DefaultCode || "N/A"}
+                            </TableCell>
+                            <TableCell>{variant.Name}</TableCell>
+                            <TableCell className="font-semibold text-green-600">
+                              {variant.PriceVariant?.toLocaleString("vi-VN")}₫
+                            </TableCell>
+                            <TableCell className="font-semibold text-blue-600">
+                              {variant.StandardPrice?.toLocaleString("vi-VN")}₫
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {attributes}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -1189,27 +1212,44 @@ export function TPOSManagerNew() {
                 <div>
                   <h3 className="text-lg font-bold mb-4">Danh Sách Variants</h3>
                   <ScrollArea className="h-[400px]">
-                    <div className="space-y-2">
-                      {variantData.ProductVariants?.map((variant: any, index: number) => (
-                        <div key={index} className="border rounded-lg p-4">
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div><span className="font-semibold">ID:</span> {variant.Id}</div>
-                            <div><span className="font-semibold">Mã:</span> {variant.DefaultCode || 'N/A'}</div>
-                            <div className="col-span-2"><span className="font-semibold">Tên:</span> {variant.Name}</div>
-                            <div className="text-green-600 font-semibold">
-                              Giá Bán: {variant.PriceVariant?.toLocaleString('vi-VN')}₫
-                            </div>
-                            <div className="text-blue-600 font-semibold">
-                              Giá Mua: {variant.StandardPrice?.toLocaleString('vi-VN')}₫
-                            </div>
-                            <div className="col-span-2 text-muted-foreground">
-                              <span className="font-semibold">Thuộc Tính:</span>{' '}
-                              {variant.AttributeValues?.map((attr: any) => attr.NameGet).join(', ') || 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gradient-to-r from-blue-100 to-purple-100">
+                          <TableHead className="font-bold">ID</TableHead>
+                          <TableHead className="font-bold">Mã SP</TableHead>
+                          <TableHead className="font-bold">Tên Sản Phẩm</TableHead>
+                          <TableHead className="font-bold">Giá Bán</TableHead>
+                          <TableHead className="font-bold">Giá Mua</TableHead>
+                          <TableHead className="font-bold">Thuộc Tính</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {variantData.ProductVariants?.map((variant: any) => {
+                          const attributes = variant.AttributeValues
+                            ?.map((attr: any) => attr.NameGet)
+                            .join(", ") || "N/A";
+                          
+                          return (
+                            <TableRow key={variant.Id} className="hover:bg-blue-50">
+                              <TableCell className="font-medium">{variant.Id}</TableCell>
+                              <TableCell className="font-bold text-purple-600">
+                                {variant.DefaultCode || "N/A"}
+                              </TableCell>
+                              <TableCell>{variant.Name}</TableCell>
+                              <TableCell className="font-semibold text-green-600">
+                                {variant.PriceVariant?.toLocaleString("vi-VN")}₫
+                              </TableCell>
+                              <TableCell className="font-semibold text-blue-600">
+                                {variant.StandardPrice?.toLocaleString("vi-VN")}₫
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600">
+                                {attributes}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </ScrollArea>
                 </div>
               </CardContent>
