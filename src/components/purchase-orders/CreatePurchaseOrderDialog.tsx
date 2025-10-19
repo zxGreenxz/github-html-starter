@@ -490,17 +490,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           };
         });
         
-        // Insert new variant items after the current base item
+        // Replace the base item with variant items
         setItems(prev => {
           const newItems = [...prev];
-          // Update the base item with variant text
-          newItems[index] = {
-            ...newItems[index],
-            variant: variantText,
-          };
-          // Insert variant items after the base item
-          newItems.splice(index + 1, 0, ...newVariantItems);
-          console.log('✅ Updated items list:', newItems);
+          // Remove base item and insert all variant items in its place
+          newItems.splice(index, 1, ...newVariantItems);
+          console.log('✅ Updated items list (base item removed):', newItems);
           return newItems;
         });
         
