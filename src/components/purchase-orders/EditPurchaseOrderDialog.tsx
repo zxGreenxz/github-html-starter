@@ -539,8 +539,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       );
       
+      console.log('🔍 Created variants from TPOS:', createdVariants);
+      
       // Add created variants to items list
       if (createdVariants && createdVariants.length > 0) {
+        console.log(`📦 Adding ${createdVariants.length} variants to purchase order`);
+        
         const newVariantItems = createdVariants.map(variant => ({
           id: undefined,
           purchase_order_id: order.id,
@@ -579,6 +583,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           };
           // Insert variant items after the base item
           newItems.splice(index + 1, 0, ...newVariantItems);
+          console.log('✅ Updated items list:', newItems);
           return newItems;
         });
         

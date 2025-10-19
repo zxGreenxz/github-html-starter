@@ -464,8 +464,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         }
       );
       
+      console.log('🔍 Created variants from TPOS:', createdVariants);
+      
       // Add created variants to items list
       if (createdVariants && createdVariants.length > 0) {
+        console.log(`📦 Adding ${createdVariants.length} variants to purchase order`);
+        
         const newVariantItems = createdVariants.map(variant => ({
           quantity: 1,
           notes: "",
@@ -489,6 +493,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           };
           // Insert variant items after the base item
           newItems.splice(index + 1, 0, ...newVariantItems);
+          console.log('✅ Updated items list:', newItems);
           return newItems;
         });
         

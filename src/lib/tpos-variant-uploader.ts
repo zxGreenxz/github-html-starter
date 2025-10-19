@@ -232,10 +232,15 @@ async function fetchAndSaveVariantsFromTPOS(
     const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
     const response = await fetch(url, { headers });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.error('❌ Failed to fetch variants from TPOS:', response.status);
+      return [];
+    }
 
     const productData = await response.json();
     const variants = productData.ProductVariants || [];
+    
+    console.log(`📊 Fetched ${variants.length} variants from TPOS:`, variants);
 
     if (variants.length === 0) {
       onProgress?.("⚠️ Không tìm thấy variants trên TPOS");
@@ -244,7 +249,7 @@ async function fetchAndSaveVariantsFromTPOS(
 
     onProgress?.(`💾 Lưu ${variants.length} variants vào kho...`);
 
-    // Prepare variant products to insert
+    // Prepare variant products to insert into database (prices in VND * 1000 format)
     const variantProducts = variants.map((variant: any) => {
       // Extract variant text from AttributeValues
       const variantText = variant.AttributeValues
@@ -253,13 +258,18 @@ async function fetchAndSaveVariantsFromTPOS(
 
       // Generate variant product code (base code + variant suffix if needed)
       const variantCode = variant.DefaultCode || baseProductCode;
+      
+      // TPOS returns prices in VND, but DB expects VND * 1000
+      // baseProductData prices are already in VND format (divided by 1000 before passing in)
+      const sellingPriceVND = variant.PriceVariant || baseProductData.selling_price;
+      const purchasePriceVND = variant.PurchasePrice || baseProductData.purchase_price;
 
       return {
         product_code: variantCode,
         product_name: variant.Name || variant.NameGet,
         variant: variantText,
-        selling_price: variant.PriceVariant || baseProductData.selling_price,
-        purchase_price: variant.PurchasePrice || baseProductData.purchase_price,
+        selling_price: sellingPriceVND * 1000, // Convert to DB format
+        purchase_price: purchasePriceVND * 1000, // Convert to DB format
         stock_quantity: variant.QtyAvailable || 0,
         supplier_name: baseProductData.supplier_name,
         product_images: variant.ImageUrl ? [variant.ImageUrl] : baseProductData.product_images,
@@ -287,18 +297,22 @@ async function fetchAndSaveVariantsFromTPOS(
 
     onProgress?.(`✅ Đã lưu ${variants.length} variants vào kho thành công`);
     
-    // Return the variant products for adding to purchase order
-    return variantProducts.map(vp => ({
+    // Return the variant products for adding to purchase order (prices in VND format for UI)
+    const resultVariants = variantProducts.map(vp => ({
       product_code: vp.product_code,
       product_name: vp.product_name,
       variant: vp.variant || '',
-      selling_price: vp.selling_price / 1000, // Convert back to display format
-      purchase_price: vp.purchase_price / 1000, // Convert back to display format
+      selling_price: vp.selling_price / 1000, // Convert from DB format to UI format (VND)
+      purchase_price: vp.purchase_price / 1000, // Convert from DB format to UI format (VND)
       product_images: vp.product_images || [],
       price_images: vp.price_images || [],
       tpos_product_id: vp.tpos_product_id,
       barcode: vp.barcode
     }));
+    
+    console.log(`✅ Returning ${resultVariants.length} variants to add to purchase order:`, resultVariants);
+    
+    return resultVariants;
   } catch (error: any) {
     console.error("Error fetching/saving variants:", error);
     throw error;
