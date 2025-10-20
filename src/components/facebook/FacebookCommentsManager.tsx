@@ -564,8 +564,8 @@ export function FacebookCommentsManager({
       // Auto-print bill
       try {
         const [
-          { getActivePrinter, printPDFToXC80 },
-          { generateBillPDF }
+          { getActivePrinter, printHTMLToXC80 },
+          { generateBillHTML }
         ] = await Promise.all([
           import('@/lib/printer-utils'),
           import('@/lib/bill-pdf-generator')
@@ -591,18 +591,13 @@ export function FacebookCommentsManager({
           createdTime: variables.comment.created_time,
         };
 
-        const pdfDoc = generateBillPDF(billData);
-        const pdfDataUri = pdfDoc.output('datauristring');
+        const billHTML = generateBillHTML(billData);
 
-        // Get print settings from localStorage
-        const printDPI = parseInt(localStorage.getItem('printDPI') || '300');
-        const printThreshold = parseInt(localStorage.getItem('printThreshold') || '115');
-        const printWidth = parseInt(localStorage.getItem('printWidth') || '944');
-
-        const printResult = await printPDFToXC80(printer, pdfDataUri, {
-          dpi: printDPI,
-          threshold: printThreshold,
-          width: printWidth
+        const printResult = await printHTMLToXC80(printer, billHTML, {
+          width: 576,
+          height: null,
+          threshold: 95,
+          scale: 2,
         });
         
         if (printResult.success) {

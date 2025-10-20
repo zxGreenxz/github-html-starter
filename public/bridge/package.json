@@ -1,26 +1,18 @@
 {
-  "name": "xc80-print-bridge",
-  "version": "7.0.0",
-  "description": "XC80 Print Bridge - CP1258 Vietnamese + PDF Support",
-  "main": "xc80-bridge-cp1258.js",
+  "name": "thermal-printer-bridge",
+  "version": "1.0.0",
+  "description": "Thermal printer bridge - HTML to Bitmap only",
+  "main": "bridge-server.js",
   "scripts": {
-    "start": "node xc80-bridge-cp1258.js",
-    "config": "node config-xc80-cp1258.js",
-    "test": "curl http://localhost:9100/health",
-    "test-pdf": "node test-pdf-print.js",
-    "check": "node check-system.js"
+    "start": "node bridge-server.js"
   },
-  "keywords": ["xc80", "thermal-printer", "escpos", "vietnamese", "cp1258", "print-bridge", "pdf"],
+  "keywords": ["thermal-printer", "bitmap", "vietnamese"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "iconv-lite": "^0.6.3",
-    "sharp": "^0.33.5"
-  },
-  "engines": {
-    "node": ">=14.0.0"
+    "sharp": "^0.33.0",
+    "puppeteer": "^21.6.0"
   }
 }
