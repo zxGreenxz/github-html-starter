@@ -456,8 +456,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         productData.product_name,
         variantText,
         {
-          selling_price: productData.selling_price * 1000,
-          purchase_price: productData.purchase_price * 1000,
+          selling_price: productData.selling_price, // Pass as-is (e.g., 120 thousands VND)
+          purchase_price: productData.purchase_price, // Pass as-is (e.g., 100 thousands VND)
           product_images: productData.product_images,
           price_images: productData.price_images,
           supplier_name: productData.supplier_name

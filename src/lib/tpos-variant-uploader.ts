@@ -107,7 +107,7 @@ async function createNewProductOnTPOS(
   const tempProduct = {
     Id: 0,
     Name: productName,
-    ListPrice: productData.selling_price
+    ListPrice: productData.selling_price * 1000 // Convert thousands VND to actual VND (120 -> 120000)
   };
   
   const variants = generateVariants(tempProduct, attributeLines);
@@ -138,8 +138,8 @@ async function createNewProductOnTPOS(
     Id: 0,
     Name: productName,
     Type: "product",
-    ListPrice: productData.selling_price,
-    PurchasePrice: productData.purchase_price,
+    ListPrice: productData.selling_price * 1000, // Convert thousands VND to actual VND (120 -> 120000)
+    PurchasePrice: productData.purchase_price * 1000, // Convert thousands VND to actual VND (100 -> 100000)
     DefaultCode: productCode,
     Image: imageBase64,
     ImageUrl: null,
