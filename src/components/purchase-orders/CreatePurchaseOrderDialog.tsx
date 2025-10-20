@@ -546,8 +546,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
               <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
               <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
               <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
-              <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
-              <TableHead className="w-[100px] border-l-2 border-primary/30">Hình ảnh Giá mua</TableHead>
+              <TableHead className="w-[50px]">Hình ảnh sản phẩm</TableHead>
+              <TableHead className="w-[50px] border-l-2 border-primary/30">Hình ảnh Giá mua</TableHead>
               <TableHead className="w-[150px]">Biến thể</TableHead>
               <TableHead className="w-16">Thao tác</TableHead>
                   </TableRow>
