@@ -8,15 +8,17 @@ interface ImageUploadCellProps {
 
 export function ImageUploadCell({ images, onImagesChange, itemIndex }: ImageUploadCellProps) {
   return (
-    <UnifiedImageUpload
-      value={images}
-      onChange={onImagesChange}
-      maxFiles={1}
-      bucket="purchase-images"
-      folder="purchase-order-items"
-      placeholder="Dán ảnh (Ctrl+V) hoặc kéo thả"
-      showPreview={true}
-      preventMultiple={true}
-    />
+    <div className="max-h-[160px] overflow-hidden">
+      <UnifiedImageUpload
+        value={images}
+        onChange={onImagesChange}
+        maxFiles={1}
+        bucket="purchase-images"
+        folder="purchase-order-items"
+        placeholder="Dán ảnh (Ctrl+V) hoặc kéo thả"
+        showPreview={true}
+        preventMultiple={true}
+      />
+    </div>
   );
 }
