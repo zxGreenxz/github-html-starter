@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare, Search } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare, Search, Book } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -33,6 +33,7 @@ import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
 import { TPOSVariantLookup } from "@/components/settings/TPOSVariantLookup";
+import { TPOSAPIReference } from "@/components/settings/TPOSAPIReference";
 
 
 const Settings = () => {
@@ -601,6 +602,10 @@ const Settings = () => {
       <Code className="h-4 w-4" />
       Công cụ TPOS
     </TabsTrigger>
+    <TabsTrigger value="tpos-api-reference" className="gap-2 flex-1 min-w-fit">
+      <Book className="h-4 w-4" />
+      TPOS API Reference
+    </TabsTrigger>
     <TabsTrigger value="tpos-variant-lookup" className="gap-2 flex-1 min-w-fit">
       <Search className="h-4 w-4" />
       TPOS Variant Lookup
@@ -631,6 +636,11 @@ const Settings = () => {
             <FacebookPageManager />
           </div>
           <BarcodeScannerSettings />
+        </TabsContent>
+
+        {/* Tab: TPOS API Reference */}
+        <TabsContent value="tpos-api-reference" className="space-y-6 mt-4">
+          <TPOSAPIReference />
         </TabsContent>
 
         {/* Tab: TPOS Variant Lookup */}
