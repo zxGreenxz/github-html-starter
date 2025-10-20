@@ -19,7 +19,6 @@ import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
 import FacebookComments from "./pages/FacebookComments";
-import PrinterConfig from "./pages/PrinterConfig";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -119,11 +118,6 @@ const App = () => (
                   <Layout>
                     <Customers />
                   </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/printer-config" element={
-                <ProtectedRoute>
-                  <PrinterConfig />
                 </ProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

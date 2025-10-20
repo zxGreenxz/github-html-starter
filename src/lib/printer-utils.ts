@@ -60,69 +60,6 @@ export const savePrinters = (printers: NetworkPrinter[]): void => {
 };
 
 /**
- * NEW METHOD: Print HTML via Puppeteer + Sharp (RECOMMENDED)
- * Replaces all old methods (Text/PDF/Bitmap)
- * 
- * Uses the new thermal-printer-server.js bridge with Puppeteer rendering.
- * Provides superior print quality with full customization.
- * 
- * @param printer - Network printer configuration
- * @param html - Full HTML document string (including <html>, <head>, <body>)
- * @param settings - Optional print settings
- * @returns Promise with success status and optional error message
- */
-export const printHTMLViaPuppeteer = async (
-  printer: NetworkPrinter,
-  html: string,
-  settings: PrintSettings = {}
-): Promise<{ success: boolean; error?: string }> => {
-  const {
-    width = 576,      // 80mm full width
-    height = null,    // Auto height
-    threshold = 95,   // Bold text
-    scale = 2         // High quality
-  } = settings;
-
-  try {
-    console.log('🖨️ Printing via Puppeteer (Full Width & Bold)...');
-    console.log('📏 Settings:', { width, height, threshold, scale });
-
-    // Send to NEW bridge endpoint: /print/html
-    const response = await fetch(`${printer.bridgeUrl}/print/html`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        printerIp: printer.ipAddress,
-        printerPort: printer.port,
-        html,
-        width,
-        height,
-        threshold,
-        scale
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Bridge error (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Print successful:', result);
-
-    return { success: true };
-  } catch (error: any) {
-    console.error('❌ Puppeteer print error:', error);
-    return {
-      success: false,
-      error: error.message || 'Không thể in HTML qua Puppeteer'
-    };
-  }
-};
-
-/**
- * @deprecated Use printHTMLViaPuppeteer() instead for better quality
- * 
  * Print HTML to thermal printer via bridge server (Full Width & Bold)
  *
  * OPTIMIZED SETTINGS:
@@ -191,8 +128,6 @@ export const printHTMLToXC80 = async (
 };
 
 /**
- * @deprecated Use printHTMLViaPuppeteer() instead for better quality
- * 
  * Print PDF to thermal printer via bridge server (Full Width & Bold)
  * Note: HTML method is recommended for better Unicode support
  *
@@ -258,8 +193,6 @@ export const printPDFToXC80 = async (
 };
 
 /**
- * @deprecated Use printHTMLViaPuppeteer() instead for better quality
- * 
  * Print text content to thermal printer (Legacy method)
  * Note: Limited Vietnamese support, use HTML method instead
  */

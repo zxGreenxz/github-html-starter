@@ -1,18 +1,26 @@
 {
-  "name": "thermal-printer-bridge",
-  "version": "2.0.0",
-  "description": "Thermal printer bridge - HTML to Bitmap (Puppeteer + Sharp)",
-  "main": "thermal-printer-server.js",
+  "name": "xc80-print-bridge",
+  "version": "7.0.0",
+  "description": "XC80 Print Bridge - CP1258 Vietnamese + PDF Support",
+  "main": "xc80-bridge-cp1258.js",
   "scripts": {
-    "start": "node thermal-printer-server.js"
+    "start": "node xc80-bridge-cp1258.js",
+    "config": "node config-xc80-cp1258.js",
+    "test": "curl http://localhost:9100/health",
+    "test-pdf": "node test-pdf-print.js",
+    "check": "node check-system.js"
   },
-  "keywords": ["thermal-printer", "bitmap", "vietnamese", "puppeteer", "sharp"],
+  "keywords": ["xc80", "thermal-printer", "escpos", "vietnamese", "cp1258", "print-bridge", "pdf"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
+    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "sharp": "^0.33.0",
-    "puppeteer": "^21.6.0"
+    "iconv-lite": "^0.6.3",
+    "sharp": "^0.33.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

@@ -35,8 +35,6 @@ import {
 } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
-import { printHTMLViaPuppeteer } from "@/lib/printer-utils";
-import { generateBillHTML } from "@/lib/bill-html-generator";
 import { useToast } from "@/hooks/use-toast";
 
 interface NetworkPrinter {
@@ -82,7 +80,6 @@ export default function NetworkPrinterManager() {
   );
 
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isPrintingPuppeteer, setIsPrintingPuppeteer] = useState(false);
   const [printResult, setPrintResult] = useState<any>(null);
   const [isTesting, setIsTesting] = useState<string | null>(null);
 
@@ -579,59 +576,6 @@ Date: ${new Date().toLocaleString("vi-VN")}
     }
   };
 
-  const handleTestPrintPuppeteer = async () => {
-    if (!selectedPrinter) return;
-
-    setIsPrintingPuppeteer(true);
-    setPrintResult(null);
-
-    try {
-      console.log("🖨️ Testing Puppeteer print method...");
-
-      // Generate HTML bill for testing
-      const testHTML = generateBillHTML({
-        sessionIndex: "TEST",
-        phone: "0901234567",
-        customerName: "Nguyễn Văn Test",
-        productCode: "TEST001",
-        productName: "Sản phẩm thử nghiệm - Test Product",
-        comment: "Ghi chú test - Test comment",
-        createdTime: new Date().toISOString(),
-        price: 50000,
-        quantity: 1
-      });
-
-      // Print via Puppeteer
-      const result = await printHTMLViaPuppeteer(selectedPrinter, testHTML, {
-        width: 576,      // 80mm full width
-        height: null,    // Auto height
-        threshold: 95,   // Bold text
-        scale: 2         // High quality
-      });
-
-      setPrintResult(result);
-
-      if (result.success) {
-        toast({
-          title: "✅ In thử Puppeteer thành công",
-          description: `Đã in tới ${selectedPrinter.name} (Puppeteer mode)`,
-        });
-      } else {
-        throw new Error(result.error || "Unknown error");
-      }
-    } catch (error: any) {
-      console.error("Puppeteer print error:", error);
-      toast({
-        title: "❌ Lỗi in Puppeteer",
-        description: `${error.message}. Đảm bảo thermal-printer-server.js đang chạy tại ${selectedPrinter.bridgeUrl}`,
-        variant: "destructive",
-      });
-      setPrintResult({ success: false, error: error.message });
-    } finally {
-      setIsPrintingPuppeteer(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <Card>
@@ -1074,24 +1018,22 @@ Date: ${new Date().toLocaleString("vi-VN")}
           <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>🎨 In thử nghiệm - Puppeteer & Bitmap Mode</DialogTitle>
+                <DialogTitle>🎨 In thử nghiệm - Bitmap Mode</DialogTitle>
                 <DialogDescription>
                   Máy in: {selectedPrinter?.name} ({selectedPrinter?.ipAddress}:{selectedPrinter?.port})
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <Alert className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-300">
-                  <Info className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-sm text-green-700">
-                    <strong>⭐ Puppeteer Mode (Khuyến nghị):</strong> Sử dụng Puppeteer + Sharp để render HTML thành bitmap với chất lượng cao nhất. 
-                    Hỗ trợ đầy đủ tiếng Việt, font chữ tùy chỉnh, và layout phức tạp.
-                    <br />
-                    <strong className="text-blue-700">🔧 Bitmap Mode (Legacy):</strong> Text đơn giản chuyển thành ảnh - tương thích cũ.
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-sm text-blue-700">
+                    <strong>💡 Chế độ in Bitmap:</strong> Text sẽ được chuyển thành ảnh trước khi in. Điều này đảm bảo
+                    tiếng Việt có dấu hiển thị 100% chính xác, không cần cấu hình Code Page.
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-2">
-                  <Label htmlFor="test-content">Nội dung in thử (chỉ cho Bitmap mode)</Label>
+                  <Label htmlFor="test-content">Nội dung in thử</Label>
                   <Textarea
                     id="test-content"
                     value={testContent}
@@ -1099,7 +1041,7 @@ Date: ${new Date().toLocaleString("vi-VN")}
                     className="font-mono text-sm min-h-[200px]"
                     placeholder="Nhập nội dung..."
                   />
-                  <p className="text-xs text-muted-foreground">💡 Puppeteer mode sẽ in bill mẫu chuẩn, Bitmap mode sẽ in nội dung trên</p>
+                  <p className="text-xs text-muted-foreground">💡 Hỗ trợ: [Printer Name], [IP Address], [Time]</p>
                 </div>
 
                 {printResult && (
@@ -1127,20 +1069,7 @@ Date: ${new Date().toLocaleString("vi-VN")}
                 <Button variant="outline" onClick={() => setIsTestDialogOpen(false)}>
                   Đóng
                 </Button>
-                <Button onClick={handleTestPrintPuppeteer} disabled={isPrintingPuppeteer} variant="default">
-                  {isPrintingPuppeteer ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Đang in...
-                    </>
-                  ) : (
-                    <>
-                      <Printer className="h-4 w-4 mr-2" />
-                      In thử (Puppeteer - Khuyến nghị ⭐)
-                    </>
-                  )}
-                </Button>
-                <Button onClick={handleTestPrint} disabled={isPrinting} variant="outline">
+                <Button onClick={handleTestPrint} disabled={isPrinting}>
                   {isPrinting ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -1149,7 +1078,7 @@ Date: ${new Date().toLocaleString("vi-VN")}
                   ) : (
                     <>
                       <Printer className="h-4 w-4 mr-2" />
-                      In thử (Bitmap - Legacy)
+                      In thử (Bitmap)
                     </>
                   )}
                 </Button>

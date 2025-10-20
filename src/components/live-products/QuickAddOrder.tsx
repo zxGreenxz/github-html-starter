@@ -10,8 +10,7 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printHTMLViaPuppeteer } from '@/lib/printer-utils';
-import { generateBillHTML } from '@/lib/bill-html-generator';
+import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
 interface QuickAddOrderProps {
@@ -303,15 +302,17 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill using new HTML + Puppeteer method
+      // Auto-print bill using PDF template
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
           try {
             console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
             
-            // Generate HTML bill (optimized for Puppeteer)
-            const billHTML = generateBillHTML({
+            // Generate PDF using jsPDF (no template needed)
+            const { generateBillPDF } = await import('@/lib/bill-pdf-generator');
+            
+            const pdf = generateBillPDF({
               sessionIndex: billData.sessionIndex,
               phone: billData.phone,
               customerName: billData.customerName,
@@ -321,14 +322,21 @@ export function QuickAddOrder({
               createdTime: billData.createdTime,
             });
             
-            console.log('✅ HTML bill generated');
+            const pdfDataUri = pdf.output('datauristring');
+            console.log('✅ PDF generated');
             
-            // Print via new Puppeteer bridge
-            const printResult = await printHTMLViaPuppeteer(activePrinter, billHTML, {
-              width: 576,      // 80mm full width
-              height: null,    // Auto height
-              threshold: 95,   // Bold text
-              scale: 2         // High quality
+            // Get print settings from localStorage
+            const printDPI = parseInt(localStorage.getItem('printDPI') || '300');
+            const printThreshold = parseInt(localStorage.getItem('printThreshold') || '115');
+            const printWidth = parseInt(localStorage.getItem('printWidth') || '944');
+            
+            console.log('🖨️  Print settings:', { printDPI, printThreshold, printWidth });
+            
+            // Print via Bridge (pdftoppm + sharp)
+            const printResult = await printPDFToXC80(activePrinter, pdfDataUri, {
+              dpi: printDPI,
+              threshold: printThreshold,
+              width: printWidth
             });
             
             if (printResult.success) {
