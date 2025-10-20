@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 import { 
-  groupVariantsByBase, 
   buildInsertV2Payload, 
   uploadToTPOSInsertV2,
   loadImageAsBase64,
@@ -27,9 +26,10 @@ interface BulkTPOSUploadDialogProps {
 type UploadStatus = 'pending' | 'uploading' | 'success' | 'error';
 
 interface UploadProgress {
+  itemId: string;
   code: string;
   name: string;
-  variantCount: number;
+  variant: string | null;
   status: UploadStatus;
   error?: string;
 }
@@ -44,33 +44,32 @@ export function BulkTPOSUploadDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
-  const groupedProducts = groupVariantsByBase(items);
-  const totalProducts = groupedProducts.length;
+  const totalProducts = items.length;
   
   // Select all functionality
-  const allSelected = selectedIndices.size === groupedProducts.length && groupedProducts.length > 0;
+  const allSelected = selectedIds.size === items.length && items.length > 0;
   const toggleSelectAll = () => {
     if (allSelected) {
-      setSelectedIndices(new Set());
+      setSelectedIds(new Set());
     } else {
-      setSelectedIndices(new Set(groupedProducts.map((_, idx) => idx)));
+      setSelectedIds(new Set(items.map(item => item.id)));
     }
   };
   
-  const toggleSelect = (idx: number) => {
-    const newSet = new Set(selectedIndices);
-    if (newSet.has(idx)) {
-      newSet.delete(idx);
+  const toggleSelect = (itemId: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(itemId)) {
+      newSet.delete(itemId);
     } else {
-      newSet.add(idx);
+      newSet.add(itemId);
     }
-    setSelectedIndices(newSet);
+    setSelectedIds(newSet);
   };
   
   const handleUpload = async () => {
-    if (selectedIndices.size === 0) {
+    if (selectedIds.size === 0) {
       toast({
         variant: "destructive",
         title: "Chưa chọn sản phẩm",
@@ -84,58 +83,83 @@ export function BulkTPOSUploadDialog({
     setCurrentIndex(0);
     
     // Initialize progress tracking
-    const initialProgress: UploadProgress[] = groupedProducts.map(group => ({
-      code: group.baseCode,
-      name: group.baseName,
-      variantCount: group.variants.length,
+    const initialProgress: UploadProgress[] = items.map(item => ({
+      itemId: item.id,
+      code: item.product_code,
+      name: item.product_name,
+      variant: item.variant || null,
       status: 'pending' as UploadStatus
     }));
     setProgress(initialProgress);
     
     let successCount = 0;
     let errorCount = 0;
-    const selectedProducts = groupedProducts.filter((_, idx) => selectedIndices.has(idx));
+    const selectedItems = items.filter(item => selectedIds.has(item.id));
     
-    for (let i = 0; i < groupedProducts.length; i++) {
-      // Skip if not selected
-      if (!selectedIndices.has(i)) continue;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       
-      const group = groupedProducts[i];
-      setCurrentIndex(Array.from(selectedIndices).indexOf(i) + 1);
+      // Skip if not selected
+      if (!selectedIds.has(item.id)) continue;
+      
+      const selectedIdx = selectedItems.findIndex(si => si.id === item.id);
+      setCurrentIndex(selectedIdx + 1);
       
       // Update status to uploading
-      setProgress(prev => prev.map((p, idx) => 
-        idx === i ? { ...p, status: 'uploading' } : p
+      setProgress(prev => prev.map((p) => 
+        p.itemId === item.id ? { ...p, status: 'uploading' } : p
       ));
       
       try {
+        // Build grouped product structure for single item
+        const groupedProduct: GroupedProduct = {
+          baseCode: item.product_code,
+          baseName: item.product_name,
+          listPrice: item.selling_price || 0,
+          purchasePrice: item.unit_price || 0,
+          imageBase64: undefined,
+          variants: [{
+            id: item.id,
+            product_code: item.product_code,
+            base_product_code: item.base_product_code,
+            product_name: item.product_name,
+            variant: item.variant || null,
+            selling_price: item.selling_price || 0,
+            unit_price: item.unit_price || 0,
+            quantity: item.quantity || 0,
+            supplier_name: item.supplier_name || null,
+            product_images: item.product_images || null,
+            price_images: item.price_images || null,
+            purchase_order_id: item.purchase_order_id,
+          }]
+        };
+        
         // Load image if available
-        const firstVariant = group.variants[0];
-        if (firstVariant.product_images && firstVariant.product_images.length > 0) {
-          const imageUrl = firstVariant.product_images[0];
-          group.imageBase64 = await loadImageAsBase64(imageUrl);
+        if (item.product_images && item.product_images.length > 0) {
+          const imageUrl = item.product_images[0];
+          groupedProduct.imageBase64 = await loadImageAsBase64(imageUrl);
         }
         
         // Build payload and upload
-        const payload = buildInsertV2Payload(group);
+        const payload = buildInsertV2Payload(groupedProduct);
         const tposResponse = await uploadToTPOSInsertV2(payload);
         
-        // Create/update products in Supabase after successful upload
-        await createOrUpdateProductsInSupabase(group, tposResponse);
+        // Create/update product in Supabase after successful upload
+        await createOrUpdateProductInSupabase(item, tposResponse);
         
         successCount++;
-        setProgress(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'success' } : p
+        setProgress(prev => prev.map((p) => 
+          p.itemId === item.id ? { ...p, status: 'success' } : p
         ));
       } catch (error) {
         errorCount++;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         
-        setProgress(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'error', error: errorMessage } : p
+        setProgress(prev => prev.map((p) => 
+          p.itemId === item.id ? { ...p, status: 'error', error: errorMessage } : p
         ));
         
-        console.error(`Failed to upload ${group.baseCode}:`, error);
+        console.error(`Failed to upload ${item.product_code}:`, error);
       }
       
       // Small delay between uploads
@@ -148,7 +172,7 @@ export function BulkTPOSUploadDialog({
     if (successCount > 0) {
       toast({
         title: "✅ Upload hoàn tất",
-        description: `Thành công: ${successCount}/${selectedIndices.size} sản phẩm${errorCount > 0 ? `, Lỗi: ${errorCount}` : ''}`,
+        description: `Thành công: ${successCount}/${selectedIds.size} sản phẩm${errorCount > 0 ? `, Lỗi: ${errorCount}` : ''}`,
       });
       
       if (onSuccess) {
@@ -163,49 +187,46 @@ export function BulkTPOSUploadDialog({
     }
   };
   
-  // Create or update products in Supabase after successful TPOS upload
-  const createOrUpdateProductsInSupabase = async (group: GroupedProduct, tposResponse: any) => {
+  // Create or update product in Supabase after successful TPOS upload
+  const createOrUpdateProductInSupabase = async (item: TPOSProductItem, tposResponse: any) => {
     try {
       // Extract TPOS product ID and image URL from response
       const tposProductId = tposResponse?.Id || tposResponse?.id;
       const tposImageUrl = tposResponse?.ImageUrl || tposResponse?.imageUrl;
       
-      // For each variant, create or update product in Supabase
-      for (const variant of group.variants) {
-        const productData = {
-          product_code: variant.product_code,
-          product_name: variant.product_name,
-          variant: variant.variant,
-          selling_price: variant.selling_price,
-          purchase_price: variant.unit_price,
-          base_product_code: group.baseCode,
-          supplier_name: variant.supplier_name || null,
-          tpos_product_id: tposProductId,
-          tpos_image_url: tposImageUrl, // Store TPOS image URL, not copy to Supabase
-        };
-        
-        // Check if product exists
-        const { data: existing } = await supabase
+      const productData = {
+        product_code: item.product_code,
+        product_name: item.product_name,
+        variant: item.variant || null,
+        selling_price: item.selling_price || 0,
+        purchase_price: item.unit_price || 0,
+        base_product_code: item.base_product_code || null,
+        supplier_name: item.supplier_name || null,
+        tpos_product_id: tposProductId,
+        tpos_image_url: tposImageUrl,
+      };
+      
+      // Check if product exists
+      const { data: existing } = await supabase
+        .from('products')
+        .select('id')
+        .eq('product_code', item.product_code)
+        .maybeSingle();
+      
+      if (existing) {
+        // Update existing product
+        await supabase
           .from('products')
-          .select('id')
-          .eq('product_code', variant.product_code)
-          .maybeSingle();
-        
-        if (existing) {
-          // Update existing product
-          await supabase
-            .from('products')
-            .update(productData)
-            .eq('id', existing.id);
-        } else {
-          // Insert new product
-          await supabase
-            .from('products')
-            .insert(productData);
-        }
+          .update(productData)
+          .eq('id', existing.id);
+      } else {
+        // Insert new product
+        await supabase
+          .from('products')
+          .insert(productData);
       }
     } catch (error) {
-      console.error('Failed to create/update products in Supabase:', error);
+      console.error('Failed to create/update product in Supabase:', error);
       // Don't throw - we still consider the upload successful
     }
   };
@@ -236,7 +257,7 @@ export function BulkTPOSUploadDialog({
     }
   };
   
-  const progressPercentage = selectedIndices.size > 0 ? (currentIndex / selectedIndices.size) * 100 : 0;
+  const progressPercentage = selectedIds.size > 0 ? (currentIndex / selectedIds.size) * 100 : 0;
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,8 +265,8 @@ export function BulkTPOSUploadDialog({
         <DialogHeader>
           <DialogTitle>Upload sản phẩm lên TPOS (InsertV2)</DialogTitle>
           <DialogDescription>
-            {selectedIndices.size > 0 
-              ? `Đã chọn ${selectedIndices.size}/${totalProducts} sản phẩm để upload` 
+            {selectedIds.size > 0 
+              ? `Đã chọn ${selectedIds.size}/${totalProducts} sản phẩm để upload` 
               : `${totalProducts} sản phẩm có sẵn`}
           </DialogDescription>
         </DialogHeader>
@@ -255,7 +276,7 @@ export function BulkTPOSUploadDialog({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Đang upload: {currentIndex}/{selectedIndices.size}</span>
+                <span>Đang upload: {currentIndex}/{selectedIds.size}</span>
                 <span>{Math.round(progressPercentage)}%</span>
               </div>
               <Progress value={progressPercentage} />
@@ -263,7 +284,7 @@ export function BulkTPOSUploadDialog({
           )}
           
           {/* Products Table */}
-          {groupedProducts.length === 0 ? (
+          {items.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               Không có sản phẩm nào để upload
             </div>
@@ -282,67 +303,55 @@ export function BulkTPOSUploadDialog({
                     <TableHead className="w-12"></TableHead>
                     <TableHead>Mã SP</TableHead>
                     <TableHead>Tên sản phẩm</TableHead>
-                    <TableHead className="text-center">Biến thể</TableHead>
+                    <TableHead>Biến thể</TableHead>
                     <TableHead className="text-right">Giá bán</TableHead>
                     <TableHead className="text-right">Trạng thái</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedProducts.map((group, idx) => (
-                    <TableRow key={group.baseCode}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIndices.has(idx)}
-                          onCheckedChange={() => toggleSelect(idx)}
-                          disabled={isUploading}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {progress[idx] && getStatusIcon(progress[idx].status)}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {group.baseCode}
-                      </TableCell>
-                      <TableCell>{group.baseName}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary">
-                          {group.variants.length} {group.variants.length === 1 ? 'variant' : 'variants'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {group.listPrice.toLocaleString('vi-VN')}₫
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {progress[idx] ? (
-                          <div className="space-y-1">
-                            {getStatusBadge(progress[idx].status)}
-                            {progress[idx].error && (
-                              <p className="text-xs text-red-500 mt-1">
-                                {progress[idx].error}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <Badge variant="outline">Chờ</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {items.map((item) => {
+                    const itemProgress = progress.find(p => p.itemId === item.id);
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={() => toggleSelect(item.id)}
+                            disabled={isUploading}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {itemProgress && getStatusIcon(itemProgress.status)}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {item.product_code}
+                        </TableCell>
+                        <TableCell>{item.product_name}</TableCell>
+                        <TableCell>
+                          {item.variant || '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(item.selling_price || 0).toLocaleString('vi-VN')}₫
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {itemProgress ? (
+                            <div className="space-y-1">
+                              {getStatusBadge(itemProgress.status)}
+                              {itemProgress.error && (
+                                <p className="text-xs text-red-500 mt-1">
+                                  {itemProgress.error}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="outline">Chờ</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
-            </div>
-          )}
-          
-          {/* Variants Preview */}
-          {!isUploading && groupedProducts.length > 0 && (
-            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-              <h4 className="font-medium text-sm">📋 Chi tiết biến thể:</h4>
-              {groupedProducts.map(group => (
-                <div key={group.baseCode} className="text-sm">
-                  <span className="font-mono">{group.baseCode}</span>: {' '}
-                  {group.variants.map(v => v.variant || '(no variant)').join(', ')}
-                </div>
-              ))}
             </div>
           )}
           
@@ -357,10 +366,10 @@ export function BulkTPOSUploadDialog({
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={isUploading || selectedIndices.size === 0}
+              disabled={isUploading || selectedIds.size === 0}
             >
               <Upload className="w-4 h-4 mr-2" />
-              {isUploading ? 'Đang upload...' : `Upload ${selectedIndices.size} sản phẩm`}
+              {isUploading ? 'Đang upload...' : `Upload ${selectedIds.size} sản phẩm`}
             </Button>
           </div>
         </div>

@@ -500,7 +500,7 @@ const PurchaseOrders = () => {
         items.push({
           id: item.id || crypto.randomUUID(),
           product_code: item.product_code,
-          base_product_code: item.product_code,
+          base_product_code: undefined,
           product_name: item.product_name,
           variant: item.variant,
           quantity: item.quantity,
