@@ -22,6 +22,16 @@ import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
 import { generateProductCodeFromMax, incrementProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import {
+  checkProductExists,
+  createAttributeLines,
+  detectAttributesFromText,
+  imageUrlToBase64,
+  updateProductOnTPOSV2,
+  deleteProductAndVariantsFromInventory,
+  fetchAndUpsertProductFromTPOS
+} from "@/lib/tpos-api";
+import { randomDelay, getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 
 
 interface PurchaseOrderItem {
@@ -93,6 +103,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
   const [variantsMap, setVariantsMap] = useState<Record<string, any[]>>({});
   const [parentProductVariant, setParentProductVariant] = useState<string>("");
+  const [tposProgress, setTPOSProgress] = useState<{
+    [itemId: string]: {
+      status: 'pending' | 'uploading' | 'success' | 'error';
+      message?: string;
+    }
+  }>({});
   const [items, setItems] = useState<PurchaseOrderItem[]>([
     { 
       product_code: "",
@@ -772,9 +788,134 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       }
 
-      return order.id;
+      // Step 4: Process TPOS sync for items with variants
+      const tposResults: any[] = [];
+      
+      for (const item of items) {
+        // Chỉ xử lý items có biến thể
+        if (!item._tempVariant || item._tempVariant.trim().length === 0) {
+          continue;
+        }
+        
+        const baseProductCode = item._tempProductCode.trim().toUpperCase();
+        const itemId = item.id || item._tempProductCode;
+        
+        setTPOSProgress(prev => ({
+          ...prev,
+          [itemId]: { status: 'uploading', message: 'Đang đồng bộ TPOS...' }
+        }));
+        
+        try {
+          console.log(`🔄 [TPOS Sync] Processing ${baseProductCode}...`);
+          
+          // 1. Check if product exists on TPOS
+          const existingTPOSProduct = await checkProductExists(baseProductCode);
+          
+          if (!existingTPOSProduct) {
+            throw new Error(`Sản phẩm chưa tồn tại trên TPOS. Vui lòng upload lần đầu từ tab "Upload TPOS"`);
+          }
+          
+          // 2. Get full product details from TPOS
+          const token = await getActiveTPOSToken();
+          if (!token) throw new Error("TPOS token not found");
+          
+          const detailUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${existingTPOSProduct.Id})?$expand=ProductVariants($expand=AttributeValues),UOM,UOMPO,Categ`;
+          const detailResponse = await fetch(detailUrl, {
+            headers: getTPOSHeaders(token)
+          });
+          
+          if (!detailResponse.ok) {
+            throw new Error("Không thể lấy chi tiết sản phẩm từ TPOS");
+          }
+          
+          let productDetail = await detailResponse.json();
+          
+          // 3. Prepare updated payload
+          const detected = detectAttributesFromText(item._tempVariant);
+          const attributeLines = createAttributeLines(detected);
+          
+          // Load image nếu có
+          let imageBase64: string | null = null;
+          if (item._tempProductImages && item._tempProductImages.length > 0) {
+            try {
+              imageBase64 = await imageUrlToBase64(item._tempProductImages[0]);
+              productDetail.Image = imageBase64;
+            } catch (imgError) {
+              console.warn("Không load được ảnh, bỏ qua:", imgError);
+            }
+          }
+          
+          // Update prices
+          productDetail.ListPrice = Number(item._tempSellingPrice || 0);
+          productDetail.PurchasePrice = Number(item._tempUnitPrice || 0);
+          
+          // Update attribute lines nếu có
+          if (attributeLines.length > 0) {
+            productDetail.AttributeLines = attributeLines;
+          }
+          
+          // Clean odata context
+          delete productDetail["@odata.context"];
+          
+          // 4. Call UpdateV2
+          await updateProductOnTPOSV2(productDetail);
+          
+          await randomDelay(300, 500);
+          
+          // 5. Delete old products from inventory
+          await deleteProductAndVariantsFromInventory(baseProductCode);
+          
+          // 6. Fetch and upsert from TPOS
+          const result = await fetchAndUpsertProductFromTPOS(
+            existingTPOSProduct.Id,
+            baseProductCode,
+            Number(item._tempUnitPrice || 0),
+            Number(item._tempSellingPrice || 0),
+            supplierName.trim().toUpperCase()
+          );
+          
+          tposResults.push({
+            code: baseProductCode,
+            success: true,
+            variantCount: result.variants.length
+          });
+          
+          setTPOSProgress(prev => ({
+            ...prev,
+            [itemId]: { 
+              status: 'success', 
+              message: `Đã đồng bộ ${result.variants.length} biến thể` 
+            }
+          }));
+          
+          console.log(`✅ [TPOS Sync] Completed for ${baseProductCode}`);
+          
+        } catch (error: any) {
+          console.error(`❌ [TPOS Sync] Failed for ${baseProductCode}:`, error);
+          
+          tposResults.push({
+            code: baseProductCode,
+            success: false,
+            error: error.message
+          });
+          
+          setTPOSProgress(prev => ({
+            ...prev,
+            [itemId]: { 
+              status: 'error', 
+              message: error.message 
+            }
+          }));
+          
+          // Không throw error để tiếp tục xử lý items khác
+        }
+        
+        await randomDelay(500, 1000);
+      }
+      
+      return { orderId: order.id, tposResults };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate queries to refetch fresh data from database
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
@@ -782,11 +923,28 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-select"] });
       
-      toast({
-        title: "Cập nhật đơn hàng thành công!",
-      });
+      // Show summary toast
+      const successCount = data.tposResults.filter((r: any) => r.success).length;
+      const errorCount = data.tposResults.filter((r: any) => !r.success).length;
+      
+      if (errorCount === 0) {
+        toast({
+          title: "✅ Cập nhật thành công!",
+          description: successCount > 0 
+            ? `Đã đồng bộ ${successCount} sản phẩm lên TPOS`
+            : "Đơn hàng đã được cập nhật"
+        });
+      } else {
+        toast({
+          title: "⚠️ Hoàn thành với lỗi",
+          description: `Thành công: ${successCount} | Lỗi: ${errorCount}`,
+          variant: "destructive"
+        });
+      }
+      
       onOpenChange(false);
       resetForm();
+      setTPOSProgress({});
     },
     onError: (error: Error) => {
       toast({
