@@ -219,9 +219,17 @@ export function UnifiedImageUpload({
 
   return (
     <div>
-      {/* Image Previews */}
+      {/* Image Previews - Show when images exist */}
       {showPreview && images.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div 
+          ref={containerRef}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          className="flex flex-wrap gap-2"
+        >
           {images.map((imageUrl, index) => (
             <div key={index} className="relative group">
               <img 
@@ -244,41 +252,32 @@ export function UnifiedImageUpload({
         </div>
       )}
 
-      {/* Upload Area */}
-      <div
-        ref={containerRef}
-        tabIndex={0}
-        role="button"
-        aria-label={placeholder || "Tải ảnh lên. Bạn có thể kéo thả, dán, hoặc click để chọn file"}
-        onClick={handleClick}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className={`
-          relative min-h-[160px] p-8 rounded-lg border-2 transition-all
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
-          ${globalUploadInProgress && !isUploading 
-            ? 'opacity-50 cursor-not-allowed pointer-events-none border-dashed border-muted-foreground/20'
-            : isDragging 
-            ? 'border-primary bg-primary/20 border-solid scale-[1.02] cursor-pointer' 
-            : isUploading 
-            ? 'border-primary/50 bg-muted/30 border-solid cursor-wait'
-            : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md cursor-pointer'
-          }
-        `}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple={!isSingle}
-          onChange={handleFileInputChange}
-          className="hidden"
-          {...(isMobile ? { capture: "environment" } : {})}
-        />
-
+      {/* Upload Area - Only show when NO images */}
+      {images.length === 0 && (
+        <div
+          ref={containerRef}
+          tabIndex={0}
+          role="button"
+          aria-label={placeholder || "Tải ảnh lên. Bạn có thể kéo thả, dán, hoặc click để chọn file"}
+          onClick={handleClick}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className={`
+            relative min-h-[160px] p-8 rounded-lg border-2 transition-all
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+            ${globalUploadInProgress && !isUploading 
+              ? 'opacity-50 cursor-not-allowed pointer-events-none border-dashed border-muted-foreground/20'
+              : isDragging 
+              ? 'border-primary bg-primary/20 border-solid scale-[1.02] cursor-pointer' 
+              : isUploading 
+              ? 'border-primary/50 bg-muted/30 border-solid cursor-wait'
+              : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md cursor-pointer'
+            }
+          `}
+        >
         <div className="flex flex-col items-center justify-center text-center space-y-3">
           {/* Icon */}
           {showSuccess ? (
@@ -332,7 +331,19 @@ export function UnifiedImageUpload({
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* Hidden input - always present */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple={!isSingle}
+        onChange={handleFileInputChange}
+        className="hidden"
+        {...(isMobile ? { capture: "environment" } : {})}
+      />
     </div>
   );
 }
