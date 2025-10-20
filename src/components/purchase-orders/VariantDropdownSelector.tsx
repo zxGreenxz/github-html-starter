@@ -4,8 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { useProductVariants, ProductVariant } from "@/hooks/use-product-variants";
-import { ChevronDown, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface VariantDropdownSelectorProps {
   baseProductCode: string;
@@ -49,16 +47,16 @@ export function VariantDropdownSelector({
             value={value}
             readOnly
             placeholder="Chọn biến thể..."
-            className={cn(className, variants.length > 0 && "pr-20")}
+            className={className}
             onFocus={() => setOpen(true)}
           />
           {variants.length > 0 && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-              <Badge variant="secondary" className="text-xs">
-                {variants.length}
-              </Badge>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            </div>
+            <Badge 
+              variant="secondary" 
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none"
+            >
+              {variants.length}
+            </Badge>
           )}
         </div>
       </PopoverTrigger>
@@ -89,21 +87,13 @@ export function VariantDropdownSelector({
                       // Prevent default to avoid popover closing during click
                       e.preventDefault();
                     }}
-                    className={cn(
-                      "cursor-pointer",
-                      variant.variant === value && "bg-accent"
-                    )}
+                    className="cursor-pointer"
                   >
                     <div className="flex items-center justify-between w-full gap-2">
                       <span className="font-medium">{variant.variant}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {variant.product_code}
-                        </span>
-                        {variant.variant === value && (
-                          <Check className="w-4 h-4 text-primary" />
-                        )}
-                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {variant.product_code}
+                      </span>
                     </div>
                   </CommandItem>
                 ))}
