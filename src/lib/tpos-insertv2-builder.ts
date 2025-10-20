@@ -119,8 +119,8 @@ export function groupVariantsByBase(items: TPOSProductItem[]): GroupedProduct[] 
       baseCode,
       baseName,
       variants,
-      listPrice: first.selling_price,
-      purchasePrice: first.unit_price,
+      listPrice: first.selling_price * 1000,
+      purchasePrice: first.unit_price * 1000,
       imageBase64: null, // Will be loaded later if needed
     };
   });
