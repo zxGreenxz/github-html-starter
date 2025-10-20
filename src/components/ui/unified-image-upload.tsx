@@ -20,6 +20,7 @@ interface UnifiedImageUploadProps {
   placeholder?: string;
   showPreview?: boolean;
   compressThreshold?: number;
+  preventMultiple?: boolean; // If true, prevent upload when image already exists
 }
 
 export function UnifiedImageUpload({
@@ -32,6 +33,7 @@ export function UnifiedImageUpload({
   placeholder,
   showPreview = true,
   compressThreshold = 1,
+  preventMultiple = false,
 }: UnifiedImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -109,6 +111,12 @@ export function UnifiedImageUpload({
       return;
     }
 
+    // Check preventMultiple: block if images already exist
+    if (preventMultiple && images.length > 0) {
+      toast.error("⚠️ Đã có ảnh, vui lòng xóa ảnh cũ trước khi dán ảnh mới");
+      return;
+    }
+
     const fileArray = Array.from(files);
     const imagesToUpload = fileArray.filter(f => f.type.startsWith('image/'));
     
@@ -146,6 +154,13 @@ export function UnifiedImageUpload({
 
     // Only process if this component is focused or hovered
     if (!isHovered && !containerRef.current?.contains(document.activeElement)) return;
+
+    // Check preventMultiple: block if images already exist
+    if (preventMultiple && images.length > 0) {
+      e.preventDefault();
+      toast.error("⚠️ Đã có ảnh, vui lòng xóa ảnh cũ trước khi dán ảnh mới");
+      return;
+    }
     
     const items = e.clipboardData?.items;
     if (!items) return;

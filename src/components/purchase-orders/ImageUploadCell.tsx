@@ -11,11 +11,12 @@ export function ImageUploadCell({ images, onImagesChange, itemIndex }: ImageUplo
     <UnifiedImageUpload
       value={images}
       onChange={onImagesChange}
-      maxFiles={10}
+      maxFiles={1}
       bucket="purchase-images"
       folder="purchase-order-items"
       placeholder="Dán ảnh (Ctrl+V) hoặc kéo thả"
       showPreview={true}
+      preventMultiple={true}
     />
   );
 }
