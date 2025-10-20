@@ -668,17 +668,13 @@ export function BulkTPOSUploadDialog({
         // Get TPOS headers
         const headers = await getHeaders();
         
-        // STEP 1: Check if product already exists (skip nếu đang edit - có tpos_product_id)
-        if (!item.tpos_product_id) {
-          const checkUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${code}`;
-          const checkResponse = await fetch(checkUrl, { headers });
-          const checkData = await checkResponse.json();
-          
-          if (checkData.value && checkData.value.length > 0) {
-            throw new Error(`Sản phẩm đã tồn tại: ${checkData.value[0].Name}`);
-          }
-        } else {
-          console.log(`[Upload TPOS] Skipping duplicate check for ${code} (already has tpos_product_id=${item.tpos_product_id})`);
+        // STEP 1: Check if product already exists
+        const checkUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${code}`;
+        const checkResponse = await fetch(checkUrl, { headers });
+        const checkData = await checkResponse.json();
+        
+        if (checkData.value && checkData.value.length > 0) {
+          throw new Error(`Sản phẩm đã tồn tại: ${checkData.value[0].Name}`);
         }
         
         // STEP 2: Parse variant string to AttributeLines
