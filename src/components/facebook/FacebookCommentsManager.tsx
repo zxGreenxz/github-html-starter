@@ -484,111 +484,6 @@ export function FacebookCommentsManager({
   });
 
   // ============================================================================
-  // PRINT BILL FUNCTION - Handles printing independently
-  // ============================================================================
-  
-  const printBillForComment = async (
-    comment: CommentWithStatus,
-    responseData?: any
-  ) => {
-    try {
-      const { getActivePrinter, loadFormatSettings, generatePrintHTML } = 
-        await import('@/lib/printer-config-utils');
-
-      const printer = await getActivePrinter();
-      if (!printer) {
-        console.log('⚠️ No active printer configured');
-        return;
-      }
-
-      // Extract data
-      const commentText = comment.message || '';
-      const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
-      const productCode = productCodeMatch ? productCodeMatch[1] : '';
-      
-      // Use TPOS data if available, otherwise use pending state
-      const sessionIndex = responseData?.response?.SessionIndex?.toString() 
-        || responseData?.response?.Code 
-        || 'ĐANG XỬ LÝ';
-      const phone = responseData?.response?.Telephone || '';
-      const customerName = responseData?.response?.Name || comment.from.name;
-
-      // Load printer settings
-      const savedSettings = await loadFormatSettings();
-      const width = savedSettings?.width === 'custom' 
-        ? parseInt(savedSettings.customWidth) || 576
-        : parseInt(savedSettings?.width || '576');
-      const height = savedSettings?.height === 'custom'
-        ? parseInt(savedSettings.customHeight) || null
-        : savedSettings?.height === 'auto' 
-          ? null 
-          : parseInt(savedSettings?.height || '0') || null;
-      const threshold = parseInt(savedSettings?.threshold || '95');
-      const scale = parseFloat(savedSettings?.scale || '2');
-      const fontSession = parseInt(savedSettings?.fontSession || '72');
-      const fontPhone = parseInt(savedSettings?.fontPhone || '52');
-      const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
-      const fontProduct = parseInt(savedSettings?.fontProduct || '36');
-      const fontComment = parseInt(savedSettings?.fontComment || '32');
-      const padding = parseInt(savedSettings?.padding || '20');
-      const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
-      const alignment = savedSettings?.alignment || 'center';
-      const isBold = savedSettings?.isBold ?? true;
-      const isItalic = savedSettings?.isItalic ?? false;
-
-      const billHTML = generatePrintHTML(
-        {
-          width, height, threshold, scale,
-          fontSession, fontPhone, fontCustomer, fontProduct, fontComment,
-          padding, lineSpacing, alignment, isBold, isItalic
-        },
-        { 
-          sessionIndex, 
-          phone, 
-          customerName, 
-          productCode, 
-          productName: productCode, 
-          comment: commentText 
-        }
-      );
-
-      // Add to print queue
-      addPrintJob({
-        printer,
-        html: billHTML,
-        settings: { width, height, threshold, scale },
-        priority: 'normal',
-        metadata: { sessionIndex, customerName, productCode },
-        callbacks: {
-          onSuccess: () => {
-            console.log('✅ Print job completed for', customerName);
-          },
-          onError: (job, error) => {
-            console.error('❌ Print job failed:', error);
-            toast({
-              title: "❌ Lỗi in bill",
-              description: error,
-              variant: "destructive",
-            });
-          }
-        }
-      });
-
-      toast({
-        title: "📋 Đã thêm vào hàng đợi in",
-        description: `Bill cho ${customerName}`,
-      });
-    } catch (error) {
-      console.error('Error preparing print:', error);
-      toast({
-        title: "❌ Lỗi chuẩn bị in",
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: "destructive",
-      });
-    }
-  };
-
-  // ============================================================================
   // MUTATIONS
   // ============================================================================
 
@@ -664,12 +559,129 @@ export function FacebookCommentsManager({
     },
     onSuccess: async (data, variables) => {
       toast({
-        title: "✅ Upload TPOS thành công!",
-        description: `Đơn hàng ${data.response.Code}`,
+        title: "Tạo đơn hàng thành công!",
+        description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
-      // Refetch orders to update UI
-      queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo?.objectId] });
+      // Auto-print bill using print queue
+      try {
+        const { getActivePrinter, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
+
+        const printer = await getActivePrinter();
+        if (!printer) {
+          console.log('⚠️ No active printer configured');
+          return;
+        }
+
+        const commentText = variables.comment.message || '';
+        const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
+        const productCode = productCodeMatch ? productCodeMatch[1] : '';
+
+        // Load saved printer settings
+        const savedSettings = await loadFormatSettings();
+        
+        // Parse settings with defaults
+        const width = savedSettings?.width === 'custom' 
+          ? parseInt(savedSettings.customWidth) || 576
+          : parseInt(savedSettings?.width || '576');
+        
+        const height = savedSettings?.height === 'custom'
+          ? parseInt(savedSettings.customHeight) || null
+          : savedSettings?.height === 'auto' 
+            ? null 
+            : parseInt(savedSettings?.height || '0') || null;
+        
+        const threshold = parseInt(savedSettings?.threshold || '95');
+        const scale = parseFloat(savedSettings?.scale || '2');
+        
+        // Font settings
+        const fontSession = parseInt(savedSettings?.fontSession || '72');
+        const fontPhone = parseInt(savedSettings?.fontPhone || '52');
+        const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
+        const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+        const fontComment = parseInt(savedSettings?.fontComment || '32');
+        const padding = parseInt(savedSettings?.padding || '20');
+        const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
+        const alignment = savedSettings?.alignment || 'center';
+        const isBold = savedSettings?.isBold ?? true;
+        const isItalic = savedSettings?.isItalic ?? false;
+
+        console.log('📐 Facebook comment - Using printer settings:', {
+          width, height, threshold, scale,
+          fontSession, fontPhone, fontCustomer, fontProduct
+        });
+
+        const billHTML = generatePrintHTML(
+          {
+            width,
+            height,
+            threshold,
+            scale,
+            fontSession,
+            fontPhone,
+            fontCustomer,
+            fontProduct,
+            fontComment,
+            padding,
+            lineSpacing,
+            alignment,
+            isBold,
+            isItalic
+          },
+          {
+            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+            phone: data.response.Telephone || '',
+            customerName: data.response.Name || variables.comment.from.name,
+            productCode: productCode,
+            productName: productCode,
+            comment: commentText
+          }
+        );
+
+        // Add to print queue instead of direct printing
+        addPrintJob({
+          printer,
+          html: billHTML,
+          settings: {
+            width,
+            height,
+            threshold,
+            scale
+          },
+          priority: 'normal',
+          metadata: {
+            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+            customerName: data.response.Name || variables.comment.from.name,
+            productCode: productCode
+          },
+          callbacks: {
+            onSuccess: () => {
+              console.log('✅ Print job completed from queue');
+            },
+            onError: (job, error) => {
+              console.error('❌ Print job failed:', error);
+              toast({
+                title: "❌ Lỗi in bill",
+                description: error,
+                variant: "destructive",
+              });
+            }
+          }
+        });
+
+        toast({
+          title: "📋 Đã thêm vào hàng đợi in",
+          description: `Đơn #${data.response.SessionIndex?.toString() || data.response.Code || ''}`,
+        });
+
+      } catch (error: any) {
+        console.error('❌ Auto-print error:', error);
+        toast({
+          title: "❌ Lỗi in bill",
+          description: error.message || "Không thể in bill",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: Error) => {
       let errorData;
@@ -1269,17 +1281,9 @@ export function FacebookCommentsManager({
   };
 
   const handleCreateOrderClick = (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
-    if (!selectedVideo) return;
-
-    // 🔥 PARALLEL EXECUTION: Print and Upload run simultaneously
-    
-    // 1. Print bill IMMEDIATELY (non-blocking)
-    console.log("🖨️ Starting print job immediately...");
-    printBillForComment(comment);
-
-    // 2. Upload to TPOS SIMULTANEOUSLY (non-blocking)
-    console.log("☁️ Starting TPOS upload...");
-    createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
+    if (selectedVideo) {
+      createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
+    }
   };
 
   const toggleProductSelection = (commentId: string) => {

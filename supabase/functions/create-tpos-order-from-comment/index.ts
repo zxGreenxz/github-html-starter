@@ -549,69 +549,66 @@ serve(async (req) => {
       }
 
       // ========================================================================
-      // 🔥 CREATE live_products + live_orders as BACKGROUND TASK
+      // 🔥 CREATE live_products + live_orders IMMEDIATELY (not background job)
       // ========================================================================
-      
-      // Run this in background so we can return response immediately
-      const createLiveProductsBackground = async () => {
-        console.log('🚀 [CREATE LIVE PRODUCTS] Starting background creation...');
-        console.log('📦 [CREATE LIVE PRODUCTS] Product codes:', JSON.stringify(productCodes));
-        console.log('📦 [CREATE LIVE PRODUCTS] Total products to process:', productCodes.length);
+      console.log('🚀 [CREATE LIVE PRODUCTS] Starting immediate creation...');
+      console.log('📦 [CREATE LIVE PRODUCTS] Product codes:', JSON.stringify(productCodes));
+      console.log('📦 [CREATE LIVE PRODUCTS] Total products to process:', productCodes.length);
 
-        try {
-          // Determine live_session_id and live_phase_id based on comment time
-          const commentTime = new Date(convertFacebookTimeToISO(comment.created_time));
-          const vietnamTime = new Date(commentTime.getTime() + 7 * 60 * 60 * 1000);
-          const dateStr = vietnamTime.toISOString().split('T')[0];
+      try {
+        // Determine live_session_id and live_phase_id based on comment time
+        const commentTime = new Date(convertFacebookTimeToISO(comment.created_time));
+        const vietnamTime = new Date(commentTime.getTime() + 7 * 60 * 60 * 1000);
+        const dateStr = vietnamTime.toISOString().split('T')[0];
+        
+        // Determine phase_type from time (morning: 00:00-12:30, evening: 12:30-23:59)
+        const hour = vietnamTime.getUTCHours();
+        const minute = vietnamTime.getUTCMinutes();
+        const totalMinutes = hour * 60 + minute;
+        const phaseType = totalMinutes <= 750 ? 'morning' : 'evening'; // 12:30 = 750 minutes
+        
+        console.log('📅 [CREATE LIVE PRODUCTS] Comment time (Vietnam):', vietnamTime.toISOString());
+        console.log('📅 [CREATE LIVE PRODUCTS] Date:', dateStr, 'Phase:', phaseType);
+        
+        // Find matching live_phase
+        const { data: targetPhase, error: phaseError } = await supabase
+          .from('live_phases')
+          .select('id, live_session_id')
+          .eq('phase_date', dateStr)
+          .eq('phase_type', phaseType)
+          .maybeSingle();
+        
+        if (phaseError || !targetPhase) {
+          console.error('❌ [CREATE LIVE PRODUCTS] No live_phase found:', phaseError);
+        } else {
+          console.log('✅ [CREATE LIVE PRODUCTS] Found phase:', targetPhase.id);
           
-          // Determine phase_type from time (morning: 00:00-12:30, evening: 12:30-23:59)
-          const hour = vietnamTime.getUTCHours();
-          const minute = vietnamTime.getUTCMinutes();
-          const totalMinutes = hour * 60 + minute;
-          const phaseType = totalMinutes <= 750 ? 'morning' : 'evening'; // 12:30 = 750 minutes
-          
-          console.log('📅 [CREATE LIVE PRODUCTS] Comment time (Vietnam):', vietnamTime.toISOString());
-          console.log('📅 [CREATE LIVE PRODUCTS] Date:', dateStr, 'Phase:', phaseType);
-          
-          // Find matching live_phase
-          const { data: targetPhase, error: phaseError } = await supabase
-            .from('live_phases')
-            .select('id, live_session_id')
-            .eq('phase_date', dateStr)
-            .eq('phase_type', phaseType)
+          // Get TPOS token for product fetch
+          console.log('🔑 [CREATE LIVE PRODUCTS] Step 1: Fetching TPOS token...');
+          const { data: tposToken, error: tokenError } = await supabase
+            .from('tpos_credentials')
+            .select('bearer_token')
+            .eq('token_type', 'tpos')
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
           
-          if (phaseError || !targetPhase) {
-            console.error('❌ [CREATE LIVE PRODUCTS] No live_phase found:', phaseError);
+          if (tokenError) {
+            console.error('❌ [CREATE LIVE PRODUCTS] Token fetch error:', tokenError);
+          }
+          
+          if (!tposToken?.bearer_token) {
+            console.error('❌ [CREATE LIVE PRODUCTS] No TPOS token found');
+            console.log('📊 [CREATE LIVE PRODUCTS] Query result:', JSON.stringify(tposToken));
           } else {
-            console.log('✅ [CREATE LIVE PRODUCTS] Found phase:', targetPhase.id);
+            console.log('✅ [CREATE LIVE PRODUCTS] TPOS token found (length:', tposToken.bearer_token.length, ')');
             
-            // Get TPOS token for product fetch
-            console.log('🔑 [CREATE LIVE PRODUCTS] Step 1: Fetching TPOS token...');
-            const { data: tposToken, error: tokenError } = await supabase
-              .from('tpos_credentials')
-              .select('bearer_token')
-              .eq('token_type', 'tpos')
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
+            console.log('🔄 [CREATE LIVE PRODUCTS] Step 2: Processing', productCodes.length, 'product(s)...');
+            console.log('═══════════════════════════════════════════════════════════════');
             
-            if (tokenError) {
-              console.error('❌ [CREATE LIVE PRODUCTS] Token fetch error:', tokenError);
-            }
-            
-            if (!tposToken?.bearer_token) {
-              console.error('❌ [CREATE LIVE PRODUCTS] No TPOS token found');
-              console.log('📊 [CREATE LIVE PRODUCTS] Query result:', JSON.stringify(tposToken));
-            } else {
-              console.log('✅ [CREATE LIVE PRODUCTS] TPOS token found (length:', tposToken.bearer_token.length, ')');
-              
-              console.log('🔄 [CREATE LIVE PRODUCTS] Step 2: Processing', productCodes.length, 'product(s)...');
-              console.log('═══════════════════════════════════════════════════════════════');
-              
-              // Process each product code
-              for (let i = 0; i < productCodes.length; i++) {
-                const productCode = productCodes[i];
+            // Process each product code
+            for (let i = 0; i < productCodes.length; i++) {
+              const productCode = productCodes[i];
               console.log(`\n🔍 [CREATE LIVE PRODUCTS] [${i+1}/${productCodes.length}] Processing: "${productCode}"`);
               console.log('   ├─ live_session_id:', targetPhase.live_session_id);
               console.log('   ├─ live_phase_id:', targetPhase.id);
@@ -864,34 +861,21 @@ serve(async (req) => {
       console.log('═══════════════════════════════════════════════════════════════');
       console.log('🏁 [CREATE LIVE PRODUCTS] Finished processing all products');
       console.log('═══════════════════════════════════════════════════════════════');
-    };
-    
-    // 🔥 Run live products creation in background - don't block response!
-    // Note: The function will continue to execute even after returning response
-    createLiveProductsBackground().catch(err => {
-      console.error('Background task error:', err);
+
+    } catch (dbError) {
+      console.error('Exception saving to database:', dbError);
+    }
+
+    // Return both payload and response
+    return new Response(JSON.stringify({ payload, response: data }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (dbError) {
-    console.error('Exception saving to database:', dbError);
+  } catch (error) {
+    console.error('Error in create-tpos-order-from-comment function:', error);
+    return new Response(
+      JSON.stringify({ payload, error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-
-  // 🔥 Return response IMMEDIATELY without waiting for background task
-  return new Response(
-    JSON.stringify({ 
-      success: true,
-      payload, 
-      response: data,
-      processing_background: true 
-    }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-
-} catch (error) {
-  console.error('Error in create-tpos-order-from-comment function:', error);
-  return new Response(
-    JSON.stringify({ payload, error: error instanceof Error ? error.message : 'Unknown error' }),
-    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
 });
