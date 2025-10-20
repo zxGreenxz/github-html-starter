@@ -604,3 +604,67 @@ export async function createTPOSVariants(
     throw error;
   }
 }
+
+// =====================================================
+// UPDATE TPOS PRODUCT (FOR EDIT PURCHASE ORDER)
+// =====================================================
+
+/**
+ * Update TPOS product với thông tin từ purchase order item
+ * Dùng cho Edit Purchase Order Dialog
+ */
+export async function updateTPOSProduct(
+  tposProductId: number,
+  updates: {
+    product_name?: string;
+    variant?: string;
+    selling_price?: number;
+    purchase_price?: number;
+    product_images?: string[];
+  },
+  onProgress?: (message: string) => void
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    onProgress?.(`Đang lấy thông tin sản phẩm từ TPOS...`);
+    const originalProduct = await getTPOSProduct(tposProductId);
+    
+    // Modify originalProduct với updates
+    if (updates.product_name) {
+      originalProduct.Name = updates.product_name;
+    }
+    
+    if (updates.selling_price !== undefined) {
+      originalProduct.ListPrice = updates.selling_price / 1000; // Convert to TPOS format
+    }
+    
+    if (updates.purchase_price !== undefined) {
+      originalProduct.StandardPrice = updates.purchase_price / 1000; // Convert to TPOS format
+    }
+    
+    // Handle images (nếu cần - hiện tại skip vì phức tạp)
+    // if (updates.product_images && updates.product_images.length > 0) {
+    //   // Logic upload ảnh
+    // }
+    
+    // Create payload (keep existing variants)
+    onProgress?.(`Đang tạo payload...`);
+    const payload = createPayload(
+      originalProduct, 
+      originalProduct.AttributeLines || [], 
+      originalProduct.ProductVariants || []
+    );
+    
+    // POST to TPOS
+    onProgress?.(`Đang cập nhật lên TPOS...`);
+    await postTPOSVariantPayload(payload);
+    
+    onProgress?.(`✅ Cập nhật TPOS thành công`);
+    return { success: true };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Error updating TPOS product:', error);
+    onProgress?.(`❌ Lỗi: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+}

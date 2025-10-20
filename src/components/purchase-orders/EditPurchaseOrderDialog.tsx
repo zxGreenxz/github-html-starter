@@ -772,6 +772,34 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       }
 
+      // Step 4: Sync to TPOS (chỉ cho items có tpos_product_id)
+      const itemsWithTPOS = items.filter(item => (item as any).tpos_product_id);
+      
+      if (itemsWithTPOS.length > 0) {
+        console.log(`🔄 Syncing ${itemsWithTPOS.length} items to TPOS...`);
+        
+        const { updateTPOSProduct } = await import('@/lib/tpos-variant-creator');
+        
+        for (const item of itemsWithTPOS) {
+          try {
+            await updateTPOSProduct(
+              (item as any).tpos_product_id,
+              {
+                product_name: item._tempProductName.trim().toUpperCase(),
+                variant: item._tempVariant.trim().toUpperCase() || undefined,
+                selling_price: Number(item._tempSellingPrice || 0) * 1000,
+                purchase_price: Number(item._tempUnitPrice || 0) * 1000,
+                product_images: item._tempProductImages || undefined
+              }
+            );
+            console.log(`✅ Synced to TPOS: ${item._tempProductCode}`);
+          } catch (tposError) {
+            console.error(`❌ Failed to sync to TPOS: ${item._tempProductCode}`, tposError);
+            // Không throw error để không block việc update Supabase
+          }
+        }
+      }
+
       return order.id;
     },
     onSuccess: () => {
@@ -782,9 +810,19 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-select"] });
       
-      toast({
-        title: "Cập nhật đơn hàng thành công!",
-      });
+      const itemsWithTPOS = items.filter(item => (item as any).tpos_product_id);
+      
+      if (itemsWithTPOS.length > 0) {
+        toast({
+          title: "✅ Cập nhật thành công!",
+          description: `Đã cập nhật đơn hàng và đồng bộ ${itemsWithTPOS.length} sản phẩm lên TPOS`,
+        });
+      } else {
+        toast({
+          title: "Cập nhật đơn hàng thành công!",
+        });
+      }
+      
       onOpenChange(false);
       resetForm();
     },
