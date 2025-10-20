@@ -12,7 +12,7 @@ import { Image, Printer, Download } from "lucide-react";
 
 export function TextToImagePrinter() {
   const { toast } = useToast();
-  
+
   const [text, setText] = useState(`Hóa đơn bán hàng
 Công ty TNHH ABC
 Địa chỉ: 123 Nguyễn Huệ, Quận 1, TP.HCM
@@ -23,7 +23,7 @@ Số lượng: 1
 ---------------------------------------
 Tổng tiền: 25.000.000 đ
 Cảm ơn quý khách!`);
-  
+
   const [fontSize, setFontSize] = useState(20);
   const [canvasWidth, setCanvasWidth] = useState(384); // 80mm printer
   const [fontFamily, setFontFamily] = useState("Arial");
@@ -34,47 +34,46 @@ Cảm ơn quý khách!`);
   const handleGenerateImage = async () => {
     try {
       // Create canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas not supported');
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas not supported");
 
       ctx.font = `${fontSize}px ${fontFamily}`;
-      const lines = text.split('\n');
+      const lines = text.split("\n");
       const padding = 20;
       const lineHeightPx = fontSize * lineHeight;
-      const canvasHeight = (lines.length * lineHeightPx) + (padding * 2);
+      const canvasHeight = lines.length * lineHeightPx + padding * 2;
 
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
 
       // White background
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = "white";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Black text
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = "black";
       ctx.font = `${fontSize}px ${fontFamily}`;
-      ctx.textBaseline = 'top';
+      ctx.textBaseline = "top";
 
       lines.forEach((line, index) => {
-        const y = padding + (index * lineHeightPx);
+        const y = padding + index * lineHeightPx;
         ctx.fillText(line, padding, y);
       });
 
       // Convert to data URL
-      const dataUrl = canvas.toDataURL('image/png');
+      const dataUrl = canvas.toDataURL("image/png");
       setPreviewImage(dataUrl);
 
       toast({
         title: "✅ Tạo ảnh thành công",
-        description: "Bạn có thể xem preview và in ảnh"
+        description: "Bạn có thể xem preview và in ảnh",
       });
-
     } catch (error: any) {
       toast({
         title: "❌ Lỗi tạo ảnh",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -84,7 +83,7 @@ Cảm ơn quý khách!`);
       toast({
         title: "⚠️ Chưa có ảnh",
         description: "Vui lòng tạo ảnh trước khi in",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -94,7 +93,7 @@ Cảm ơn quý khách!`);
       toast({
         title: "⚠️ Chưa có máy in",
         description: "Vui lòng thiết lập máy in trong tab Máy in",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -111,10 +110,10 @@ Cảm ơn quý khách!`);
           port: activePrinter.port,
           content: text,
           options: {
-            mode: 'cp1258',
-            align: 'left',
-            feeds: 3
-          }
+            mode: "cp1258",
+            align: "left",
+            feeds: 3,
+          },
         }),
       });
 
@@ -127,17 +126,16 @@ Cảm ơn quý khách!`);
       if (result.success) {
         toast({
           title: "✅ In thành công",
-          description: `Đã gửi lệnh in tới ${activePrinter.name}`
+          description: `Đã gửi lệnh in tới ${activePrinter.name}`,
         });
       } else {
-        throw new Error(result.error || 'Unknown error');
+        throw new Error(result.error || "Unknown error");
       }
-
     } catch (error: any) {
       toast({
         title: "❌ Lỗi in ảnh",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsPrinting(false);
@@ -149,19 +147,19 @@ Cảm ơn quý khách!`);
       toast({
         title: "⚠️ Chưa có ảnh",
         description: "Vui lòng tạo ảnh trước",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.download = `text_image_${Date.now()}.png`;
     link.href = previewImage;
     link.click();
 
     toast({
       title: "✅ Đã tải ảnh",
-      description: "Ảnh đã được lưu vào máy"
+      description: "Ảnh đã được lưu vào máy",
     });
   };
 
@@ -172,9 +170,7 @@ Cảm ơn quý khách!`);
           <Image className="h-5 w-5" />
           Text to Image - In Tiếng Việt
         </CardTitle>
-        <CardDescription>
-          Chuyển text tiếng Việt thành ảnh để in (100% chính xác có dấu)
-        </CardDescription>
+        <CardDescription>Chuyển text tiếng Việt thành ảnh để in (100% chính xác có dấu)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -248,11 +244,7 @@ Cảm ơn quý khách!`);
             <Image className="mr-2 h-4 w-4" />
             Tạo ảnh
           </Button>
-          <Button 
-            onClick={handlePrintImage} 
-            variant="secondary"
-            disabled={!previewImage || isPrinting}
-          >
+          <Button onClick={handlePrintImage} variant="secondary" disabled={!previewImage || isPrinting}>
             {isPrinting ? (
               <>⏳ Đang in...</>
             ) : (
@@ -262,11 +254,7 @@ Cảm ơn quý khách!`);
               </>
             )}
           </Button>
-          <Button 
-            onClick={handleDownload} 
-            variant="outline"
-            disabled={!previewImage}
-          >
+          <Button onClick={handleDownload} variant="outline" disabled={!previewImage}>
             <Download className="mr-2 h-4 w-4" />
             Tải về
           </Button>
@@ -275,11 +263,7 @@ Cảm ơn quý khách!`);
         {previewImage && (
           <div className="border rounded-lg p-4 bg-gray-50">
             <p className="text-sm text-gray-600 mb-2 font-medium">Preview:</p>
-            <img 
-              src={previewImage} 
-              alt="Preview" 
-              className="max-w-full border bg-white rounded"
-            />
+            <img src={previewImage} alt="Preview" className="max-w-full border bg-white rounded" />
           </div>
         )}
 
