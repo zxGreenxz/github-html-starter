@@ -484,8 +484,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             variant: variant.variant,
             purchase_price: variant.purchase_price,
             selling_price: variant.selling_price,
-            product_images: [...(variant.product_images || [])],
-            price_images: [...(variant.price_images || [])],
+            product_images: [...(baseItem.product_images || [])],
+            price_images: [...(baseItem.price_images || [])],
             _tempTotalPrice: variant.purchase_price,
           };
         });
@@ -495,6 +495,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           const newItems = [...prev];
           // Remove base item and insert all variant items in its place
           newItems.splice(index, 1, ...newVariantItems);
+          // Update position for all items to prevent column shifting
+          newItems.forEach((item, idx) => {
+            item.position = idx;
+          });
           console.log('✅ Updated items list (base item removed):', newItems);
           return newItems;
         });
