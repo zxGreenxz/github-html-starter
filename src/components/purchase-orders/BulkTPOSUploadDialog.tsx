@@ -784,6 +784,25 @@ export function BulkTPOSUploadDialog({
           throw new Error("Không lấy được TPOS Product ID");
         }
         
+        // STEP 7.5: Update parent product's tpos_product_id immediately
+        console.log(`[Upload TPOS] Updating parent product ${code} with tpos_product_id=${tposProductId}`);
+        
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ 
+            tpos_product_id: tposProductId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('product_code', code)
+          .is('variant', null); // Only update parent product (variant = null)
+
+        if (updateError) {
+          console.error(`[Upload TPOS] Failed to update parent product:`, updateError);
+          throw new Error(`Lỗi lưu tpos_product_id cho sản phẩm cha: ${updateError.message}`);
+        }
+
+        console.log(`[Upload TPOS] ✅ Saved tpos_product_id=${tposProductId} for parent ${code}`);
+        
         // STEP 8: Fetch variants from TPOS
         const fetchUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
         const fetchResponse = await fetch(fetchUrl, { headers });
