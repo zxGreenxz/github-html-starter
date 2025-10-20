@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -5,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface ActivityDetailDialogProps {
   open: boolean;
@@ -23,6 +25,8 @@ export function ActivityDetailDialog({
   onOpenChange,
   activity,
 }: ActivityDetailDialogProps) {
+  const [viewMode, setViewMode] = useState<"normal" | "json">("normal");
+  
   if (!activity) return null;
 
   const getActionBadge = (action: string) => {
@@ -55,6 +59,33 @@ export function ActivityDetailDialog({
     return String(value);
   };
 
+  const renderNormalValue = (value: any): JSX.Element => {
+    if (value === null || value === undefined) {
+      return <span className="text-muted-foreground italic">Không có dữ liệu</span>;
+    }
+    
+    if (typeof value === "object") {
+      return (
+        <div className="space-y-2">
+          {Object.entries(value).map(([key, val]) => (
+            <div key={key} className="flex gap-2">
+              <span className="font-medium min-w-[150px]">{key}:</span>
+              <span className="flex-1">
+                {val === null || val === undefined 
+                  ? <span className="text-muted-foreground italic">null</span>
+                  : typeof val === "object"
+                  ? JSON.stringify(val)
+                  : String(val)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    
+    return <span>{String(value)}</span>;
+  };
+
   const oldData = activity.changes?.old;
   const newData = activity.changes?.new;
 
@@ -62,9 +93,27 @@ export function ActivityDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Chi tiết thay đổi
-            {getActionBadge(activity.action)}
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              Chi tiết thay đổi
+              {getActionBadge(activity.action)}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "normal" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("normal")}
+              >
+                Bình thường
+              </Button>
+              <Button
+                variant={viewMode === "json" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("json")}
+              >
+                JSON
+              </Button>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
@@ -87,17 +136,29 @@ export function ActivityDetailDialog({
               <div>
                 <h3 className="font-semibold mb-2 text-red-600">Giá trị cũ</h3>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <pre className="text-xs whitespace-pre-wrap">
-                    {renderValue(oldData)}
-                  </pre>
+                  {viewMode === "json" ? (
+                    <pre className="text-xs whitespace-pre-wrap">
+                      {renderValue(oldData)}
+                    </pre>
+                  ) : (
+                    <div className="text-sm">
+                      {renderNormalValue(oldData)}
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
                 <h3 className="font-semibold mb-2 text-green-600">Giá trị mới</h3>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <pre className="text-xs whitespace-pre-wrap">
-                    {renderValue(newData)}
-                  </pre>
+                  {viewMode === "json" ? (
+                    <pre className="text-xs whitespace-pre-wrap">
+                      {renderValue(newData)}
+                    </pre>
+                  ) : (
+                    <div className="text-sm">
+                      {renderNormalValue(newData)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -107,9 +168,15 @@ export function ActivityDetailDialog({
             <div>
               <h3 className="font-semibold mb-2 text-green-600">Dữ liệu mới</h3>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <pre className="text-xs whitespace-pre-wrap">
-                  {renderValue(newData)}
-                </pre>
+                {viewMode === "json" ? (
+                  <pre className="text-xs whitespace-pre-wrap">
+                    {renderValue(newData)}
+                  </pre>
+                ) : (
+                  <div className="text-sm">
+                    {renderNormalValue(newData)}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -118,9 +185,15 @@ export function ActivityDetailDialog({
             <div>
               <h3 className="font-semibold mb-2 text-red-600">Dữ liệu đã xóa</h3>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <pre className="text-xs whitespace-pre-wrap">
-                  {renderValue(oldData)}
-                </pre>
+                {viewMode === "json" ? (
+                  <pre className="text-xs whitespace-pre-wrap">
+                    {renderValue(oldData)}
+                  </pre>
+                ) : (
+                  <div className="text-sm">
+                    {renderNormalValue(oldData)}
+                  </div>
+                )}
               </div>
             </div>
           )}
