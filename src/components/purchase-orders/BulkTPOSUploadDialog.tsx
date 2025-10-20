@@ -491,48 +491,6 @@ export function BulkTPOSUploadDialog({
       resolvedUpdates.map(u => [u.product_code, u.fields_to_update])
     );
     
-    // Upsert parent product first
-    try {
-      const parentRecord = {
-        product_code: baseItem.product_code,
-        product_name: baseItem.product_name,
-        variant: null,
-        selling_price: baseItem.selling_price || 0,
-        purchase_price: baseItem.unit_price || 0,
-        barcode: baseItem.product_code,
-        stock_quantity: 0,
-        base_product_code: baseItem.product_code,
-        supplier_name: baseItem.supplier_name,
-        product_images: baseItem.product_images,
-        price_images: baseItem.price_images,
-        tpos_product_id: tposProductId,
-        productid_bienthe: null,
-        tpos_image_url: baseItem.product_images?.[0] || null,
-        unit: "Cái",
-        updated_at: new Date().toISOString()
-      };
-      
-      const { error: parentError } = await supabase
-        .from('products')
-        .upsert([parentRecord], {
-          onConflict: 'product_code',
-          ignoreDuplicates: false
-        });
-      
-      if (parentError) {
-        throw new Error(`Lỗi lưu parent product: ${parentError.message}`);
-      }
-      
-      console.log(`[Upload TPOS] Upserted parent: ${baseItem.product_code} with tpos_product_id=${tposProductId}`);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "❌ Lỗi lưu parent product",
-        description: error.message
-      });
-      throw error;
-    }
-    
     for (const variant of variantsFromTPOS) {
       const code = variant.DefaultCode;
       if (!code) continue;
@@ -617,40 +575,6 @@ export function BulkTPOSUploadDialog({
     tposProductId: number
   ): Promise<void> => {
     try {
-      // Upsert parent product first
-      const parentRecord = {
-        product_code: baseItem.product_code,
-        product_name: baseItem.product_name,
-        variant: null,
-        selling_price: baseItem.selling_price || 0,
-        purchase_price: baseItem.unit_price || 0,
-        barcode: baseItem.product_code,
-        stock_quantity: 0,
-        base_product_code: baseItem.product_code,
-        supplier_name: baseItem.supplier_name,
-        product_images: baseItem.product_images,
-        price_images: baseItem.price_images,
-        tpos_product_id: tposProductId,
-        productid_bienthe: null,
-        tpos_image_url: baseItem.product_images?.[0] || null,
-        unit: "Cái",
-        updated_at: new Date().toISOString()
-      };
-      
-      const { error: parentError } = await supabase
-        .from('products')
-        .upsert([parentRecord], {
-          onConflict: 'product_code',
-          ignoreDuplicates: false
-        });
-      
-      if (parentError) {
-        throw new Error(`Lỗi lưu parent product: ${parentError.message}`);
-      }
-      
-      console.log(`[Upload TPOS] Upserted parent: ${baseItem.product_code} with tpos_product_id=${tposProductId}`);
-      
-      // Then upsert variants
       const variantRecords = variantsFromTPOS.map(variant => ({
         product_code: variant.DefaultCode,
         product_name: variant.Name,
@@ -750,28 +674,7 @@ export function BulkTPOSUploadDialog({
         const checkData = await checkResponse.json();
         
         if (checkData.value && checkData.value.length > 0) {
-          const existingTPOSId = checkData.value[0].Id;
-          const existingTPOSName = checkData.value[0].Name;
-          
-          console.log(`[Upload TPOS] Product ${code} already exists with TPOS ID: ${existingTPOSId}`);
-          
-          // Update tpos_product_id in local database before throwing error
-          try {
-            const { error: updateError } = await supabase
-              .from("products")
-              .update({ tpos_product_id: existingTPOSId })
-              .eq("product_code", code);
-            
-            if (updateError) {
-              console.warn(`[Upload TPOS] Failed to update tpos_product_id for ${code}:`, updateError);
-            } else {
-              console.log(`[Upload TPOS] Updated tpos_product_id=${existingTPOSId} for product ${code}`);
-            }
-          } catch (updateErr) {
-            console.warn(`[Upload TPOS] Error updating tpos_product_id:`, updateErr);
-          }
-          
-          throw new Error(`Sản phẩm đã tồn tại trên TPOS: ${existingTPOSName} (ID: ${existingTPOSId})`);
+          throw new Error(`Sản phẩm đã tồn tại: ${checkData.value[0].Name}`);
         }
         
         // STEP 2: Parse variant string to AttributeLines
