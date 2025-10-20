@@ -418,6 +418,26 @@ export function PrinterConfigManager() {
     setIsBold(template.isBold);
     setIsItalic(template.isItalic);
 
+    // Save to sessionStorage so other components can use it
+    const config: SavedPrinterConfig = {
+      width: template.width,
+      customWidth: template.customWidth,
+      height: template.height,
+      customHeight: template.customHeight,
+      threshold: template.threshold,
+      scale: template.scale,
+      fontSession: template.fontSession,
+      fontPhone: template.fontPhone,
+      fontCustomer: template.fontCustomer,
+      fontProduct: template.fontProduct,
+      padding: template.padding,
+      lineSpacing: template.lineSpacing,
+      alignment: template.alignment,
+      isBold: template.isBold,
+      isItalic: template.isItalic,
+    };
+    saveFormatSettings(config);
+
     setActiveTemplate(templateId);
     const updated = templates.map(t => ({
       ...t,
@@ -427,7 +447,7 @@ export function PrinterConfigManager() {
 
     toast({
       title: "✅ Đã load template",
-      description: `Template "${template.name}" đã được áp dụng`,
+      description: `Template "${template.name}" đã được áp dụng và lưu vào hệ thống`,
     });
   };
 
