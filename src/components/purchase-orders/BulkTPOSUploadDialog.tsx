@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
+import { VariantConflictDialog, type VariantConflict, type ResolvedUpdate } from "./VariantConflictDialog";
 
 interface BulkTPOSUploadDialogProps {
   open: boolean;
@@ -88,6 +89,13 @@ export function BulkTPOSUploadDialog({
   const [progress, setProgress] = useState<UploadProgress[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Conflict resolution state
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [currentConflicts, setCurrentConflicts] = useState<VariantConflict[]>([]);
+  const [currentVariantsData, setCurrentVariantsData] = useState<any[]>([]);
+  const [currentItem, setCurrentItem] = useState<TPOSProductItem | null>(null);
+  const [currentTPOSProductId, setCurrentTPOSProductId] = useState<number | null>(null);
   
   const totalProducts = items.length;
   
@@ -345,6 +353,266 @@ export function BulkTPOSUploadDialog({
       };
     });
   };
+
+  // Check conflicts with existing products
+  const checkVariantConflicts = async (variantsFromTPOS: any[]): Promise<VariantConflict[]> => {
+    try {
+      const variantCodes = variantsFromTPOS.map(v => v.DefaultCode).filter(Boolean);
+      
+      if (variantCodes.length === 0) return [];
+      
+      // Query existing products
+      const { data: existingProducts } = await supabase
+        .from('products')
+        .select('*')
+        .in('product_code', variantCodes);
+      
+      if (!existingProducts || existingProducts.length === 0) {
+        return [];
+      }
+      
+      const conflicts: VariantConflict[] = [];
+      const existingMap = new Map(
+        existingProducts.map(p => [p.product_code, p])
+      );
+      
+      for (const newVariant of variantsFromTPOS) {
+        const code = newVariant.DefaultCode;
+        if (!code) continue;
+        
+        const existing = existingMap.get(code);
+        
+        if (existing) {
+          const diffFields: string[] = [];
+          
+          // Compare fields
+          const fieldsToCompare = [
+            { field: 'selling_price', tposField: 'PriceVariant' },
+            { field: 'purchase_price', tposField: 'PurchasePrice' },
+            { field: 'barcode', tposField: 'Barcode' },
+            { field: 'stock_quantity', tposField: 'QtyAvailable' },
+            { field: 'product_name', tposField: 'Name' }
+          ];
+          
+          for (const { field, tposField } of fieldsToCompare) {
+            const oldValue = existing[field];
+            const newValue = newVariant[tposField];
+            
+            if (oldValue !== newValue) {
+              diffFields.push(field);
+            }
+          }
+          
+          if (diffFields.length > 0) {
+            conflicts.push({
+              product_code: code,
+              variant_name: extractVariantName(newVariant),
+              old_data: {
+                selling_price: existing.selling_price,
+                purchase_price: existing.purchase_price,
+                barcode: existing.barcode,
+                stock_quantity: existing.stock_quantity,
+                product_name: existing.product_name
+              },
+              new_data: {
+                selling_price: newVariant.PriceVariant,
+                purchase_price: newVariant.PurchasePrice,
+                barcode: newVariant.Barcode,
+                stock_quantity: newVariant.QtyAvailable,
+                product_name: newVariant.Name
+              },
+              diff_fields: diffFields
+            });
+          }
+        }
+      }
+      
+      return conflicts;
+    } catch (error) {
+      console.error('Error checking conflicts:', error);
+      return [];
+    }
+  };
+
+  // Extract variant name from TPOS variant object
+  const extractVariantName = (variant: any): string => {
+    if (!variant.AttributeValues || variant.AttributeValues.length === 0) {
+      return "-";
+    }
+    return variant.AttributeValues.map((av: any) => av.Name).join(", ");
+  };
+
+  // Handle conflict resolution
+  const handleResolveConflicts = async (resolvedUpdates: ResolvedUpdate[]) => {
+    if (!currentVariantsData || !currentItem || currentTPOSProductId === null) {
+      return;
+    }
+
+    try {
+      // Batch update variants with error handling
+      await batchUpdateVariants(
+        currentVariantsData,
+        resolvedUpdates,
+        currentItem,
+        currentTPOSProductId
+      );
+      
+      // Mark as success
+      setProgress(prev => prev.map((p) => 
+        p.itemId === currentItem.id 
+          ? { ...p, status: 'success' } 
+          : p
+      ));
+      
+      toast({
+        title: "✅ Đã cập nhật variants",
+        description: `Đã cập nhật ${resolvedUpdates.length} variants vào kho`
+      });
+    } catch (error: any) {
+      // Error already handled in batchUpdateVariants
+      console.error('Error resolving conflicts:', error);
+    }
+    
+    // Reset conflict state
+    setCurrentConflicts([]);
+    setCurrentVariantsData([]);
+    setCurrentItem(null);
+    setCurrentTPOSProductId(null);
+  };
+
+  // Batch update variants with error handling (stop on first error, no rollback)
+  const batchUpdateVariants = async (
+    variantsFromTPOS: any[],
+    resolvedUpdates: ResolvedUpdate[],
+    baseItem: TPOSProductItem,
+    tposProductId: number
+  ): Promise<void> => {
+    const updateMap = new Map(
+      resolvedUpdates.map(u => [u.product_code, u.fields_to_update])
+    );
+    
+    for (const variant of variantsFromTPOS) {
+      const code = variant.DefaultCode;
+      if (!code) continue;
+      
+      const fieldsToUpdate = updateMap.get(code);
+      if (!fieldsToUpdate || fieldsToUpdate.length === 0) {
+        continue;
+      }
+      
+      try {
+        // Build update object with base required fields
+        const updateData: any = {
+          product_code: code,
+          product_name: variant.Name || baseItem.product_name,
+          base_product_code: baseItem.product_code,
+          supplier_name: baseItem.supplier_name,
+          product_images: baseItem.product_images,
+          price_images: baseItem.price_images,
+          tpos_product_id: tposProductId,
+          productid_bienthe: variant.Id,
+          tpos_image_url: variant.ImageUrl,
+          variant: extractVariantName(variant),
+          updated_at: new Date().toISOString()
+        };
+        
+        // Add only the fields user selected to update
+        for (const field of fieldsToUpdate) {
+          switch (field) {
+            case 'selling_price':
+              updateData.selling_price = variant.PriceVariant || 0;
+              break;
+            case 'purchase_price':
+              updateData.purchase_price = variant.PurchasePrice || 0;
+              break;
+            case 'barcode':
+              updateData.barcode = variant.Barcode;
+              break;
+            case 'stock_quantity':
+              updateData.stock_quantity = variant.QtyAvailable || 0;
+              break;
+            case 'product_name':
+              updateData.product_name = variant.Name;
+              break;
+          }
+        }
+        
+        // Upsert single variant
+        const { error } = await supabase
+          .from('products')
+          .upsert([updateData], {
+            onConflict: 'product_code'
+          });
+        
+        if (error) {
+          // STOP IMMEDIATELY ON ERROR
+          throw new Error(`Lỗi update variant ${code}: ${error.message}`);
+        }
+        
+      } catch (error: any) {
+        // Stop immediately, no rollback
+        toast({
+          variant: "destructive",
+          title: "❌ Lỗi mạng",
+          description: `Đã dừng process khi update variant ${code}. Lỗi: ${error.message}`
+        });
+        
+        setProgress(prev => prev.map((p) => 
+          p.itemId === baseItem.id 
+            ? { ...p, status: 'error', error: `Lỗi mạng tại variant ${code}` }
+            : p
+        ));
+        
+        throw error;
+      }
+    }
+  };
+
+  // Upsert all variants without conflicts
+  const batchUpsertVariants = async (
+    variantsFromTPOS: any[],
+    baseItem: TPOSProductItem,
+    tposProductId: number
+  ): Promise<void> => {
+    try {
+      const variantRecords = variantsFromTPOS.map(variant => ({
+        product_code: variant.DefaultCode,
+        product_name: variant.Name,
+        variant: extractVariantName(variant),
+        selling_price: variant.PriceVariant || 0,
+        purchase_price: variant.PurchasePrice || 0,
+        barcode: variant.Barcode,
+        stock_quantity: variant.QtyAvailable || 0,
+        base_product_code: baseItem.product_code,
+        supplier_name: baseItem.supplier_name,
+        product_images: baseItem.product_images,
+        price_images: baseItem.price_images,
+        tpos_product_id: tposProductId,
+        productid_bienthe: variant.Id,
+        tpos_image_url: variant.ImageUrl,
+        updated_at: new Date().toISOString()
+      }));
+      
+      const { error } = await supabase
+        .from('products')
+        .upsert(variantRecords, {
+          onConflict: 'product_code',
+          ignoreDuplicates: false
+        });
+      
+      if (error) {
+        throw error;
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi lưu variants",
+        description: error.message
+      });
+      throw error;
+    }
+  };
+  
   
   const handleUpload = async () => {
     if (selectedIds.size === 0) {
@@ -500,24 +768,65 @@ export function BulkTPOSUploadDialog({
           throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
         }
 
-        // STEP 7: Handle response
-        let tposResponse: any = { Id: null, ImageUrl: null };
+        // STEP 7: Handle response and fetch variants
+        let tposProductId: number | null = null;
         
         if (response.status === 204) {
           // Success - No Content
-          // Do nothing, just mark as success
+          throw new Error("TPOS không trả về Product ID");
         } else if (response.ok) {
           // Success - With JSON response
-          tposResponse = await response.json();
+          const tposResponse = await response.json();
+          tposProductId = tposResponse.Id;
         }
         
-        // Create/update product in Supabase after successful upload
-        await createOrUpdateProductInSupabase(item, tposResponse);
+        if (!tposProductId) {
+          throw new Error("Không lấy được TPOS Product ID");
+        }
         
-        successCount++;
-        setProgress(prev => prev.map((p) => 
-          p.itemId === item.id ? { ...p, status: 'success' } : p
-        ));
+        // STEP 8: Fetch variants from TPOS
+        const fetchUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
+        const fetchResponse = await fetch(fetchUrl, { headers });
+        
+        if (!fetchResponse.ok) {
+          throw new Error("Không thể lấy thông tin variants từ TPOS");
+        }
+        
+        const productData = await fetchResponse.json();
+        const variantsFromTPOS = productData.ProductVariants || [];
+        
+        // STEP 9: Check for conflicts
+        const conflicts = await checkVariantConflicts(variantsFromTPOS);
+        
+        if (conflicts.length > 0) {
+          // Show conflict dialog - pause upload
+          setCurrentConflicts(conflicts);
+          setCurrentVariantsData(variantsFromTPOS);
+          setCurrentItem(item);
+          setCurrentTPOSProductId(tposProductId);
+          setShowConflictDialog(true);
+          
+          // Mark as pending conflict resolution
+          setProgress(prev => prev.map((p) => 
+            p.itemId === item.id 
+              ? { ...p, status: 'uploading', error: `Chờ xử lý ${conflicts.length} conflicts...` } 
+              : p
+          ));
+          
+          // IMPORTANT: Don't increment success count yet
+          // Wait for user to resolve conflicts
+          return; // Exit early, will continue after conflict resolution
+        } else {
+          // No conflicts - direct upsert
+          await batchUpsertVariants(variantsFromTPOS, item, tposProductId);
+          
+          successCount++;
+          setProgress(prev => prev.map((p) => 
+            p.itemId === item.id 
+              ? { ...p, status: 'success' } 
+              : p
+          ));
+        }
       } catch (error) {
         errorCount++;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -554,50 +863,6 @@ export function BulkTPOSUploadDialog({
     }
   };
   
-  // Create or update product in Supabase after successful TPOS upload
-  const createOrUpdateProductInSupabase = async (item: TPOSProductItem, tposResponse: any) => {
-    try {
-      // Extract TPOS product ID and image URL from response
-      const tposProductId = tposResponse?.Id || tposResponse?.id;
-      const tposImageUrl = tposResponse?.ImageUrl || tposResponse?.imageUrl;
-      
-      const productData = {
-        product_code: item.product_code,
-        product_name: item.product_name,
-        variant: item.variant || null,
-        selling_price: item.selling_price || 0,
-        purchase_price: item.unit_price || 0,
-        base_product_code: item.base_product_code || null,
-        supplier_name: item.supplier_name || null,
-        tpos_product_id: tposProductId,
-        tpos_image_url: tposImageUrl,
-      };
-      
-      // Check if product exists
-      const { data: existing } = await supabase
-        .from('products')
-        .select('id')
-        .eq('product_code', item.product_code)
-        .maybeSingle();
-      
-      if (existing) {
-        // Update existing product
-        await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', existing.id);
-      } else {
-        // Insert new product
-        await supabase
-          .from('products')
-          .insert(productData);
-      }
-    } catch (error) {
-      console.error('Failed to create/update product in Supabase:', error);
-      // Don't throw - we still consider the upload successful
-    }
-  };
-  
   const getStatusIcon = (status: UploadStatus) => {
     switch (status) {
       case 'success':
@@ -627,8 +892,16 @@ export function BulkTPOSUploadDialog({
   const progressPercentage = selectedIds.size > 0 ? (currentIndex / selectedIds.size) * 100 : 0;
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+    <>
+      <VariantConflictDialog
+        open={showConflictDialog}
+        onOpenChange={setShowConflictDialog}
+        conflicts={currentConflicts}
+        onResolve={handleResolveConflicts}
+      />
+      
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload sản phẩm lên TPOS (InsertV2)</DialogTitle>
           <DialogDescription>
@@ -742,5 +1015,6 @@ export function BulkTPOSUploadDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
