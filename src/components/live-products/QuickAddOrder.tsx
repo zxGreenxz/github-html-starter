@@ -11,7 +11,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
-import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
 interface QuickAddOrderProps {

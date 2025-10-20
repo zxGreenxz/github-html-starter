@@ -34,8 +34,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { TextToImagePrinter } from "./TextToImagePrinter";
-import { TextToPdfPrinter } from "./TextToPdfPrinter";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1089,12 +1087,6 @@ Date: ${new Date().toLocaleString("vi-VN")}
           </Dialog>
         </CardContent>
       </Card>
-
-      {/* Text to Image Printer */}
-      <TextToImagePrinter />
-
-      {/* Text to PDF Printer */}
-      <TextToPdfPrinter />
     </div>
   );
 }
