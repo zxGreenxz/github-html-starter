@@ -15,6 +15,7 @@ interface VariantGeneratorDialogProps {
   currentItem: {
     product_code: string;
     product_name: string;
+    variant?: string;
   };
   onVariantsGenerated: (variantText: string) => void;
 }
@@ -33,6 +34,53 @@ export function VariantGeneratorDialog({
   const [sizeNumberFilter, setSizeNumberFilter] = useState("");
 
 
+  // Auto-fill checkboxes from parent product variant string
+  useEffect(() => {
+    if (open && currentItem.variant) {
+      // Parse variant string: "M, ĐỎ, ĐEN, TRẮNG, XÁM, 31"
+      const variantArray = currentItem.variant
+        .split(',')
+        .map(v => v.trim())
+        .filter(v => v.length > 0);
+      
+      const newSizeText: string[] = [];
+      const newColors: string[] = [];
+      const newSizeNumber: string[] = [];
+      
+      variantArray.forEach(variant => {
+        // Check if it's a text size (S, M, L, XL, etc.)
+        const sizeTextMatch = TPOS_ATTRIBUTES.sizeText.find(
+          item => item.Name.toUpperCase() === variant.toUpperCase()
+        );
+        if (sizeTextMatch) {
+          newSizeText.push(sizeTextMatch.Name);
+          return;
+        }
+        
+        // Check if it's a color
+        const colorMatch = TPOS_ATTRIBUTES.color.find(
+          item => item.Name.toUpperCase() === variant.toUpperCase()
+        );
+        if (colorMatch) {
+          newColors.push(colorMatch.Name);
+          return;
+        }
+        
+        // Check if it's a number size
+        const sizeNumberMatch = TPOS_ATTRIBUTES.sizeNumber.find(
+          item => item.Name === variant
+        );
+        if (sizeNumberMatch) {
+          newSizeNumber.push(sizeNumberMatch.Name);
+          return;
+        }
+      });
+      
+      setSelectedSizeText(newSizeText);
+      setSelectedColors(newColors);
+      setSelectedSizeNumber(newSizeNumber);
+    }
+  }, [open, currentItem.variant]);
 
   const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
     if (type === 'sizeText') {

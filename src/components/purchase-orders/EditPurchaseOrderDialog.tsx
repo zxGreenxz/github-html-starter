@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
@@ -89,6 +90,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [shippingFee, setShippingFee] = useState<number>(0);
   const [showShippingFee, setShowShippingFee] = useState(false);
+  const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
+  const [variantsMap, setVariantsMap] = useState<Record<string, any[]>>({});
+  const [parentProductVariant, setParentProductVariant] = useState<string>("");
   const [items, setItems] = useState<PurchaseOrderItem[]>([
     { 
       product_code: "",
@@ -267,6 +271,45 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     
     setItems(newItems);
   };
+
+  const toggleExpandVariants = (index: number, open: boolean) => {
+    setExpandedVariants(prev => ({
+      ...prev,
+      [index]: open
+    }));
+  };
+
+  // Load variants when product codes change
+  useEffect(() => {
+    const loadVariantsForItems = async () => {
+      const productCodes = items
+        .map(item => item._tempProductCode)
+        .filter(code => code && code.trim().length > 0);
+      
+      if (productCodes.length === 0) return;
+      
+      const uniqueCodes = Array.from(new Set(productCodes));
+      const newVariantsMap: Record<string, any[]> = {};
+      
+      for (const code of uniqueCodes) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_code, product_name, variant")
+          .eq("base_product_code", code)
+          .not("variant", "is", null)
+          .neq("variant", "")
+          .neq("product_code", code);
+        
+        if (!error && data) {
+          newVariantsMap[code] = data;
+        }
+      }
+      
+      setVariantsMap(newVariantsMap);
+    };
+    
+    loadVariantsForItems();
+  }, [items.map(i => i._tempProductCode).join(',')]);
 
   const addItem = () => {
     setItems([...items, {
@@ -612,7 +655,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   };
 
-  const openVariantGenerator = (index: number) => {
+  const openVariantGenerator = async (index: number) => {
     const item = items[index];
     
     // Validation: Check all required fields
@@ -631,6 +674,19 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         variant: "destructive"
       });
       return;
+    }
+    
+    // Fetch variant string from parent product in database
+    const { data, error } = await supabase
+      .from("products")
+      .select("variant")
+      .eq("product_code", item._tempProductCode)
+      .single();
+    
+    if (!error && data?.variant) {
+      setParentProductVariant(data.variant);
+    } else {
+      setParentProductVariant("");
     }
     
     setVariantGeneratorIndex(index);
@@ -945,27 +1001,73 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <VariantDropdownSelector
-                            baseProductCode={item._tempProductCode}
-                            value={item._tempVariant}
-                            onChange={(value) => updateItem(index, "_tempVariant", value)}
-                            onVariantSelect={(data) => {
-                              updateItem(index, "_tempProductCode", data.productCode);
-                              updateItem(index, "_tempProductName", data.productName);
-                              updateItem(index, "_tempVariant", data.variant);
-                            }}
-                            className="flex-1"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => openVariantGenerator(index)}
-                            title="Tạo biến thể tự động"
-                          >
-                            <Sparkles className="h-4 w-4" />
-                          </Button>
+                        <div className="space-y-2">
+                          {/* Input chính + nút Sparkles */}
+                          <div className="flex items-center gap-1">
+                            <VariantDropdownSelector
+                              baseProductCode={item._tempProductCode}
+                              value={item._tempVariant}
+                              onChange={(value) => updateItem(index, "_tempVariant", value)}
+                              onVariantSelect={(data) => {
+                                updateItem(index, "_tempProductCode", data.productCode);
+                                updateItem(index, "_tempProductName", data.productName);
+                                updateItem(index, "_tempVariant", data.variant);
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => openVariantGenerator(index)}
+                              title="Tạo biến thể tự động"
+                            >
+                              <Sparkles className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Collapsible danh sách biến thể */}
+                          {variantsMap[item._tempProductCode] && variantsMap[item._tempProductCode].length > 0 && (
+                            <Collapsible 
+                              open={expandedVariants[index]} 
+                              onOpenChange={(open) => toggleExpandVariants(index, open)}
+                            >
+                              <CollapsibleTrigger asChild>
+                                <div className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors">
+                                  <ChevronDown className={cn(
+                                    "w-3 h-3 transition-transform",
+                                    expandedVariants[index] ? "" : "-rotate-90"
+                                  )} />
+                                  <span>
+                                    {variantsMap[item._tempProductCode].length} biến thể
+                                  </span>
+                                </div>
+                              </CollapsibleTrigger>
+                              
+                              <CollapsibleContent>
+                                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto border rounded p-2 bg-muted/30">
+                                  {variantsMap[item._tempProductCode].map((variant: any) => (
+                                    <div
+                                      key={variant.id}
+                                      onClick={() => {
+                                        updateItem(index, "_tempProductCode", variant.product_code);
+                                        updateItem(index, "_tempProductName", variant.product_name);
+                                        updateItem(index, "_tempVariant", variant.variant);
+                                      }}
+                                      className={cn(
+                                        "flex items-center justify-between p-2 rounded cursor-pointer transition-colors text-xs",
+                                        "hover:bg-accent",
+                                        variant.variant === item._tempVariant && "bg-primary/10 border border-primary/20"
+                                      )}
+                                    >
+                                      <span className="font-medium">{variant.variant}</span>
+                                      <span className="text-muted-foreground">{variant.product_code}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -1128,7 +1230,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           onOpenChange={setIsVariantDialogOpen}
           currentItem={{
             product_code: items[variantGeneratorIndex]._tempProductCode,
-            product_name: items[variantGeneratorIndex]._tempProductName
+            product_name: items[variantGeneratorIndex]._tempProductName,
+            variant: parentProductVariant
           }}
           onVariantsGenerated={(variantText) => {
             handleVariantsGenerated(variantGeneratorIndex, variantText);
