@@ -482,11 +482,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             product_code: variant.product_code,
             product_name: variant.product_name,
             variant: variant.variant,
-            purchase_price: variant.purchase_price / 1000, // Convert from VND to thousands for form display
-            selling_price: variant.selling_price / 1000, // Convert from VND to thousands for form display
+            purchase_price: variant.purchase_price,
+            selling_price: variant.selling_price,
             product_images: [...(variant.product_images || [])],
             price_images: [...(variant.price_images || [])],
-            _tempTotalPrice: variant.purchase_price / 1000, // Convert from VND to thousands for form display
+            _tempTotalPrice: variant.purchase_price,
           };
         });
         
