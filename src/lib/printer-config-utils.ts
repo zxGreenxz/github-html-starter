@@ -75,8 +75,18 @@ export const generatePrintHTML = (
       <meta charset="UTF-8">
       <meta name="viewport" content="width=${settings.width}, initial-scale=1.0">
       <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: ${settings.width}px; margin: 0; padding: 0; background: white; }
+        * { 
+          margin: 0; 
+          padding: 0; 
+          box-sizing: border-box; 
+        }
+        html, body { 
+          width: ${settings.width}px; 
+          margin: 0; 
+          padding: 0; 
+          background: white; 
+          overflow-x: hidden;
+        }
         body { 
           width: ${settings.width}px;
           min-width: ${settings.width}px;
@@ -87,14 +97,82 @@ export const generatePrintHTML = (
           font-weight: ${fontWeight};
           font-style: ${fontStyle};
         }
-        .${alignClass} { text-align: ${settings.alignment}; width: 100%; }
-        .session { font-size: ${settings.fontSession}px; margin: ${settings.lineSpacing}px 0; letter-spacing: 2px; text-shadow: 2px 2px 0px #000; }
-        .phone { font-size: ${settings.fontPhone}px; margin: ${settings.lineSpacing}px 0; }
-        .customer { font-size: ${settings.fontCustomer}px; margin: ${settings.lineSpacing}px 0; }
-        .product-code { font-size: ${settings.fontProduct}px; margin: ${settings.lineSpacing}px 0; }
-        .product-name { font-size: ${settings.fontProduct}px; margin: ${settings.lineSpacing}px 0; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; white-space: normal; max-width: 100%; hyphens: auto; }
-        .comment { font-size: ${settings.fontProduct - 4}px; margin: ${settings.lineSpacing}px 0; font-weight: 900; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; white-space: normal; max-width: 100%; hyphens: auto; }
-        .time { font-size: ${settings.fontProduct - 8}px; margin: ${settings.lineSpacing * 1.5}px 0; }
+        .${alignClass} { 
+          text-align: ${settings.alignment}; 
+          width: 100%; 
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
+        .session { 
+          font-size: ${settings.fontSession}px; 
+          margin: ${settings.lineSpacing}px 0; 
+          letter-spacing: 2px; 
+          text-shadow: 2px 2px 0px #000;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+        }
+        .phone { 
+          font-size: ${settings.fontPhone}px; 
+          margin: ${settings.lineSpacing}px 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+        }
+        .customer { 
+          font-size: ${settings.fontCustomer}px; 
+          margin: ${settings.lineSpacing}px 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+        }
+        .product-code { 
+          font-size: ${settings.fontProduct}px; 
+          margin: ${settings.lineSpacing}px 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+        }
+        .product-name { 
+          font-size: ${settings.fontProduct}px; 
+          margin: ${settings.lineSpacing}px 0; 
+          line-height: 1.4;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+          hyphens: auto;
+        }
+        .comment { 
+          font-size: ${settings.fontProduct - 4}px; 
+          margin: ${settings.lineSpacing}px 0; 
+          font-weight: 900;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+          hyphens: auto;
+        }
+        .time { 
+          font-size: ${settings.fontProduct - 8}px; 
+          margin: ${settings.lineSpacing * 1.5}px 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-word;
+          white-space: normal;
+          max-width: 100%;
+        }
       </style>
     </head>
     <body>
