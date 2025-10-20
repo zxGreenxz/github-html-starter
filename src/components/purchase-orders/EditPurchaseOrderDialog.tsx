@@ -559,16 +559,16 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           _tempProductCode: variant.product_code,
           _tempProductName: variant.product_name,
           _tempVariant: variant.variant,
-          _tempUnitPrice: variant.purchase_price,
-          _tempSellingPrice: variant.selling_price,
+          _tempUnitPrice: variant.purchase_price / 1000, // Convert from VND to thousands for form display
+          _tempSellingPrice: variant.selling_price / 1000, // Convert from VND to thousands for form display
           _tempProductImages: variant.product_images,
           _tempPriceImages: variant.price_images,
-          _tempTotalPrice: variant.purchase_price,
+          _tempTotalPrice: variant.purchase_price / 1000, // Convert from VND to thousands for form display
           product_code: variant.product_code,
           product_name: variant.product_name,
           variant: variant.variant,
-          purchase_price: variant.purchase_price * 1000,
-          selling_price: variant.selling_price * 1000,
+          purchase_price: variant.purchase_price / 1000, // Convert from VND to thousands for form display
+          selling_price: variant.selling_price / 1000, // Convert from VND to thousands for form display
           product_images: variant.product_images,
           price_images: variant.price_images,
         }));

@@ -273,8 +273,8 @@ async function fetchAndSaveVariantsFromTPOS(
       // Generate variant product code (base code + variant suffix if needed)
       const variantCode = variant.DefaultCode || baseProductCode;
       
-      // TPOS returns prices in VND, but DB expects VND * 1000
-      // baseProductData prices are already in VND format (divided by 1000 before passing in)
+      // TPOS returns prices in actual VND (e.g., 120000)
+      // Store as-is in database (120000 VND)
       const sellingPriceVND = variant.PriceVariant || baseProductData.selling_price;
       const purchasePriceVND = variant.PurchasePrice || baseProductData.purchase_price;
 
@@ -282,8 +282,8 @@ async function fetchAndSaveVariantsFromTPOS(
         product_code: variantCode,
         product_name: variant.Name || variant.NameGet,
         variant: variantText,
-        selling_price: sellingPriceVND * 1000, // Convert to DB format
-        purchase_price: purchasePriceVND * 1000, // Convert to DB format
+        selling_price: sellingPriceVND, // Store actual VND from TPOS
+        purchase_price: purchasePriceVND, // Store actual VND from TPOS
         stock_quantity: variant.QtyAvailable || 0,
         supplier_name: baseProductData.supplier_name,
         price_images: baseProductData.price_images,
