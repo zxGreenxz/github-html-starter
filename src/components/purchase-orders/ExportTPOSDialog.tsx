@@ -300,7 +300,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           .from("products")
           .insert({
             product_code: rootProductCode,
-            base_product_code: rootProductCode, // ✅ THÊM
             product_name: item.product_name,
             variant: null,
             purchase_price: item.unit_price || 0,
@@ -346,7 +345,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           .from("products")
           .insert({
             product_code: rootProductCode,
-            base_product_code: rootProductCode, // ✅ THÊM
             product_name: item.product_name,
             variant: variantName,
             purchase_price: item.unit_price || 0,
@@ -382,7 +380,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           .from("products")
           .insert({
             product_code: rootProductCode,
-            base_product_code: rootProductCode, // ✅ THÊM
             product_name: firstItem.product_name,
             variant: null,
             purchase_price: firstItem.unit_price || 0,
@@ -392,7 +389,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
             price_images: firstItem.price_images?.length > 0 ? firstItem.price_images : null,
             stock_quantity: 0, // Base product has 0 stock, variants hold the stock
             unit: 'Cái',
-            tpos_product_id: tposProductId // ✅ Save parent's TPOS ID
+            tpos_product_id: tposProductId
           });
         
         if (!error) {
@@ -517,7 +514,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
             .from("products")
             .insert({
               product_code: variantProductCode,
-              base_product_code: rootProductCode, // ✅ THÊM
               product_name: fullProductName,
               variant: variantName,
               purchase_price: item.unit_price || 0,

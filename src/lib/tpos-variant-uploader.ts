@@ -310,22 +310,6 @@ async function fetchAndSaveVariantsFromTPOS(
     }
 
     onProgress?.(`✅ Đã lưu ${variants.length} variants vào kho thành công`);
-
-    // ✅ Update parent product with tpos_product_id
-    const { error: parentUpdateError } = await supabase
-      .from('products')
-      .update({ 
-        tpos_product_id: tposProductId // ✅ Save parent product's TPOS ID
-      })
-      .eq('product_code', baseProductCode)
-      .eq('base_product_code', baseProductCode); // Only update parent
-
-    if (parentUpdateError) {
-      console.error("Error updating parent product with TPOS ID:", parentUpdateError);
-      // Don't throw - variants are already saved
-    } else {
-      console.log(`✅ Updated parent product ${baseProductCode} with tpos_product_id: ${tposProductId}`);
-    }
     
     // Return the variant products for adding to purchase order (prices in VND format for UI)
     const resultVariants = variantProducts.map(vp => ({
