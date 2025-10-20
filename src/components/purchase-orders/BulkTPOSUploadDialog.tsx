@@ -794,7 +794,7 @@ export function BulkTPOSUploadDialog({
             updated_at: new Date().toISOString()
           })
           .eq('product_code', code)
-          .is('variant', null); // Only update parent product (variant = null)
+          .eq('base_product_code', code); // Parent luôn có base_product_code = product_code
 
         if (updateError) {
           console.error(`[Upload TPOS] Failed to update parent product:`, updateError);
