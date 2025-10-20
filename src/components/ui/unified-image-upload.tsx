@@ -34,6 +34,7 @@ export function UnifiedImageUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
@@ -126,8 +127,8 @@ export function UnifiedImageUpload({
   };
 
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
-    // Only process if this component contains the focused element
-    if (!containerRef.current?.contains(document.activeElement)) return;
+    // Only process if this component is focused or hovered
+    if (!isHovered && !containerRef.current?.contains(document.activeElement)) return;
     
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -146,7 +147,7 @@ export function UnifiedImageUpload({
       e.stopPropagation();
       await handleFiles(imageFiles);
     }
-  }, [handleFiles]);
+  }, [handleFiles, isHovered]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -236,6 +237,8 @@ export function UnifiedImageUpload({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         className={`
           relative min-h-[140px] p-6 rounded-lg border-2 transition-all cursor-pointer
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
