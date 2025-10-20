@@ -70,26 +70,35 @@ export function PrinterConfigManager() {
     comment: 'Ít đường'
   });
 
+  // Check server status - check default bridge URL or active printer's URL
+  const checkServer = async (printersList: NetworkPrinter[] = printers) => {
+    try {
+      // Try to check server using active printer's bridge URL if exists,
+      // otherwise use default localhost:3001
+      const activePrinter = printersList.find(p => p.isActive);
+      const bridgeUrl = activePrinter?.bridgeUrl || newBridgeUrl || 'http://localhost:3001';
+      
+      const response = await fetch(`${bridgeUrl}/health`);
+      setServerOnline(response.ok);
+    } catch (error) {
+      console.error('Server check failed:', error);
+      setServerOnline(false);
+    }
+  };
+
   // Load printers on mount
   useEffect(() => {
     const loaded = loadPrinters();
     setPrinters(loaded);
-    checkServer();
-    const interval = setInterval(checkServer, 5000);
+    checkServer(loaded);
+    const interval = setInterval(() => checkServer(), 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Check server status
-  const checkServer = async () => {
-    const activePrinter = printers.find(p => p.isActive);
-    if (!activePrinter) {
-      setServerOnline(false);
-      return;
-    }
-
-    const result = await testPrinterConnection(activePrinter);
-    setServerOnline(result.success);
-  };
+  // Re-check server when printers change
+  useEffect(() => {
+    checkServer(printers);
+  }, [printers]);
 
   // Printer management
   const handleAddPrinter = () => {
