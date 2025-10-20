@@ -53,6 +53,134 @@ export function ActivityDetailDialog({
     return labels[tableName] || tableName;
   };
 
+  const getFieldLabel = (fieldName: string): string => {
+    const labelMap: Record<string, string> = {
+      // Common fields
+      id: "ID",
+      created_at: "Thời gian tạo",
+      updated_at: "Thời gian cập nhật",
+      user_id: "ID người dùng",
+      username: "Tên đăng nhập",
+      
+      // Products
+      product_name: "Tên sản phẩm",
+      product_code: "Mã sản phẩm",
+      base_product_code: "Mã sản phẩm gốc",
+      variant: "Biến thể",
+      product_images: "Hình ảnh sản phẩm",
+      price_images: "Hình ảnh giá",
+      selling_price: "Giá bán",
+      purchase_price: "Giá nhập",
+      stock_quantity: "Số lượng tồn kho",
+      supplier_name: "Tên NCC",
+      category: "Danh mục",
+      unit: "Đơn vị",
+      barcode: "Mã vạch",
+      tpos_product_id: "ID sản phẩm TPOS",
+      tpos_image_url: "Link ảnh TPOS",
+      productid_bienthe: "ID biến thể",
+      
+      // Purchase Orders
+      purchase_order_id: "ID đơn đặt hàng",
+      order_date: "Ngày đặt hàng",
+      invoice_number: "Số hóa đơn",
+      invoice_date: "Ngày hóa đơn",
+      invoice_images: "Hình hóa đơn",
+      total_amount: "Tổng tiền",
+      discount_amount: "Tiền giảm giá",
+      final_amount: "Thành tiền",
+      shipping_fee: "Phí vận chuyển",
+      status: "Trạng thái",
+      notes: "Ghi chú",
+      quantity: "Số lượng",
+      position: "Vị trí",
+      
+      // Live Sessions
+      live_session_id: "ID phiên live",
+      session_name: "Tên phiên",
+      session_date: "Ngày phiên",
+      session_index: "STT",
+      start_date: "Ngày bắt đầu",
+      end_date: "Ngày kết thúc",
+      
+      // Live Products
+      live_product_id: "ID sản phẩm live",
+      product_type: "Loại sản phẩm",
+      prepared_quantity: "SL chuẩn bị",
+      sold_quantity: "SL đã bán",
+      image_url: "Link ảnh",
+      note: "Ghi chú",
+      
+      // Live Orders
+      order_count: "Số đơn",
+      is_oversell: "Oversell",
+      upload_status: "Trạng thái upload",
+      uploaded_at: "Thời gian upload",
+      tpos_order_id: "ID đơn TPOS",
+      code_tpos_order_id: "Mã đơn TPOS",
+      
+      // Goods Receiving
+      goods_receiving_id: "ID phiếu kiểm",
+      purchase_order_item_id: "ID chi tiết đơn hàng",
+      receiving_date: "Ngày kiểm",
+      received_by_user_id: "ID người kiểm",
+      received_by_username: "Người kiểm",
+      expected_quantity: "SL dự kiến",
+      received_quantity: "SL nhận được",
+      discrepancy_quantity: "SL chênh lệch",
+      discrepancy_type: "Loại chênh lệch",
+      product_condition: "Tình trạng SP",
+      item_notes: "Ghi chú mặt hàng",
+      total_items_expected: "Tổng SL dự kiến",
+      total_items_received: "Tổng SL nhận",
+      has_discrepancy: "Có chênh lệch",
+      
+      // Facebook
+      facebook_comment_id: "ID bình luận FB",
+      facebook_user_id: "ID người dùng FB",
+      facebook_user_name: "Tên người dùng FB",
+      facebook_post_id: "ID bài đăng FB",
+      comment_message: "Nội dung bình luận",
+      comment_created_time: "Thời gian bình luận",
+      like_count: "Số lượt thích",
+      tpos_sync_status: "Trạng thái đồng bộ TPOS",
+      tpos_session_index: "STT phiên TPOS",
+      comment_type: "Loại comment",
+      is_deleted: "Đã xóa",
+      is_deleted_by_tpos: "Đã xóa bởi TPOS",
+      last_synced_at: "Lần đồng bộ cuối",
+      last_fetched_at: "Lần lấy cuối",
+      
+      // Customers
+      customer_name: "Tên khách hàng",
+      phone: "Số điện thoại",
+      email: "Email",
+      address: "Địa chỉ",
+      idkh: "Mã KH",
+      customer_status: "Trạng thái KH",
+      info_status: "Trạng thái thông tin",
+      total_orders: "Tổng đơn hàng",
+      total_spent: "Tổng chi tiêu",
+      
+      // Live Phases
+      live_phase_id: "ID giai đoạn",
+      phase_date: "Ngày giai đoạn",
+      phase_type: "Loại giai đoạn",
+      
+      // Livestream Reports
+      report_date: "Ngày báo cáo",
+      morning_duration: "Thời lượng sáng",
+      evening_duration: "Thời lượng tối",
+      morning_ad_cost: "Chi phí quảng cáo sáng",
+      evening_ad_cost: "Chi phí quảng cáo tối",
+      morning_live_orders: "Đơn live sáng",
+      evening_live_orders: "Đơn live tối",
+      total_inbox_orders: "Tổng đơn inbox",
+    };
+    
+    return labelMap[fieldName] || fieldName;
+  };
+
   const renderValue = (value: any): string => {
     if (value === null || value === undefined) return "null";
     if (typeof value === "object") return JSON.stringify(value, null, 2);
@@ -69,10 +197,10 @@ export function ActivityDetailDialog({
         <div className="space-y-2">
           {Object.entries(value).map(([key, val]) => (
             <div key={key} className="flex gap-2">
-              <span className="font-medium min-w-[150px]">{key}:</span>
+              <span className="font-medium min-w-[200px]">{getFieldLabel(key)}:</span>
               <span className="flex-1">
                 {val === null || val === undefined 
-                  ? <span className="text-muted-foreground italic">null</span>
+                  ? <span className="text-muted-foreground italic">Không có</span>
                   : typeof val === "object"
                   ? JSON.stringify(val)
                   : String(val)}
