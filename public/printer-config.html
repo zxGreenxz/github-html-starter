@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cấu hình Máy In - Compact & Bold</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+    .status-online { background-color: #10b981; }
+    .status-offline { background-color: #ef4444; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen p-6">
+  <div id="app" class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <i data-lucide="printer" class="w-8 h-8 text-indigo-600"></i>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800">Cấu hình Máy In</h1>
+            <p class="text-sm text-indigo-600 font-semibold">Compact & Bold Edition</p>
+          </div>
+        </div>
+        <div id="serverStatus" class="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+          <span class="status-dot status-offline"></span>
+          <span class="text-sm text-gray-600">Checking...</span>
+        </div>
+      </div>
+
+      <!-- Printer List -->
+      <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-gray-700">Danh sách máy in</h2>
+          <button onclick="toggleAddForm()" class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            <span>Thêm máy in</span>
+          </button>
+        </div>
+
+        <!-- Add Form -->
+        <div id="addForm" class="bg-gray-50 p-4 rounded-lg mb-4 hidden">
+          <div class="grid grid-cols-2 gap-4">
+            <input type="text" id="printerName" placeholder="Tên máy in (VD: Máy in bếp)" class="border border-gray-300 rounded-lg px-3 py-2">
+            <input type="text" id="printerIp" placeholder="IP Address (VD: 192.168.1.100)" class="border border-gray-300 rounded-lg px-3 py-2">
+            <input type="number" id="printerPort" placeholder="Port" value="9100" class="border border-gray-300 rounded-lg px-3 py-2">
+            <input type="text" id="bridgeUrl" placeholder="Bridge URL" value="http://localhost:3001" class="border border-gray-300 rounded-lg px-3 py-2">
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button onclick="addPrinter()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+              Lưu máy in
+            </button>
+            <button onclick="toggleAddForm()" class="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">
+              Hủy
+            </button>
+          </div>
+        </div>
+
+        <div id="printerList" class="space-y-3"></div>
+      </div>
+
+      <!-- Print Settings -->
+      <div class="mb-8 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-lg border-2 border-indigo-200">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="settings" class="w-6 h-6 text-indigo-600"></i>
+          <h2 class="text-xl font-semibold text-gray-700">Cấu hình in - Compact & Bold</h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Width -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              📏 Width (pixels) - Chiều rộng
+            </label>
+            <select id="width" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+              <option value="576" selected>576px (80mm) - Full Width ⭐</option>
+              <option value="512">512px (72mm) - Large</option>
+              <option value="432">432px (60mm) - Medium</option>
+              <option value="384">384px (54mm) - Compact</option>
+              <option value="custom">Custom...</option>
+            </select>
+            <input type="number" id="customWidth" placeholder="Nhập width (px)" class="border border-gray-300 rounded-lg px-3 py-2 w-full mt-2 hidden" min="200" max="800" step="8">
+            <p class="text-xs text-gray-500 mt-1">📌 576px cho máy in 80mm (phổ biến nhất)</p>
+          </div>
+
+          <!-- Height -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              📐 Height (pixels) - Chiều dài
+            </label>
+            <select id="height" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+              <option value="auto" selected>Auto - Tự động ⭐</option>
+              <option value="800">800px - Ngắn</option>
+              <option value="1000">1000px - Trung bình</option>
+              <option value="1200">1200px - Dài</option>
+              <option value="1500">1500px - Rất dài</option>
+              <option value="custom">Custom...</option>
+            </select>
+            <input type="number" id="customHeight" placeholder="Nhập height (px)" class="border border-gray-300 rounded-lg px-3 py-2 w-full mt-2 hidden" min="400" max="3000" step="100">
+            <p class="text-xs text-gray-500 mt-1">📌 Auto để chiều dài tự động theo nội dung</p>
+          </div>
+
+          <!-- Threshold -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              ⚫ Threshold - Độ đậm chữ
+            </label>
+            <select id="threshold" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+              <option value="85">85 - Rất đậm (blackest)</option>
+              <option value="95" selected>95 - Đậm ⭐</option>
+              <option value="105">105 - Vừa đậm</option>
+              <option value="115">115 - Cân bằng</option>
+              <option value="125">125 - Nhẹ</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">📌 Thấp hơn = chữ đậm hơn. Khuyến nghị: 95</p>
+          </div>
+
+          <!-- Scale -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              🔍 Scale - Tỷ lệ phóng to
+            </label>
+            <select id="scale" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+              <option value="1">1x - Bình thường</option>
+              <option value="1.5">1.5x - Phóng to vừa</option>
+              <option value="2" selected>2x - Phóng to (khuyến nghị) ⭐</option>
+              <option value="2.5">2.5x - Phóng to nhiều</option>
+              <option value="3">3x - Phóng to tối đa</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">📌 Scale cao = chữ nét hơn, file lớn hơn</p>
+          </div>
+        </div>
+
+        <!-- Quality Info -->
+        <div class="mt-4 p-4 bg-white rounded-lg border border-indigo-200">
+          <h3 class="font-semibold text-sm text-indigo-700 mb-2">🎯 Tối ưu hóa hiện tại:</h3>
+          <ul class="text-xs text-gray-600 space-y-1">
+            <li>✅ <strong>Tùy chỉnh kích thước</strong>: Width & Height theo ý bạn</li>
+            <li>✅ <strong>Chữ đậm</strong>: Threshold 95 - dễ đọc hơn</li>
+            <li>✅ <strong>Chất lượng cao</strong>: Scale 2x + sharpening</li>
+            <li>✅ <strong>Font bold</strong>: Arial Black với font-weight 900</li>
+            <li>✅ <strong>Text shadow</strong>: Chữ nét rõ ràng hơn</li>
+          </ul>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+          <h3 class="font-semibold text-sm text-blue-700 mb-2">📊 Kích thước hiện tại:</h3>
+          <div class="grid grid-cols-4 gap-2 text-xs">
+            <div class="bg-white p-2 rounded">
+              <span class="text-gray-600">Width:</span>
+              <span id="widthPreview" class="font-bold text-blue-600 ml-1">576px</span>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <span class="text-gray-600">Height:</span>
+              <span id="heightPreview" class="font-bold text-blue-600 ml-1">Auto</span>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <span class="text-gray-600">Threshold:</span>
+              <span id="thresholdPreview" class="font-bold text-blue-600 ml-1">95</span>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <span class="text-gray-600">Scale:</span>
+              <span id="scalePreview" class="font-bold text-blue-600 ml-1">2x</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test Bill -->
+      <div class="bg-indigo-50 p-6 rounded-lg">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="test-tube" class="w-6 h-6 text-indigo-600"></i>
+          <h2 class="text-xl font-semibold text-gray-700">Test In Bill</h2>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <input type="text" id="sessionIndex" placeholder="Session Index" value="001" class="border border-gray-300 rounded-lg px-3 py-2">
+          <input type="text" id="phone" placeholder="Số điện thoại" value="0901234567" class="border border-gray-300 rounded-lg px-3 py-2">
+          <input type="text" id="customerName" placeholder="Tên khách hàng" value="Nguyễn Văn A" class="border border-gray-300 rounded-lg px-3 py-2">
+          <input type="text" id="productCode" placeholder="Mã sản phẩm" value="SP001" class="border border-gray-300 rounded-lg px-3 py-2">
+          <input type="text" id="productName" placeholder="Tên sản phẩm" value="Cà phê sữa đá" class="border border-gray-300 rounded-lg px-3 py-2 col-span-2">
+          <input type="text" id="comment" placeholder="Ghi chú" value="Ít đường" class="border border-gray-300 rounded-lg px-3 py-2 col-span-2">
+        </div>
+
+        <button onclick="testPrint()" id="printBtn" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition font-semibold flex items-center justify-center gap-2">
+          <i data-lucide="printer" class="w-5 h-5"></i>
+          <span>Test In Bill (Compact & Bold)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let printers = [];
+    let serverOnline = false;
+
+    async function checkServer() {
+      try {
+        const response = await fetch('http://localhost:3001/health');
+        if (response.ok) {
+          serverOnline = true;
+          updateServerStatus(true);
+        } else {
+          serverOnline = false;
+          updateServerStatus(false);
+        }
+      } catch (error) {
+        serverOnline = false;
+        updateServerStatus(false);
+      }
+    }
+
+    function updateServerStatus(online) {
+      const statusEl = document.getElementById('serverStatus');
+      if (online) {
+        statusEl.innerHTML = `
+          <span class="status-dot status-online"></span>
+          <span class="text-sm text-green-600 font-semibold">Server Online</span>
+        `;
+      } else {
+        statusEl.innerHTML = `
+          <span class="status-dot status-offline"></span>
+          <span class="text-sm text-red-600 font-semibold">Server Offline</span>
+        `;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadPrinters();
+      checkServer();
+      setInterval(checkServer, 5000);
+      lucide.createIcons();
+      
+      // Setup custom width/height handlers
+      setupCustomInputs();
+      updatePreview();
+    });
+
+    function setupCustomInputs() {
+      const widthSelect = document.getElementById('width');
+      const heightSelect = document.getElementById('height');
+      const customWidth = document.getElementById('customWidth');
+      const customHeight = document.getElementById('customHeight');
+      const scaleSelect = document.getElementById('scale');
+      const thresholdSelect = document.getElementById('threshold');
+      
+      // Width change handler
+      widthSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+          customWidth.classList.remove('hidden');
+          customWidth.focus();
+        } else {
+          customWidth.classList.add('hidden');
+        }
+        updatePreview();
+      });
+      
+      // Height change handler
+      heightSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+          customHeight.classList.remove('hidden');
+          customHeight.focus();
+        } else {
+          customHeight.classList.add('hidden');
+        }
+        updatePreview();
+      });
+      
+      // Custom input handlers
+      customWidth.addEventListener('input', updatePreview);
+      customHeight.addEventListener('input', updatePreview);
+      scaleSelect.addEventListener('change', updatePreview);
+      thresholdSelect.addEventListener('change', updatePreview);
+    }
+    
+    function updatePreview() {
+      const widthSelect = document.getElementById('width');
+      const heightSelect = document.getElementById('height');
+      const customWidth = document.getElementById('customWidth');
+      const customHeight = document.getElementById('customHeight');
+      const scaleSelect = document.getElementById('scale');
+      const thresholdSelect = document.getElementById('threshold');
+      
+      // Get width
+      let width = widthSelect.value;
+      if (width === 'custom') {
+        width = customWidth.value || '576';
+      }
+      
+      // Get height
+      let height = heightSelect.value;
+      if (height === 'custom') {
+        height = customHeight.value || 'auto';
+      }
+      
+      // Get threshold (always a number)
+      let threshold = parseInt(thresholdSelect.value) || 95;
+      
+      // Update preview
+      document.getElementById('widthPreview').textContent = width + 'px';
+      document.getElementById('heightPreview').textContent = height === 'auto' ? 'Auto' : height + 'px';
+      document.getElementById('scalePreview').textContent = scaleSelect.value + 'x';
+      
+      // Also show threshold in preview
+      const thresholdPreview = document.getElementById('thresholdPreview');
+      if (thresholdPreview) {
+        thresholdPreview.textContent = threshold;
+      }
+    }
+
+    function loadPrinters() {
+      const saved = localStorage.getItem('networkPrinters');
+      if (saved) {
+        printers = JSON.parse(saved);
+        renderPrinters();
+      }
+    }
+
+    function savePrinters() {
+      localStorage.setItem('networkPrinters', JSON.stringify(printers));
+      renderPrinters();
+    }
+
+    function renderPrinters() {
+      const container = document.getElementById('printerList');
+      if (printers.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8 bg-gray-50 rounded-lg">Chưa có máy in nào. Nhấn "Thêm máy in" để bắt đầu.</p>';
+        return;
+      }
+
+      container.innerHTML = printers.map(printer => `
+        <div class="flex items-center justify-between p-4 rounded-lg border-2 ${printer.isActive ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'}">
+          <div class="flex-1">
+            <h3 class="font-semibold text-gray-800">${printer.name}</h3>
+            <p class="text-sm text-gray-600">${printer.ipAddress}:${printer.port}</p>
+            <p class="text-xs text-gray-500">${printer.bridgeUrl}</p>
+          </div>
+          <div class="flex gap-2 items-center">
+            ${printer.isActive ? 
+              '<span class="flex items-center gap-1 text-green-600 font-semibold px-3 py-1 bg-green-100 rounded"><i data-lucide="check" class="w-5 h-5"></i> Active</span>' :
+              `<button onclick="setActivePrinter('${printer.id}')" class="text-blue-600 hover:text-blue-700 px-3 py-1 rounded border border-blue-600 hover:bg-blue-50">Set Active</button>`
+            }
+            <button onclick="deletePrinter('${printer.id}')" class="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded">
+              <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function toggleAddForm() {
+      const form = document.getElementById('addForm');
+      form.classList.toggle('hidden');
+    }
+
+    function addPrinter() {
+      const name = document.getElementById('printerName').value.trim();
+      const ipAddress = document.getElementById('printerIp').value.trim();
+      const port = parseInt(document.getElementById('printerPort').value);
+      const bridgeUrl = document.getElementById('bridgeUrl').value.trim();
+
+      if (!name || !ipAddress) {
+        alert('⚠️ Vui lòng nhập tên và IP máy in!');
+        return;
+      }
+
+      const newPrinter = {
+        id: Date.now().toString(),
+        name,
+        ipAddress,
+        port,
+        bridgeUrl,
+        isActive: printers.length === 0,
+        createdAt: new Date().toISOString()
+      };
+
+      printers.push(newPrinter);
+      savePrinters();
+
+      document.getElementById('printerName').value = '';
+      document.getElementById('printerIp').value = '';
+      document.getElementById('printerPort').value = '9100';
+      document.getElementById('bridgeUrl').value = 'http://localhost:3001';
+      toggleAddForm();
+
+      alert('✅ Đã thêm máy in: ' + name);
+    }
+
+    function deletePrinter(id) {
+      if (confirm('Bạn có chắc muốn xóa máy in này?')) {
+        printers = printers.filter(p => p.id !== id);
+        savePrinters();
+      }
+    }
+
+    function setActivePrinter(id) {
+      printers = printers.map(p => ({...p, isActive: p.id === id}));
+      savePrinters();
+    }
+
+    async function testPrint() {
+      if (!serverOnline) {
+        alert('❌ Server chưa chạy!\n\nVui lòng chạy lệnh: node server.js');
+        return;
+      }
+
+      const activePrinter = printers.find(p => p.isActive);
+      if (!activePrinter) {
+        alert('⚠️ Chưa có máy in active!\n\nVui lòng thêm máy in và set active.');
+        return;
+      }
+
+      const billData = {
+        sessionIndex: document.getElementById('sessionIndex').value,
+        phone: document.getElementById('phone').value,
+        customerName: document.getElementById('customerName').value,
+        productCode: document.getElementById('productCode').value,
+        productName: document.getElementById('productName').value,
+        comment: document.getElementById('comment').value
+      };
+
+      // Get width - ensure it's a number
+      const widthSelect = document.getElementById('width');
+      const customWidth = document.getElementById('customWidth');
+      let width = widthSelect.value === 'custom' ? 
+        parseInt(customWidth.value) || 576 : 
+        parseInt(widthSelect.value) || 576;
+
+      // Get height - can be 'auto' or number
+      const heightSelect = document.getElementById('height');
+      const customHeight = document.getElementById('customHeight');
+      let height = heightSelect.value;
+      if (height === 'custom') {
+        height = parseInt(customHeight.value) || null;
+      } else if (height !== 'auto') {
+        height = parseInt(height) || null;
+      }
+
+      // Get threshold - ensure it's a number
+      const threshold = parseInt(document.getElementById('threshold').value) || 95;
+
+      // Get scale - ensure it's a number
+      const scale = parseFloat(document.getElementById('scale').value) || 2;
+
+      // Validate threshold
+      if (threshold < 0 || threshold > 255) {
+        alert('⚠️ Threshold phải từ 0-255!\n\nVui lòng nhập lại.');
+        return;
+      }
+
+      const btn = document.getElementById('printBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span>Đang in...</span>';
+
+      try {
+        await printViaHTML(activePrinter, billData, width, height, threshold, scale);
+        alert(`✅ In thành công!\n\n📏 Kích thước: ${width}x${height === 'auto' ? 'Auto' : height}px\n⚫ Threshold: ${threshold}\n🔍 Scale: ${scale}x`);
+      } catch (error) {
+        alert(`❌ Lỗi in: ${error.message}\n\nKiểm tra:\n- Bridge server đã chạy?\n- IP máy in đúng?\n- Máy in đã bật và kết nối mạng?`);
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i><span>Test In Bill</span>';
+        lucide.createIcons();
+      }
+    }
+
+    async function printViaHTML(printer, billData, width, threshold) {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              width: 80mm; 
+              font-family: 'Arial Black', Arial, sans-serif; 
+              padding: 5mm;
+              background: white;
+              font-weight: 900;
+            }
+            .center { text-align: center; }
+            .session { 
+              font-size: 36px; 
+              font-weight: 900; 
+              margin: 6px 0;
+              letter-spacing: 2px;
+              text-shadow: 1px 1px 0px #000;
+            }
+            .phone { font-size: 26px; font-weight: 900; margin: 5px 0; letter-spacing: 1px; }
+            .customer { font-size: 26px; font-weight: 900; margin: 5px 0; letter-spacing: 1px; }
+            .product-code { font-size: 18px; font-weight: 900; margin: 5px 0; }
+            .product-name { font-size: 18px; font-weight: 900; margin: 5px 0; line-height: 1.4; }
+            .comment { font-size: 16px; font-weight: 900; font-style: italic; margin: 8px 0; }
+            .price-info { font-size: 16px; font-weight: 900; margin: 6px 0; }
+            .time { font-size: 14px; font-weight: 900; margin: 8px 0; color: #222; }
+            .separator { border-top: 3px dashed #000; margin: 8px 0; }
+            .thank-you { font-size: 14px; font-weight: 900; margin-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="center session">#${billData.sessionIndex}</div>
+          ${billData.phone ? `<div class="center phone">${billData.phone}</div>` : ''}
+          <div class="center customer">${billData.customerName}</div>
+          <div class="product-code">${billData.productCode}</div>
+          <div class="product-name">${billData.productName}</div>
+          ${billData.comment ? `<div class="center comment">${billData.comment}</div>` : ''}
+          <div class="center time">${new Date().toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</div>
+          <div class="separator"></div>
+          <div class="center thank-you">Cảm ơn quý khách!</div>
+        </body>
+        </html>
+      `;
+
+      const response = await fetch(`${printer.bridgeUrl}/print/html`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerIp: printer.ipAddress,
+          printerPort: printer.port,
+          html: htmlContent,
+          width: width,
+          threshold: threshold
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`HTTP ${response.status}: ${error}`);
+      }
+
+      const result = await response.json();
+      console.log('Print result:', result);
+    }
+  </script>
+</body>
+</html>

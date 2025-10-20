@@ -561,14 +561,14 @@ export function FacebookCommentsManager({
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
-      // Auto-print bill
+      // Auto-print bill using new Puppeteer method
       try {
         const [
-          { getActivePrinter, printPDFToXC80 },
-          { generateBillPDF }
+          { getActivePrinter, printHTMLViaPuppeteer },
+          { generateBillHTML }
         ] = await Promise.all([
           import('@/lib/printer-utils'),
-          import('@/lib/bill-pdf-generator')
+          import('@/lib/bill-html-generator')
         ]);
 
         const printer = getActivePrinter();
@@ -591,18 +591,13 @@ export function FacebookCommentsManager({
           createdTime: variables.comment.created_time,
         };
 
-        const pdfDoc = generateBillPDF(billData);
-        const pdfDataUri = pdfDoc.output('datauristring');
+        const billHTML = generateBillHTML(billData);
 
-        // Get print settings from localStorage
-        const printDPI = parseInt(localStorage.getItem('printDPI') || '300');
-        const printThreshold = parseInt(localStorage.getItem('printThreshold') || '115');
-        const printWidth = parseInt(localStorage.getItem('printWidth') || '944');
-
-        const printResult = await printPDFToXC80(printer, pdfDataUri, {
-          dpi: printDPI,
-          threshold: printThreshold,
-          width: printWidth
+        const printResult = await printHTMLViaPuppeteer(printer, billHTML, {
+          width: 576,      // 80mm full width
+          height: null,    // Auto height
+          threshold: 95,   // Bold text
+          scale: 2         // High quality
         });
         
         if (printResult.success) {
