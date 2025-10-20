@@ -1,6 +1,7 @@
 import { SidebarProvider, useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { PrintQueueMonitor } from "@/components/print-queue/PrintQueueMonitor";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect } from "react";
@@ -42,6 +43,9 @@ function LayoutContent({ children }: LayoutProps) {
           {/* Mobile Bottom Navigation */}
           {isMobile && <MobileBottomNav />}
         </div>
+        
+        {/* Print Queue Monitor */}
+        <PrintQueueMonitor />
       </div>
     </SidebarProvider>
   );

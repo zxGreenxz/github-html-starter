@@ -86,6 +86,7 @@ import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
+import { usePrintQueue } from "@/contexts/PrintQueueContext";
 import { InlineProductSelector } from "./InlineProductSelector";
 import { Package } from "lucide-react";
 
@@ -275,6 +276,7 @@ export function FacebookCommentsManager({
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { addJob: addPrintJob } = usePrintQueue();
 
   // ============================================================================
   // STATE MANAGEMENT
@@ -561,9 +563,9 @@ export function FacebookCommentsManager({
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
-      // Auto-print bill using saved printer configuration
+      // Auto-print bill using print queue
       try {
-        const { getActivePrinter, printHTMLToXC80, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
+        const { getActivePrinter, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
 
         const printer = await getActivePrinter();
         if (!printer) {
@@ -636,25 +638,42 @@ export function FacebookCommentsManager({
           }
         );
 
-        const printResult = await printHTMLToXC80(printer, billHTML, {
-          width,
-          height,
-          threshold,
-          scale
+        // Add to print queue instead of direct printing
+        addPrintJob({
+          printer,
+          html: billHTML,
+          settings: {
+            width,
+            height,
+            threshold,
+            scale
+          },
+          priority: 'normal',
+          metadata: {
+            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+            customerName: data.response.Name || variables.comment.from.name,
+            productCode: productCode
+          },
+          callbacks: {
+            onSuccess: () => {
+              console.log('✅ Print job completed from queue');
+            },
+            onError: (job, error) => {
+              console.error('❌ Print job failed:', error);
+              toast({
+                title: "❌ Lỗi in bill",
+                description: error,
+                variant: "destructive",
+              });
+            }
+          }
         });
-        
-        if (printResult.success) {
-          toast({
-            title: "✅ In bill thành công",
-            description: `Đơn #${data.response.SessionIndex?.toString() || data.response.Code || ''}`,
-          });
-        } else {
-          toast({
-            title: "❌ Lỗi in bill",
-            description: printResult.error,
-            variant: "destructive",
-          });
-        }
+
+        toast({
+          title: "📋 Đã thêm vào hàng đợi in",
+          description: `Đơn #${data.response.SessionIndex?.toString() || data.response.Code || ''}`,
+        });
+
       } catch (error: any) {
         console.error('❌ Auto-print error:', error);
         toast({

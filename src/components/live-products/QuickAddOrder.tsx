@@ -10,7 +10,8 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printHTMLToXC80 } from '@/lib/printer-config-utils';
+import { getActivePrinter } from '@/lib/printer-config-utils';
+import { usePrintQueue } from '@/contexts/PrintQueueContext';
 import { toZonedTime } from 'date-fns-tz';
 import { getHours, getMinutes } from 'date-fns';
 interface QuickAddOrderProps {
@@ -43,10 +44,9 @@ export function QuickAddOrder({
 }: QuickAddOrderProps) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addJob: addPrintJob } = usePrintQueue();
 
   // State for hiding comments (client-side only, persisted in localStorage)
   const [hiddenCommentIds, setHiddenCommentIds] = useState<Set<string>>(() => {
@@ -375,23 +375,36 @@ export function QuickAddOrder({
             
             console.log('✅ HTML generated with custom settings');
             
-            // Print via Bridge with saved settings
-            const printResult = await printHTMLToXC80(activePrinter, billHTML, {
-              width,
-              height,
-              threshold,
-              scale
+            // Add to print queue instead of direct printing
+            addPrintJob({
+              printer: activePrinter,
+              html: billHTML,
+              settings: { width, height, threshold, scale },
+              priority: 'normal',
+              metadata: {
+                sessionIndex: billData.sessionIndex,
+                customerName: billData.customerName || '',
+                productCode: billData.productCode || ''
+              },
+              callbacks: {
+                onSuccess: () => {
+                  console.log("✅ Bill printed successfully from queue");
+                },
+                onError: (job, error) => {
+                  console.error('❌ Print job failed:', error);
+                  toast({
+                    title: "❌ Lỗi in bill",
+                    description: error,
+                    variant: "destructive"
+                  });
+                }
+              }
             });
-            
-            if (printResult.success) {
-              console.log("✅ Bill printed successfully");
-              toast({
-                title: "✅ In thành công",
-                description: `Đã in bill cho đơn hàng #${billData.sessionIndex}`,
-              });
-            } else {
-              throw new Error(printResult.error);
-            }
+
+            toast({
+              title: "📋 Đã thêm vào hàng đợi in",
+              description: `Đơn hàng #${billData.sessionIndex}`,
+            });
             
           } catch (error) {
             console.error('❌ Auto-print error:', error);

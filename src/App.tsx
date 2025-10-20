@@ -8,6 +8,7 @@ import { Layout } from "@/components/Layout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BarcodeScannerProvider } from "@/contexts/BarcodeScannerContext";
 import { CommentsSidebarProvider } from "@/contexts/CommentsSidebarContext";
+import { PrintQueueProvider } from "@/contexts/PrintQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Products from "./pages/Products";
@@ -40,7 +41,8 @@ const App = () => (
       <AuthProvider>
         <BarcodeScannerProvider>
           <CommentsSidebarProvider>
-            <TooltipProvider>
+            <PrintQueueProvider>
+              <TooltipProvider>
               <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={
@@ -125,7 +127,8 @@ const App = () => (
               </Routes>
               <Toaster />
               <Sonner />
-            </TooltipProvider>
+              </TooltipProvider>
+            </PrintQueueProvider>
           </CommentsSidebarProvider>
         </BarcodeScannerProvider>
       </AuthProvider>
