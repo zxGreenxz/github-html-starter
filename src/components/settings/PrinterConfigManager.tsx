@@ -47,11 +47,11 @@ export function PrinterConfigManager() {
   const [newBridgeUrl, setNewBridgeUrl] = useState("http://localhost:3001");
 
   // Format settings
-  const [width, setWidth] = useState("1152");
-  const [customWidth, setCustomWidth] = useState("");
-  const [height, setHeight] = useState("auto");
-  const [customHeight, setCustomHeight] = useState("");
-  const [quickHeight, setQuickHeight] = useState("");
+  const [width, setWidth] = useState("1024");
+  const [customWidth, setCustomWidth] = useState("1024");
+  const [height, setHeight] = useState("custom");
+  const [customHeight, setCustomHeight] = useState("600");
+  const [quickHeight, setQuickHeight] = useState("600");
   const [threshold, setThreshold] = useState("95");
   const [scale, setScale] = useState("2");
 
@@ -62,7 +62,7 @@ export function PrinterConfigManager() {
   const [fontProduct, setFontProduct] = useState("36");
 
   // Text styles
-  const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>('center');
+  const [alignment, setAlignment] = useState<"left" | "center" | "right">("center");
   const [isBold, setIsBold] = useState(true);
   const [isItalic, setIsItalic] = useState(false);
 
@@ -77,12 +77,12 @@ export function PrinterConfigManager() {
 
   // Test data
   const [testData, setTestData] = useState<BillData>({
-    sessionIndex: '001',
-    phone: '0901234567',
-    customerName: 'Nguyễn Văn A',
-    productCode: 'SP001',
-    productName: 'Cà phê sữa đá',
-    comment: 'Ít đường'
+    sessionIndex: "001",
+    phone: "0901234567",
+    customerName: "Nguyễn Văn A",
+    productCode: "SP001",
+    productName: "Cà phê sữa đá",
+    comment: "Ít đường",
   });
 
   // Check server status - check default bridge URL or active printer's URL
@@ -90,13 +90,13 @@ export function PrinterConfigManager() {
     try {
       // Try to check server using active printer's bridge URL if exists,
       // otherwise use default localhost:3001
-      const activePrinter = printersList.find(p => p.isActive);
-      const bridgeUrl = activePrinter?.bridgeUrl || newBridgeUrl || 'http://localhost:3001';
-      
+      const activePrinter = printersList.find((p) => p.isActive);
+      const bridgeUrl = activePrinter?.bridgeUrl || newBridgeUrl || "http://localhost:3001";
+
       const response = await fetch(`${bridgeUrl}/health`);
       setServerOnline(response.ok);
     } catch (error) {
-      console.error('Server check failed:', error);
+      console.error("Server check failed:", error);
       setServerOnline(false);
     }
   };
@@ -106,11 +106,11 @@ export function PrinterConfigManager() {
     const loadData = async () => {
       const loaded = await loadPrinters();
       setPrinters(loaded);
-      
+
       // Load templates
       const loadedTemplates = await loadTemplates();
       setTemplates(loadedTemplates);
-      
+
       // Load saved format settings
       const savedSettings = await loadFormatSettings();
       if (savedSettings) {
@@ -130,10 +130,10 @@ export function PrinterConfigManager() {
         setIsBold(savedSettings.isBold);
         setIsItalic(savedSettings.isItalic);
       }
-      
+
       checkServer(loaded);
     };
-    
+
     loadData();
     const interval = setInterval(() => checkServer(), 5000);
     return () => clearInterval(interval);
@@ -187,7 +187,7 @@ export function PrinterConfigManager() {
   const handleDeletePrinter = async (id: string) => {
     const success = await deletePrinter(id);
     if (success) {
-      setPrinters(printers.filter(p => p.id !== id));
+      setPrinters(printers.filter((p) => p.id !== id));
       toast({
         title: "Đã xóa",
         description: "Máy in đã được xóa",
@@ -198,22 +198,22 @@ export function PrinterConfigManager() {
   const handleSetActivePrinter = async (id: string) => {
     const success = await updatePrinter(id, { isActive: true });
     if (success) {
-      setPrinters(printers.map(p => ({ ...p, isActive: p.id === id })));
+      setPrinters(printers.map((p) => ({ ...p, isActive: p.id === id })));
       checkServer();
     }
   };
 
   // Get current width/height
   const getCurrentWidth = (): number => {
-    if (width === 'custom') {
-      return parseInt(customWidth) || 1152;
+    if (width === "custom") {
+      return parseInt(customWidth) || 1024;
     }
     return parseInt(width);
   };
 
   const getCurrentHeight = (): number | null => {
-    if (height === 'auto') return null;
-    if (height === 'custom') {
+    if (height === "auto") return null;
+    if (height === "custom") {
       return parseInt(quickHeight || customHeight) || null;
     }
     return parseInt(height);
@@ -242,7 +242,7 @@ export function PrinterConfigManager() {
 
   // Print function
   const handlePrint = async () => {
-    const activePrinter = printers.find(p => p.isActive);
+    const activePrinter = printers.find((p) => p.isActive);
     if (!activePrinter) {
       toast({
         variant: "destructive",
@@ -278,17 +278,17 @@ export function PrinterConfigManager() {
     };
 
     const html = generatePrintHTML(settings, testData);
-    
+
     // Debug log để kiểm tra
-    console.log('🖨️ Print Settings:', {
+    console.log("🖨️ Print Settings:", {
       width: settings.width,
       height: settings.height,
       threshold: settings.threshold,
       scale: settings.scale,
       printerIp: activePrinter.ipAddress,
-      bridgeUrl: activePrinter.bridgeUrl
+      bridgeUrl: activePrinter.bridgeUrl,
     });
-    
+
     const result = await printHTMLToXC80(activePrinter, html, {
       width: settings.width,
       height: settings.height,
@@ -312,26 +312,26 @@ export function PrinterConfigManager() {
 
   // Reset to defaults
   const handleReset = () => {
-    setWidth('1152');
-    setCustomWidth('');
-    setHeight('auto');
-    setCustomHeight('');
-    setQuickHeight('');
-    setThreshold('95');
-    setScale('2');
-    setFontSession('72');
-    setFontPhone('52');
-    setFontCustomer('52');
-    setFontProduct('36');
-    setPadding('20');
-    setLineSpacing('12');
-    setAlignment('center');
+    setWidth("1152");
+    setCustomWidth("");
+    setHeight("auto");
+    setCustomHeight("");
+    setQuickHeight("");
+    setThreshold("95");
+    setScale("2");
+    setFontSession("72");
+    setFontPhone("52");
+    setFontCustomer("52");
+    setFontProduct("36");
+    setPadding("20");
+    setLineSpacing("12");
+    setAlignment("center");
     setIsBold(true);
     setIsItalic(false);
-    
+
     // Clear saved settings
-    sessionStorage.removeItem('printerFormatSettings');
-    
+    sessionStorage.removeItem("printerFormatSettings");
+
     toast({
       title: "Đã reset",
       description: "Đã về cấu hình mặc định!",
@@ -357,7 +357,7 @@ export function PrinterConfigManager() {
       isBold,
       isItalic,
     };
-    
+
     const success = await saveFormatSettings(config);
     if (success) {
       toast({
@@ -373,7 +373,7 @@ export function PrinterConfigManager() {
       toast({
         title: "Lỗi",
         description: "Vui lòng nhập tên template",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -401,7 +401,7 @@ export function PrinterConfigManager() {
       setTemplates([...templates, newTemplate]);
       setNewTemplateName("");
       setShowTemplateForm(false);
-      
+
       toast({
         title: "✅ Đã tạo template",
         description: `Template "${newTemplateName}" đã được lưu`,
@@ -410,7 +410,7 @@ export function PrinterConfigManager() {
   };
 
   const handleLoadTemplate = async (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
+    const template = templates.find((t) => t.id === templateId);
     if (!template) return;
 
     setWidth(template.width);
@@ -450,9 +450,9 @@ export function PrinterConfigManager() {
     await saveFormatSettings(config);
 
     await setActiveTemplate(templateId);
-    const updated = templates.map(t => ({
+    const updated = templates.map((t) => ({
       ...t,
-      isActive: t.id === templateId
+      isActive: t.id === templateId,
     }));
     setTemplates(updated);
 
@@ -463,12 +463,12 @@ export function PrinterConfigManager() {
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
+    const template = templates.find((t) => t.id === templateId);
     if (!template) return;
 
     const success = await deleteTemplate(templateId);
     if (success) {
-      setTemplates(templates.filter(t => t.id !== templateId));
+      setTemplates(templates.filter((t) => t.id !== templateId));
       toast({
         title: "🗑️ Đã xóa template",
         description: `Template "${template.name}" đã được xóa`,
@@ -496,11 +496,7 @@ export function PrinterConfigManager() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Máy in</h3>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowAddForm(!showAddForm)}
-              >
+              <Button size="sm" variant="outline" onClick={() => setShowAddForm(!showAddForm)}>
                 <Plus className="h-4 w-4 mr-1" />
                 Thêm
               </Button>
@@ -531,8 +527,12 @@ export function PrinterConfigManager() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAddPrinter}>Lưu</Button>
-                  <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>Hủy</Button>
+                  <Button size="sm" onClick={handleAddPrinter}>
+                    Lưu
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>
+                    Hủy
+                  </Button>
                 </div>
               </div>
             )}
@@ -546,16 +546,20 @@ export function PrinterConfigManager() {
                     key={p.id}
                     className={cn(
                       "flex items-center justify-between p-3 rounded-lg border",
-                      p.isActive ? "border-primary bg-primary/5" : "border-border"
+                      p.isActive ? "border-primary bg-primary/5" : "border-border",
                     )}
                   >
                     <div className="flex-1">
                       <h4 className="font-semibold text-sm">{p.name}</h4>
-                      <p className="text-xs text-muted-foreground">{p.ipAddress}:{p.port}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.ipAddress}:{p.port}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       {p.isActive ? (
-                        <Badge variant="default" className="text-xs">Active</Badge>
+                        <Badge variant="default" className="text-xs">
+                          Active
+                        </Badge>
                       ) : (
                         <Button
                           size="sm"
@@ -566,11 +570,7 @@ export function PrinterConfigManager() {
                           Set Active
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeletePrinter(p.id)}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => handleDeletePrinter(p.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -589,11 +589,7 @@ export function PrinterConfigManager() {
                 <FileText className="h-5 w-5" />
                 📋 Templates
               </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowTemplateForm(!showTemplateForm)}
-              >
+              <Button size="sm" variant="outline" onClick={() => setShowTemplateForm(!showTemplateForm)}>
                 <Plus className="h-4 w-4 mr-1" />
                 Tạo mới
               </Button>
@@ -607,19 +603,19 @@ export function PrinterConfigManager() {
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') handleCreateTemplate();
+                    if (e.key === "Enter") handleCreateTemplate();
                   }}
                 />
                 <div className="flex gap-2">
                   <Button onClick={handleCreateTemplate} size="sm" className="flex-1">
                     Lưu Template
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       setShowTemplateForm(false);
                       setNewTemplateName("");
-                    }} 
-                    size="sm" 
+                    }}
+                    size="sm"
                     variant="outline"
                   >
                     Hủy
@@ -635,7 +631,7 @@ export function PrinterConfigManager() {
                     key={template.id}
                     className={cn(
                       "flex items-center justify-between p-3 rounded-lg border",
-                      template.isActive ? "bg-primary/10 border-primary" : "bg-background"
+                      template.isActive ? "bg-primary/10 border-primary" : "bg-background",
                     )}
                   >
                     <div className="flex items-center gap-2 flex-1">
@@ -643,7 +639,7 @@ export function PrinterConfigManager() {
                       <div>
                         <div className="font-medium">{template.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(template.createdAt).toLocaleDateString('vi-VN')}
+                          {new Date(template.createdAt).toLocaleDateString("vi-VN")}
                         </div>
                       </div>
                     </div>
@@ -655,11 +651,7 @@ export function PrinterConfigManager() {
                       >
                         {template.isActive ? "Đang dùng" : "Load"}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteTemplate(template.id)}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(template.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -696,7 +688,7 @@ export function PrinterConfigManager() {
                     <SelectItem value="custom">Custom...</SelectItem>
                   </SelectContent>
                 </Select>
-                {width === 'custom' && (
+                {width === "custom" && (
                   <Input
                     type="number"
                     placeholder="Nhập width"
@@ -736,7 +728,7 @@ export function PrinterConfigManager() {
                     className="w-24"
                   />
                 </div>
-                {height === 'custom' && (
+                {height === "custom" && (
                   <Input
                     type="number"
                     placeholder="Nhập height"
@@ -835,23 +827,23 @@ export function PrinterConfigManager() {
               <h4 className="font-semibold text-sm">📍 Căn chỉnh</h4>
               <div className="grid grid-cols-3 gap-2">
                 <Button
-                  variant={alignment === 'left' ? 'default' : 'outline'}
+                  variant={alignment === "left" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setAlignment('left')}
+                  onClick={() => setAlignment("left")}
                 >
                   ← Trái
                 </Button>
                 <Button
-                  variant={alignment === 'center' ? 'default' : 'outline'}
+                  variant={alignment === "center" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setAlignment('center')}
+                  onClick={() => setAlignment("center")}
                 >
                   ↕ Giữa
                 </Button>
                 <Button
-                  variant={alignment === 'right' ? 'default' : 'outline'}
+                  variant={alignment === "right" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setAlignment('right')}
+                  onClick={() => setAlignment("right")}
                 >
                   → Phải
                 </Button>
@@ -863,20 +855,16 @@ export function PrinterConfigManager() {
               <h4 className="font-semibold text-sm">✏️ Kiểu chữ</h4>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="bold"
-                    checked={isBold}
-                    onCheckedChange={(checked) => setIsBold(!!checked)}
-                  />
-                  <Label htmlFor="bold" className="font-bold">In đậm (Bold)</Label>
+                  <Checkbox id="bold" checked={isBold} onCheckedChange={(checked) => setIsBold(!!checked)} />
+                  <Label htmlFor="bold" className="font-bold">
+                    In đậm (Bold)
+                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="italic"
-                    checked={isItalic}
-                    onCheckedChange={(checked) => setIsItalic(!!checked)}
-                  />
-                  <Label htmlFor="italic" className="italic">In nghiêng (Italic)</Label>
+                  <Checkbox id="italic" checked={isItalic} onCheckedChange={(checked) => setIsItalic(!!checked)} />
+                  <Label htmlFor="italic" className="italic">
+                    In nghiêng (Italic)
+                  </Label>
                 </div>
               </div>
             </div>
@@ -887,13 +875,7 @@ export function PrinterConfigManager() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Padding (px)</Label>
-                  <Input
-                    type="number"
-                    value={padding}
-                    onChange={(e) => setPadding(e.target.value)}
-                    min={1}
-                    max={50}
-                  />
+                  <Input type="number" value={padding} onChange={(e) => setPadding(e.target.value)} min={1} max={50} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Line Spacing</Label>
