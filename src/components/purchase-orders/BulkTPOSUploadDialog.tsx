@@ -9,12 +9,8 @@ import { Upload, CheckCircle2, XCircle, Clock, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
-import { 
-  buildInsertV2Payload, 
-  uploadToTPOSInsertV2,
-  loadImageAsBase64,
-  type GroupedProduct 
-} from "@/lib/tpos-insertv2-builder";
+import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
+import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 
 interface BulkTPOSUploadDialogProps {
   open: boolean;
@@ -33,6 +29,53 @@ interface UploadProgress {
   status: UploadStatus;
   error?: string;
 }
+
+// === HELPER TYPES ===
+interface AttributeValue {
+  Id: number;
+  Name: string;
+  Code: string;
+  Sequence: number | null;
+  AttributeId?: number;
+  AttributeName?: string;
+  PriceExtra?: number | null;
+  NameGet?: string;
+  DateCreated?: string | null;
+}
+
+interface AttributeLine {
+  Attribute: {
+    Id: number;
+    Name: string;
+    Code: string;
+    Sequence: number | null;
+    CreateVariant: boolean;
+  };
+  Values: AttributeValue[];
+  AttributeId: number;
+}
+
+// Map TPOS_ATTRIBUTES to component structure
+const availableAttributes = {
+  sizeText: {
+    id: 1,
+    name: "Size Chữ",
+    code: "SZCh",
+    values: TPOS_ATTRIBUTES.sizeText,
+  },
+  color: {
+    id: 3,
+    name: "Màu",
+    code: "Mau",
+    values: TPOS_ATTRIBUTES.color,
+  },
+  sizeNumber: {
+    id: 4,
+    name: "Size Số",
+    code: "SZNu",
+    values: TPOS_ATTRIBUTES.sizeNumber,
+  },
+};
 
 export function BulkTPOSUploadDialog({ 
   open, 
@@ -66,6 +109,241 @@ export function BulkTPOSUploadDialog({
       newSet.add(itemId);
     }
     setSelectedIds(newSet);
+  };
+  
+  // === HELPER FUNCTIONS ===
+  const getHeaders = async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi TPOS Token",
+        description: "Vui lòng cấu hình TPOS Credentials trong Settings"
+      });
+      throw new Error('No TPOS token');
+    }
+    return getTPOSHeaders(token);
+  };
+
+  const loadImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          resolve(base64.split(',')[1]); // Remove "data:image/...;base64," prefix
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Failed to load image:', error);
+      return null;
+    }
+  };
+
+  const parseVariantString = (variantStr: string): AttributeLine[] => {
+    if (!variantStr || variantStr.trim() === '') return [];
+    
+    const parts = variantStr.split(',').map(s => s.trim().toUpperCase());
+    const attributeLines: AttributeLine[] = [];
+    
+    for (const part of parts) {
+      // Check size text
+      const sizeTextMatch = availableAttributes.sizeText.values.find(
+        v => v.Name.toUpperCase() === part || v.Code.toUpperCase() === part
+      );
+      if (sizeTextMatch) {
+        let line = attributeLines.find(l => l.AttributeId === 1);
+        if (!line) {
+          line = {
+            Attribute: { Id: 1, Name: "Size Chữ", Code: "SZCh", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 1
+          };
+          attributeLines.push(line);
+        }
+        line.Values.push({
+          Id: sizeTextMatch.Id,
+          Name: sizeTextMatch.Name,
+          Code: sizeTextMatch.Code,
+          Sequence: sizeTextMatch.Sequence,
+          AttributeId: 1,
+          AttributeName: "Size Chữ",
+          PriceExtra: null,
+          NameGet: `Size Chữ: ${sizeTextMatch.Name}`,
+          DateCreated: null
+        });
+      }
+      
+      // Check color
+      const colorMatch = availableAttributes.color.values.find(
+        v => v.Name.toUpperCase().includes(part) || part.includes(v.Name.toUpperCase())
+      );
+      if (colorMatch) {
+        let line = attributeLines.find(l => l.AttributeId === 3);
+        if (!line) {
+          line = {
+            Attribute: { Id: 3, Name: "Màu", Code: "Mau", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 3
+          };
+          attributeLines.push(line);
+        }
+        line.Values.push({
+          Id: colorMatch.Id,
+          Name: colorMatch.Name,
+          Code: colorMatch.Code,
+          Sequence: colorMatch.Sequence,
+          AttributeId: 3,
+          AttributeName: "Màu",
+          PriceExtra: null,
+          NameGet: `Màu: ${colorMatch.Name}`,
+          DateCreated: null
+        });
+      }
+      
+      // Check size number
+      const sizeNumberMatch = availableAttributes.sizeNumber.values.find(
+        v => v.Name === part || v.Code === part
+      );
+      if (sizeNumberMatch) {
+        let line = attributeLines.find(l => l.AttributeId === 4);
+        if (!line) {
+          line = {
+            Attribute: { Id: 4, Name: "Size Số", Code: "SZNu", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 4
+          };
+          attributeLines.push(line);
+        }
+        line.Values.push({
+          Id: sizeNumberMatch.Id,
+          Name: sizeNumberMatch.Name,
+          Code: sizeNumberMatch.Code,
+          Sequence: sizeNumberMatch.Sequence,
+          AttributeId: 4,
+          AttributeName: "Size Số",
+          PriceExtra: null,
+          NameGet: `Size Số: ${sizeNumberMatch.Name}`,
+          DateCreated: null
+        });
+      }
+    }
+    
+    return attributeLines;
+  };
+
+  const generateVariants = (productName: string, listPrice: number, attributeLines: AttributeLine[]) => {
+    if (!attributeLines || attributeLines.length === 0) return [];
+    
+    const combinations: AttributeValue[][] = [];
+    
+    function getCombinations(lines: AttributeLine[], current: AttributeValue[] = [], index = 0) {
+      if (index === lines.length) {
+        combinations.push([...current]);
+        return;
+      }
+      const line = lines[index];
+      for (const value of line.Values) {
+        current.push(value);
+        getCombinations(lines, current, index + 1);
+        current.pop();
+      }
+    }
+    
+    getCombinations(attributeLines);
+    
+    return combinations.map(attrs => {
+      const variantName = attrs.map(a => a.Name).join(', ');
+      return {
+        Id: 0,
+        EAN13: null,
+        DefaultCode: null,
+        NameTemplate: productName,
+        NameNoSign: null,
+        ProductTmplId: 0,
+        UOMId: 0,
+        UOMName: null,
+        UOMPOId: 0,
+        QtyAvailable: 0,
+        VirtualAvailable: 0,
+        OutgoingQty: null,
+        IncomingQty: null,
+        NameGet: `${productName} (${variantName})`,
+        POSCategId: null,
+        Price: null,
+        Barcode: null,
+        Image: null,
+        ImageUrl: null,
+        Thumbnails: [],
+        PriceVariant: listPrice,
+        SaleOK: true,
+        PurchaseOK: true,
+        DisplayAttributeValues: null,
+        LstPrice: 0,
+        Active: true,
+        ListPrice: 0,
+        PurchasePrice: null,
+        DiscountSale: null,
+        DiscountPurchase: null,
+        StandardPrice: 0,
+        Weight: 0,
+        Volume: null,
+        OldPrice: null,
+        IsDiscount: false,
+        ProductTmplEnableAll: false,
+        Version: 0,
+        Description: null,
+        LastUpdated: null,
+        Type: "product",
+        CategId: 0,
+        CostMethod: null,
+        InvoicePolicy: "order",
+        Variant_TeamId: 0,
+        Name: `${productName} (${variantName})`,
+        PropertyCostMethod: null,
+        PropertyValuation: null,
+        PurchaseMethod: "receive",
+        SaleDelay: 0,
+        Tracking: null,
+        Valuation: null,
+        AvailableInPOS: true,
+        CompanyId: null,
+        IsCombo: null,
+        NameTemplateNoSign: productName,
+        TaxesIds: [],
+        StockValue: null,
+        SaleValue: null,
+        PosSalesCount: null,
+        Factor: null,
+        CategName: null,
+        AmountTotal: null,
+        NameCombos: [],
+        RewardName: null,
+        Product_UOMId: null,
+        Tags: null,
+        DateCreated: null,
+        InitInventory: 0,
+        OrderTag: null,
+        StringExtraProperties: null,
+        CreatedById: null,
+        TaxAmount: null,
+        Error: null,
+        AttributeValues: attrs.map(a => ({
+          Id: a.Id,
+          Name: a.Name,
+          Code: null,
+          Sequence: null,
+          AttributeId: a.AttributeId,
+          AttributeName: a.AttributeName,
+          PriceExtra: null,
+          NameGet: a.NameGet,
+          DateCreated: null
+        }))
+      };
+    });
   };
   
   const handleUpload = async () => {
@@ -111,38 +389,127 @@ export function BulkTPOSUploadDialog({
       ));
       
       try {
-        // Build grouped product structure for single item
-        const groupedProduct: GroupedProduct = {
-          baseCode: item.product_code,
-          baseName: item.product_name,
-          listPrice: item.selling_price || 0,
-          purchasePrice: item.unit_price || 0,
-          imageBase64: undefined,
-          variants: [{
-            id: item.id,
-            product_code: item.product_code,
-            base_product_code: item.base_product_code,
-            product_name: item.product_name,
-            variant: item.variant || null,
-            selling_price: item.selling_price || 0,
-            unit_price: item.unit_price || 0,
-            quantity: item.quantity || 0,
-            supplier_name: item.supplier_name || null,
-            product_images: item.product_images || null,
-            price_images: item.price_images || null,
-            purchase_order_id: item.purchase_order_id,
-          }]
-        };
+        // Validate input
+        const code = item.product_code.trim().toUpperCase();
+        const name = item.product_name.trim();
         
-        // Load image if available
-        if (item.product_images && item.product_images.length > 0) {
-          const imageUrl = item.product_images[0];
-          groupedProduct.imageBase64 = await loadImageAsBase64(imageUrl);
+        if (!code || !name) {
+          throw new Error("Thiếu mã hoặc tên sản phẩm");
+        }
+
+        // Get TPOS headers
+        const headers = await getHeaders();
+        
+        // STEP 1: Check if product already exists
+        const checkUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${code}`;
+        const checkResponse = await fetch(checkUrl, { headers });
+        const checkData = await checkResponse.json();
+        
+        if (checkData.value && checkData.value.length > 0) {
+          throw new Error(`Sản phẩm đã tồn tại: ${checkData.value[0].Name}`);
         }
         
-        // Build payload and upload
-        const payload = buildInsertV2Payload(groupedProduct);
-        const tposResponse = await uploadToTPOSInsertV2(payload);
+        // STEP 2: Parse variant string to AttributeLines
+        const attributeLines = parseVariantString(item.variant || "");
+        
+        // STEP 3: Generate variants
+        const variants = generateVariants(name, item.selling_price || 0, attributeLines);
+        
+        // STEP 4: Load image as Base64
+        let imageBase64: string | null = null;
+        if (item.product_images && item.product_images.length > 0) {
+          imageBase64 = await loadImageAsBase64(item.product_images[0]);
+        }
+        
+        // STEP 5: Build full payload
+        const payload = {
+          Id: 0,
+          Name: name,
+          Type: "product",
+          ListPrice: item.selling_price || 0,
+          PurchasePrice: item.unit_price || 0,
+          DefaultCode: code,
+          Image: imageBase64,
+          ImageUrl: null,
+          Thumbnails: [],
+          AttributeLines: attributeLines,
+          ProductVariants: variants,
+          Active: true,
+          SaleOK: true,
+          PurchaseOK: true,
+          UOMId: 1,
+          UOMPOId: 1,
+          CategId: 2,
+          CompanyId: 1,
+          Tracking: "none",
+          InvoicePolicy: "order",
+          PurchaseMethod: "receive",
+          AvailableInPOS: true,
+          DiscountSale: 0,
+          DiscountPurchase: 0,
+          StandardPrice: 0,
+          Weight: 0,
+          SaleDelay: 0,
+          UOM: {
+            Id: 1,
+            Name: "Cái",
+            Rounding: 0.001,
+            Active: true,
+            Factor: 1,
+            FactorInv: 1,
+            UOMType: "reference",
+            CategoryId: 1,
+            CategoryName: "Đơn vị"
+          },
+          UOMPO: {
+            Id: 1,
+            Name: "Cái",
+            Rounding: 0.001,
+            Active: true,
+            Factor: 1,
+            FactorInv: 1,
+            UOMType: "reference",
+            CategoryId: 1,
+            CategoryName: "Đơn vị"
+          },
+          Categ: {
+            Id: 2,
+            Name: "Có thể bán",
+            CompleteName: "Có thể bán",
+            Type: "normal",
+            PropertyCostMethod: "average",
+            NameNoSign: "Co the ban",
+            IsPos: true
+          },
+          Items: [],
+          UOMLines: [],
+          ComboProducts: [],
+          ProductSupplierInfos: []
+        };
+        
+        // STEP 6: Call TPOS API InsertV2
+        const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
+        const response = await fetch(createUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+        }
+
+        // STEP 7: Handle response
+        let tposResponse: any = { Id: null, ImageUrl: null };
+        
+        if (response.status === 204) {
+          // Success - No Content
+          // Do nothing, just mark as success
+        } else if (response.ok) {
+          // Success - With JSON response
+          tposResponse = await response.json();
+        }
         
         // Create/update product in Supabase after successful upload
         await createOrUpdateProductInSupabase(item, tposResponse);
@@ -162,7 +529,7 @@ export function BulkTPOSUploadDialog({
         console.error(`Failed to upload ${item.product_code}:`, error);
       }
       
-      // Small delay between uploads
+      // Delay 500ms between uploads
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     
