@@ -183,6 +183,46 @@ export async function getMaxNumberFromPurchaseOrderItems(
     
     return maxNumber;
   } catch (error) {
+    console.error("Error getting max number from purchase_order_items:", error);
+    return 0;
+  }
+}
+
+/**
+ * Get max product number from products table for a category
+ * @param category - 'N' or 'P'
+ * @returns Max number found, or 0 if none
+ */
+export async function getMaxNumberFromProducts(
+  category: 'N' | 'P'
+): Promise<number> {
+  try {
+    // Query for ALL codes in this category from products table
+    const { data, error } = await supabase
+      .from("products")
+      .select("product_code")
+      .like("product_code", `${category}%`);
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return 0;
+    }
+    
+    // Parse all numbers and find the maximum
+    let maxNumber = 0;
+    data.forEach(item => {
+      const match = item.product_code?.match(/\d+$/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    });
+    
+    return maxNumber;
+  } catch (error) {
     console.error("Error getting max number from products:", error);
     return 0;
   }
@@ -204,12 +244,13 @@ export async function generateProductCodeFromMax(
   
   const category = detectProductCategory(productName);
   
-  // Get max from two sources (form and purchase orders only)
+  // Get max from three sources: form, products table, and purchase orders
   const maxFromForm = getMaxNumberFromItems(formItems, category);
+  const maxFromProducts = await getMaxNumberFromProducts(category);
   const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
   
   // Take the largest one and add 1
-  const maxNumber = Math.max(maxFromForm, maxFromPurchaseOrders);
+  const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders);
   let nextNumber = maxNumber + 1;
   let candidateCode = `${category}${nextNumber}`;
   
