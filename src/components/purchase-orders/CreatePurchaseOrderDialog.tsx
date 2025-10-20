@@ -192,14 +192,44 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       }
 
       // Step 3: Create parent products in inventory
-      const parentProducts = new Map<string, any>();
+      const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
+      // Group items by product_code and collect all variants
       for (const item of items.filter(i => i.product_name.trim())) {
         const productCode = item.product_code.trim().toUpperCase();
+        const variantText = item.variant?.trim().toUpperCase();
         
-        // Skip if already processed
-        if (parentProducts.has(productCode)) continue;
+        if (!parentProductsMap.has(productCode)) {
+          parentProductsMap.set(productCode, {
+            variants: new Set(),
+            data: {
+              product_code: productCode,
+              base_product_code: productCode,
+              product_name: item.product_name.trim().toUpperCase(),
+              purchase_price: Number(item.purchase_price || 0) * 1000,
+              selling_price: Number(item.selling_price || 0) * 1000,
+              supplier_name: formData.supplier_name.trim().toUpperCase(),
+              product_images: Array.isArray(item.product_images) 
+                ? item.product_images 
+                : (item.product_images ? [item.product_images] : []),
+              price_images: Array.isArray(item.price_images) 
+                ? item.price_images 
+                : (item.price_images ? [item.price_images] : []),
+              stock_quantity: 0,
+              unit: 'Cái'
+            }
+          });
+        }
         
+        // Collect variant if exists
+        if (variantText) {
+          parentProductsMap.get(productCode)!.variants.add(variantText);
+        }
+      }
+
+      // Create parent products with aggregated variants
+      const parentProducts: any[] = [];
+      for (const [productCode, { variants, data }] of parentProductsMap) {
         // Check if parent product exists
         const { data: existing } = await supabase
           .from("products")
@@ -208,38 +238,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           .maybeSingle();
         
         if (!existing) {
-          parentProducts.set(productCode, {
-            product_code: productCode,
-            base_product_code: productCode, // Parent: product_code === base_product_code
-            product_name: item.product_name.trim().toUpperCase(),
-            variant: null, // Parent has no variant
-            purchase_price: Number(item.purchase_price || 0) * 1000,
-            selling_price: Number(item.selling_price || 0) * 1000,
-            supplier_name: formData.supplier_name.trim().toUpperCase(),
-            product_images: Array.isArray(item.product_images) 
-              ? item.product_images 
-              : (item.product_images ? [item.product_images] : []),
-            price_images: Array.isArray(item.price_images) 
-              ? item.price_images 
-              : (item.price_images ? [item.price_images] : []),
-            stock_quantity: 0, // Parent has 0 stock, variants will hold stock
-            unit: 'Cái'
-            // No tpos_product_id yet (will be added after TPOS upload)
-          });
+          // Set variant to aggregated string or null
+          data.variant = variants.size > 0 ? Array.from(variants).join(', ') : null;
+          parentProducts.push(data);
         }
       }
 
       // Insert parent products if any
-      if (parentProducts.size > 0) {
+      if (parentProducts.length > 0) {
         const { error: productsError } = await supabase
           .from("products")
-          .insert(Array.from(parentProducts.values()));
+          .insert(parentProducts);
         
         if (productsError) {
           console.error("Error creating parent products:", productsError);
           // Don't throw - continue with order creation
         } else {
-          console.log(`✅ Created ${parentProducts.size} parent products`);
+          console.log(`✅ Created ${parentProducts.length} parent products`);
         }
       }
 
