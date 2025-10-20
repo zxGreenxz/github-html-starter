@@ -597,6 +597,7 @@ export function FacebookCommentsManager({
         const fontPhone = parseInt(savedSettings?.fontPhone || '52');
         const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
         const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+        const fontComment = parseInt(savedSettings?.fontComment || '32');
         const padding = parseInt(savedSettings?.padding || '20');
         const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
         const alignment = savedSettings?.alignment || 'center';
@@ -618,6 +619,7 @@ export function FacebookCommentsManager({
             fontPhone,
             fontCustomer,
             fontProduct,
+            fontComment,
             padding,
             lineSpacing,
             alignment,

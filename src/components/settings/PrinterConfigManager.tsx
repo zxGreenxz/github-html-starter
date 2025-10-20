@@ -60,6 +60,7 @@ export function PrinterConfigManager() {
   const [fontPhone, setFontPhone] = useState("52");
   const [fontCustomer, setFontCustomer] = useState("52");
   const [fontProduct, setFontProduct] = useState("36");
+  const [fontComment, setFontComment] = useState("32");
 
   // Text styles
   const [alignment, setAlignment] = useState<"left" | "center" | "right">("center");
@@ -124,6 +125,7 @@ export function PrinterConfigManager() {
         setFontPhone(savedSettings.fontPhone);
         setFontCustomer(savedSettings.fontCustomer);
         setFontProduct(savedSettings.fontProduct);
+        setFontComment(savedSettings.fontComment || "32");
         setPadding(savedSettings.padding);
         setLineSpacing(savedSettings.lineSpacing);
         setAlignment(savedSettings.alignment);
@@ -230,6 +232,7 @@ export function PrinterConfigManager() {
       fontPhone: parseInt(fontPhone),
       fontCustomer: parseInt(fontCustomer),
       fontProduct: parseInt(fontProduct),
+      fontComment: parseInt(fontComment),
       padding: parseInt(padding),
       lineSpacing: parseInt(lineSpacing),
       alignment,
@@ -270,6 +273,7 @@ export function PrinterConfigManager() {
       fontPhone: parseInt(fontPhone),
       fontCustomer: parseInt(fontCustomer),
       fontProduct: parseInt(fontProduct),
+      fontComment: parseInt(fontComment),
       padding: parseInt(padding),
       lineSpacing: parseInt(lineSpacing),
       alignment,
@@ -323,6 +327,7 @@ export function PrinterConfigManager() {
     setFontPhone("52");
     setFontCustomer("52");
     setFontProduct("36");
+    setFontComment("32");
     setPadding("20");
     setLineSpacing("12");
     setAlignment("center");
@@ -351,6 +356,7 @@ export function PrinterConfigManager() {
       fontPhone,
       fontCustomer,
       fontProduct,
+      fontComment,
       padding,
       lineSpacing,
       alignment,
@@ -389,6 +395,7 @@ export function PrinterConfigManager() {
       fontPhone,
       fontCustomer,
       fontProduct,
+      fontComment,
       padding,
       lineSpacing,
       alignment,
@@ -423,6 +430,7 @@ export function PrinterConfigManager() {
     setFontPhone(template.fontPhone);
     setFontCustomer(template.fontCustomer);
     setFontProduct(template.fontProduct);
+    setFontComment(template.fontComment || "32");
     setPadding(template.padding);
     setLineSpacing(template.lineSpacing);
     setAlignment(template.alignment);
@@ -441,6 +449,7 @@ export function PrinterConfigManager() {
       fontPhone: template.fontPhone,
       fontCustomer: template.fontCustomer,
       fontProduct: template.fontProduct,
+      fontComment: template.fontComment || "32",
       padding: template.padding,
       lineSpacing: template.lineSpacing,
       alignment: template.alignment,
@@ -817,6 +826,16 @@ export function PrinterConfigManager() {
                     onChange={(e) => setFontProduct(e.target.value)}
                     min={16}
                     max={80}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Comment</Label>
+                  <Input
+                    type="number"
+                    value={fontComment}
+                    onChange={(e) => setFontComment(e.target.value)}
+                    min={12}
+                    max={60}
                   />
                 </div>
               </div>

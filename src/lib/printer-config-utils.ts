@@ -19,6 +19,7 @@ export interface PrinterFormatSettings {
   fontPhone: number;
   fontCustomer: number;
   fontProduct: number;
+  fontComment: number;
   padding: number;
   lineSpacing: number;
   alignment: 'left' | 'center' | 'right';
@@ -39,6 +40,7 @@ export interface PrinterTemplate {
   fontPhone: string;
   fontCustomer: string;
   fontProduct: string;
+  fontComment: string;
   padding: string;
   lineSpacing: string;
   alignment: 'left' | 'center' | 'right';
@@ -135,7 +137,7 @@ export const generatePrintHTML = (
           line-height: 1.4;
         }
         .comment { 
-          font-size: ${settings.fontProduct - 4}px; 
+          font-size: ${settings.fontComment}px; 
           margin: ${settings.lineSpacing}px 0; 
           font-weight: 900;
         }
@@ -310,6 +312,7 @@ export interface SavedPrinterConfig {
   fontPhone: string;
   fontCustomer: string;
   fontProduct: string;
+  fontComment: string;
   padding: string;
   lineSpacing: string;
   alignment: 'left' | 'center' | 'right';
@@ -335,6 +338,7 @@ export const saveFormatSettings = async (settings: SavedPrinterConfig): Promise<
       font_phone: settings.fontPhone,
       font_customer: settings.fontCustomer,
       font_product: settings.fontProduct,
+      font_comment: settings.fontComment,
       padding: settings.padding,
       line_spacing: settings.lineSpacing,
       alignment: settings.alignment,
@@ -373,6 +377,7 @@ export const loadFormatSettings = async (): Promise<SavedPrinterConfig | null> =
     fontPhone: data.font_phone,
     fontCustomer: data.font_customer,
     fontProduct: data.font_product,
+    fontComment: data.font_comment || "32",
     padding: data.padding,
     lineSpacing: data.line_spacing,
     alignment: data.alignment as 'left' | 'center' | 'right',
@@ -412,6 +417,7 @@ export const loadTemplates = async (): Promise<PrinterTemplate[]> => {
     fontPhone: t.font_phone,
     fontCustomer: t.font_customer,
     fontProduct: t.font_product,
+    fontComment: t.font_comment || "32",
     padding: t.padding,
     lineSpacing: t.line_spacing,
     alignment: t.alignment as 'left' | 'center' | 'right',
@@ -446,6 +452,7 @@ export const createTemplate = async (name: string, settings: SavedPrinterConfig)
       font_phone: settings.fontPhone,
       font_customer: settings.fontCustomer,
       font_product: settings.fontProduct,
+      font_comment: settings.fontComment,
       padding: settings.padding,
       line_spacing: settings.lineSpacing,
       alignment: settings.alignment,
@@ -474,6 +481,7 @@ export const createTemplate = async (name: string, settings: SavedPrinterConfig)
     fontPhone: data.font_phone,
     fontCustomer: data.font_customer,
     fontProduct: data.font_product,
+    fontComment: data.font_comment || "32",
     padding: data.padding,
     lineSpacing: data.line_spacing,
     alignment: data.alignment as 'left' | 'center' | 'right',
