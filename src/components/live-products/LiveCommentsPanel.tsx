@@ -374,6 +374,44 @@ export function LiveCommentsPanel({
     // Don't clear cache - it's shared across all videos
   }, [videoId]);
 
+  // Add realtime subscription for session_index updates
+  useEffect(() => {
+    if (!videoId) return;
+    
+    console.log('[LiveCommentsPanel] Setting up realtime subscription for session_index');
+    
+    const channel = supabase
+      .channel('facebook-comments-archive-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'facebook_comments_archive',
+          filter: `facebook_post_id=eq.${videoId}`,
+        },
+        (payload) => {
+          console.log('🔄 [Realtime] Comment updated with session_index:', payload.new);
+          
+          // Invalidate queries to trigger UI refresh
+          queryClient.invalidateQueries({ 
+            queryKey: ["facebook-comments", pageId, videoId] 
+          });
+          queryClient.invalidateQueries({ 
+            queryKey: ["tpos-orders", videoId] 
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[LiveCommentsPanel] Realtime subscription status:', status);
+      });
+
+    return () => {
+      console.log('[LiveCommentsPanel] Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [videoId, pageId, queryClient]);
+
   const createOrderMutation = useMutation({
     mutationFn: async ({ comment }: { comment: FacebookComment }) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -433,9 +471,7 @@ export function LiveCommentsPanel({
       // Force refresh status for user who just created order
       const comment = variables.comment;
       if (comment?.from?.id) {
-        setTimeout(() => {
-          refreshSingleUserStatus(comment.from.id, comment.id);
-        }, 1000); // Delay 1s to let TPOS API update
+        refreshSingleUserStatus(comment.from.id, comment.id);
       }
     },
     onError: (error: any) => {
@@ -482,11 +518,17 @@ export function LiveCommentsPanel({
   const commentsWithStatus: CommentWithStatus[] = useMemo(() => {
     return comments.map((comment) => {
       const statusInfo = customerStatusMap.get(comment.from.id);
-      // Default to "Khách lạ" instead of "Đang tải..." to prevent stuck loading state
+      
+      // Prioritize session_index from comment (archive) over orderInfo
+      const sessionIndex = (comment as any).session_index || statusInfo?.orderInfo?.SessionIndex || statusInfo?.orderInfo?.order_count;
+      
       return {
         ...comment,
         partnerStatus: statusInfo?.partnerStatus || 'Khách lạ',
-        orderInfo: statusInfo?.orderInfo,
+        orderInfo: statusInfo?.orderInfo ? {
+          ...statusInfo.orderInfo,
+          SessionIndex: sessionIndex, // Override with session_index from archive
+        } : undefined,
         isLoadingStatus: statusInfo?.isLoadingStatus ?? false,
       };
     });

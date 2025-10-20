@@ -101,6 +101,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         like_count: c.like_count || 0,
         is_deleted_by_tpos: c.is_deleted_by_tpos || false,
         deleted_at: c.updated_at,
+        session_index: c.session_index, // Add session_index from archive
       })) || [];
       
       const elapsed = Date.now() - startTime;
