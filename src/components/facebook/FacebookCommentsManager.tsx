@@ -558,130 +558,112 @@ export function FacebookCommentsManager({
       setPendingCommentIds((prev) => new Set(prev).add(variables.comment.id));
     },
     onSuccess: async (data, variables) => {
+      // Check order count to determine if this was the first order
+      const videoId = variables.video.objectId;
+      const { count } = await supabase
+        .from('facebook_pending_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('facebook_post_id', videoId);
+      
+      const orderCount = count || 0;
+
       toast({
-        title: "Tạo đơn hàng thành công!",
+        title: "✅ Tạo đơn hàng thành công!",
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
-      // Auto-print bill using print queue
-      try {
-        const { getActivePrinter, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
-
-        const printer = await getActivePrinter();
-        if (!printer) {
-          console.log('⚠️ No active printer configured');
-          return;
-        }
-
-        const commentText = variables.comment.message || '';
-        const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
-        const productCode = productCodeMatch ? productCodeMatch[1] : '';
-
-        // Load saved printer settings
-        const savedSettings = await loadFormatSettings();
+      // 🔥 ONLY PRINT IF THIS WAS THE FIRST ORDER
+      if (orderCount === 1) {
+        console.log('🖨️ First order - printing with TPOS data');
         
-        // Parse settings with defaults
-        const width = savedSettings?.width === 'custom' 
-          ? parseInt(savedSettings.customWidth) || 576
-          : parseInt(savedSettings?.width || '576');
-        
-        const height = savedSettings?.height === 'custom'
-          ? parseInt(savedSettings.customHeight) || null
-          : savedSettings?.height === 'auto' 
-            ? null 
-            : parseInt(savedSettings?.height || '0') || null;
-        
-        const threshold = parseInt(savedSettings?.threshold || '95');
-        const scale = parseFloat(savedSettings?.scale || '2');
-        
-        // Font settings
-        const fontSession = parseInt(savedSettings?.fontSession || '72');
-        const fontPhone = parseInt(savedSettings?.fontPhone || '52');
-        const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
-        const fontProduct = parseInt(savedSettings?.fontProduct || '36');
-        const fontComment = parseInt(savedSettings?.fontComment || '32');
-        const padding = parseInt(savedSettings?.padding || '20');
-        const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
-        const alignment = savedSettings?.alignment || 'center';
-        const isBold = savedSettings?.isBold ?? true;
-        const isItalic = savedSettings?.isItalic ?? false;
+        try {
+          const { getActivePrinter, loadFormatSettings, generatePrintHTML } = 
+            await import('@/lib/printer-config-utils');
 
-        console.log('📐 Facebook comment - Using printer settings:', {
-          width, height, threshold, scale,
-          fontSession, fontPhone, fontCustomer, fontProduct
-        });
-
-        const billHTML = generatePrintHTML(
-          {
-            width,
-            height,
-            threshold,
-            scale,
-            fontSession,
-            fontPhone,
-            fontCustomer,
-            fontProduct,
-            fontComment,
-            padding,
-            lineSpacing,
-            alignment,
-            isBold,
-            isItalic
-          },
-          {
-            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
-            phone: data.response.Telephone || '',
-            customerName: data.response.Name || variables.comment.from.name,
-            productCode: productCode,
-            productName: productCode,
-            comment: commentText
+          const printer = await getActivePrinter();
+          if (!printer) {
+            console.log('⚠️ No active printer configured');
+            return;
           }
-        );
 
-        // Add to print queue instead of direct printing
-        addPrintJob({
-          printer,
-          html: billHTML,
-          settings: {
-            width,
-            height,
-            threshold,
-            scale
-          },
-          priority: 'normal',
-          metadata: {
-            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
-            customerName: data.response.Name || variables.comment.from.name,
-            productCode: productCode
-          },
-          callbacks: {
-            onSuccess: () => {
-              console.log('✅ Print job completed from queue');
+          const commentText = variables.comment.message || '';
+          const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
+          const productCode = productCodeMatch ? productCodeMatch[1] : '';
+
+          const savedSettings = await loadFormatSettings();
+          const width = savedSettings?.width === 'custom' 
+            ? parseInt(savedSettings.customWidth) || 576
+            : parseInt(savedSettings?.width || '576');
+          const height = savedSettings?.height === 'custom'
+            ? parseInt(savedSettings.customHeight) || null
+            : savedSettings?.height === 'auto' ? null : parseInt(savedSettings?.height || '0') || null;
+          const threshold = parseInt(savedSettings?.threshold || '95');
+          const scale = parseFloat(savedSettings?.scale || '2');
+          const fontSession = parseInt(savedSettings?.fontSession || '72');
+          const fontPhone = parseInt(savedSettings?.fontPhone || '52');
+          const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
+          const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+          const fontComment = parseInt(savedSettings?.fontComment || '32');
+          const padding = parseInt(savedSettings?.padding || '20');
+          const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
+          const alignment = savedSettings?.alignment || 'center';
+          const isBold = savedSettings?.isBold ?? true;
+          const isItalic = savedSettings?.isItalic ?? false;
+
+          const billHTML = generatePrintHTML(
+            {
+              width, height, threshold, scale,
+              fontSession, fontPhone, fontCustomer, fontProduct, fontComment,
+              padding, lineSpacing, alignment, isBold, isItalic
             },
-            onError: (job, error) => {
-              console.error('❌ Print job failed:', error);
-              toast({
-                title: "❌ Lỗi in bill",
-                description: error,
-                variant: "destructive",
-              });
+            {
+              sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+              phone: data.response.Telephone || '',
+              customerName: data.response.Name || variables.comment.from.name,
+              productCode: productCode,
+              productName: productCode,
+              comment: commentText
             }
-          }
-        });
+          );
 
-        toast({
-          title: "📋 Đã thêm vào hàng đợi in",
-          description: `Đơn #${data.response.SessionIndex?.toString() || data.response.Code || ''}`,
-        });
+          addPrintJob({
+            printer,
+            html: billHTML,
+            settings: { width, height, threshold, scale },
+            priority: 'high',
+            metadata: {
+              sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+              customerName: data.response.Name || variables.comment.from.name,
+              productCode: productCode
+            },
+            callbacks: {
+              onSuccess: () => {
+                console.log('✅ First order bill printed with TPOS data');
+                toast({
+                  title: "🖨️ Bill đầu tiên đã in",
+                  description: `Mã: ${data.response.Code}`,
+                });
+              },
+              onError: (job, error) => {
+                console.error('❌ First order print failed:', error);
+                toast({
+                  title: "❌ Lỗi in bill",
+                  description: error,
+                  variant: "destructive",
+                });
+              }
+            }
+          });
 
-      } catch (error: any) {
-        console.error('❌ Auto-print error:', error);
-        toast({
-          title: "❌ Lỗi in bill",
-          description: error.message || "Không thể in bill",
-          variant: "destructive",
-        });
+        } catch (error: any) {
+          console.error('❌ First order print error:', error);
+        }
+      } else {
+        console.log(`ℹ️ Order #${orderCount} - already printed immediately`);
       }
+
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['facebook-pending-orders'] });
     },
     onError: (error: Error) => {
       let errorData;
@@ -1280,10 +1262,162 @@ export function FacebookCommentsManager({
     }
   };
 
-  const handleCreateOrderClick = (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
-    if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
+  // Helper: Get next session index for printing
+  const getNextSessionIndex = async (videoId: string, commentId: string): Promise<string> => {
+    try {
+      // Check if comment already has an order with session_index
+      const { data: existingOrder } = await supabase
+        .from('facebook_pending_orders')
+        .select('session_index')
+        .eq('facebook_comment_id', commentId)
+        .maybeSingle();
+      
+      if (existingOrder?.session_index) {
+        console.log(`📋 Using existing session_index: ${existingOrder.session_index}`);
+        return existingOrder.session_index;
+      }
+      
+      // Get max session_index for this video
+      const { data: maxData } = await supabase
+        .from('facebook_pending_orders')
+        .select('session_index')
+        .eq('facebook_post_id', videoId)
+        .not('session_index', 'is', null)
+        .order('session_index', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (maxData?.session_index) {
+        const nextIndex = (parseInt(maxData.session_index) + 1).toString();
+        console.log(`📋 Calculated next session_index: ${nextIndex} (max was ${maxData.session_index})`);
+        return nextIndex;
+      }
+      
+      // Default to '1' if no orders exist
+      console.log(`📋 No existing orders, starting with session_index: 1`);
+      return '1';
+    } catch (error) {
+      console.error('❌ Error getting next session index:', error);
+      return '1';
     }
+  };
+
+  // Helper: Print bill immediately for subsequent orders
+  const printBillImmediately = async (comment: FacebookComment, sessionIndex: string) => {
+    try {
+      const { getActivePrinter, loadFormatSettings, generatePrintHTML } = 
+        await import('@/lib/printer-config-utils');
+
+      const printer = await getActivePrinter();
+      if (!printer) {
+        console.log('⚠️ No active printer - skipping immediate print');
+        return;
+      }
+
+      const commentText = comment.message || '';
+      const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
+      const productCode = productCodeMatch ? productCodeMatch[1] : '';
+
+      // Load printer settings
+      const savedSettings = await loadFormatSettings();
+      const width = savedSettings?.width === 'custom' 
+        ? parseInt(savedSettings.customWidth) || 576
+        : parseInt(savedSettings?.width || '576');
+      const height = savedSettings?.height === 'custom'
+        ? parseInt(savedSettings.customHeight) || null
+        : savedSettings?.height === 'auto' ? null : parseInt(savedSettings?.height || '0') || null;
+      const threshold = parseInt(savedSettings?.threshold || '95');
+      const scale = parseFloat(savedSettings?.scale || '2');
+      const fontSession = parseInt(savedSettings?.fontSession || '72');
+      const fontPhone = parseInt(savedSettings?.fontPhone || '52');
+      const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
+      const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+      const fontComment = parseInt(savedSettings?.fontComment || '32');
+      const padding = parseInt(savedSettings?.padding || '20');
+      const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
+      const alignment = savedSettings?.alignment || 'center';
+      const isBold = savedSettings?.isBold ?? true;
+      const isItalic = savedSettings?.isItalic ?? false;
+
+      const billHTML = generatePrintHTML(
+        {
+          width, height, threshold, scale,
+          fontSession, fontPhone, fontCustomer, fontProduct, fontComment,
+          padding, lineSpacing, alignment, isBold, isItalic
+        },
+        {
+          sessionIndex: sessionIndex,
+          phone: '',
+          customerName: comment.from.name,
+          productCode: productCode,
+          productName: productCode,
+          comment: commentText
+        }
+      );
+
+      // Add to print queue with HIGH priority
+      addPrintJob({
+        printer,
+        html: billHTML,
+        settings: { width, height, threshold, scale },
+        priority: 'high',
+        metadata: {
+          sessionIndex: sessionIndex,
+          customerName: comment.from.name,
+          productCode: productCode
+        },
+        callbacks: {
+          onSuccess: () => {
+            console.log('✅ Immediate bill printed:', sessionIndex);
+            toast({
+              title: "🖨️ Bill đã in",
+              description: `Mã: ${sessionIndex}`,
+            });
+          },
+          onError: (job, error) => {
+            console.error('❌ Immediate print failed:', error);
+            toast({
+              title: "❌ Lỗi in bill",
+              description: error,
+              variant: "destructive",
+            });
+          }
+        }
+      });
+
+      console.log('📋 Immediate bill added to queue with sessionIndex:', sessionIndex);
+
+    } catch (error: any) {
+      console.error('❌ Immediate print error:', error);
+    }
+  };
+
+  const handleCreateOrderClick = async (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
+    if (!selectedVideo) return;
+
+    const videoId = selectedVideo.objectId;
+    
+    // Check if this is the first order for this video
+    const { count } = await supabase
+      .from('facebook_pending_orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('facebook_post_id', videoId);
+    
+    const orderCount = count || 0;
+
+    console.log(`📊 Current order count for video ${videoId}: ${orderCount}`);
+
+    // If NOT the first order, print immediately
+    if (orderCount > 0) {
+      const sessionIndex = await getNextSessionIndex(videoId, comment.id);
+      console.log(`📋 Order #${orderCount + 1} - printing immediately with sessionIndex: ${sessionIndex}`);
+      await printBillImmediately(comment, sessionIndex);
+    } else {
+      console.log('📋 This is the FIRST order, will wait for TPOS response to print');
+    }
+
+    // Always upload to TPOS (runs in parallel with print for subsequent orders)
+    createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
   };
 
   const toggleProductSelection = (commentId: string) => {
