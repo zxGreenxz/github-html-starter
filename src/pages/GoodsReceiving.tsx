@@ -30,22 +30,15 @@ export default function GoodsReceiving() {
           *,
           items:purchase_order_items(
             id,
-            product_id,
             quantity,
             notes,
-            product_code_snapshot,
-            product_name_snapshot,
-            variant_snapshot,
-            purchase_price_snapshot,
-            selling_price_snapshot,
-            product_images_snapshot,
-            price_images_snapshot,
-            product:products(
-              product_code,
-              product_name,
-              variant,
-              product_images
-            )
+            product_code,
+            product_name,
+            variant,
+            purchase_price,
+            selling_price,
+            product_images,
+            price_images
           )
         `)
         .order('created_at', { ascending: false });
@@ -89,15 +82,11 @@ export default function GoodsReceiving() {
             }
           }
 
-          // Check for items with deleted products
-          const hasDeletedProduct = (order.items || []).some((item: any) => !item.product);
-          
           return { 
             ...order, 
             receiving,
             hasReceiving: !!receiving,
-            overallStatus,
-            hasDeletedProduct // Add this flag
+            overallStatus
           };
         })
       );
@@ -105,9 +94,9 @@ export default function GoodsReceiving() {
       // Apply status filter
       let filteredOrders;
       if (statusFilter === "needInspection") {
-        filteredOrders = ordersWithStatus.filter(o => (o.status === 'confirmed' || o.status === 'pending') && !o.hasReceiving && !o.hasDeletedProduct);
+        filteredOrders = ordersWithStatus.filter(o => (o.status === 'confirmed' || o.status === 'pending') && !o.hasReceiving);
       } else if (statusFilter === "inspected") {
-        filteredOrders = ordersWithStatus.filter(o => o.hasReceiving || o.hasDeletedProduct); // Include orders with deleted products here
+        filteredOrders = ordersWithStatus.filter(o => o.hasReceiving);
       } else if (statusFilter === "shortage") {
         filteredOrders = ordersWithStatus.filter(o => o.hasReceiving && o.overallStatus === 'shortage');
       } else {
