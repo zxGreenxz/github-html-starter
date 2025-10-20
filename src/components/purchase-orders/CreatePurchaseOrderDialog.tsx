@@ -89,6 +89,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
+  const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -99,13 +100,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
-      if (item.product_name.trim() && !item.product_code.trim()) {
+      // Only auto-generate if user hasn't manually focused on the product_code field
+      if (item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)) {
         try {
           const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
           const code = await generateProductCodeFromMax(item.product_name, tempItems);
           setItems(prev => {
             const newItems = [...prev];
-            if (newItems[index] && !newItems[index].product_code.trim()) {
+            if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
               newItems[index] = { ...newItems[index], product_code: code };
             }
             return newItems;
@@ -115,7 +117,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         }
       }
     });
-  }, [debouncedProductNames]);
+  }, [debouncedProductNames, manualProductCodes]);
 
 
   const createOrderMutation = useMutation({
@@ -204,6 +206,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       shipping_fee: 0
     });
     setShowShippingFee(false);
+    setManualProductCodes(new Set());
     setItems([
       { 
         quantity: 1,
@@ -576,6 +579,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                 placeholder="Mã SP"
                 value={item.product_code}
                 onChange={(e) => updateItem(index, "product_code", e.target.value)}
+                onFocus={() => {
+                  setManualProductCodes(prev => new Set(prev).add(index));
+                }}
                 className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs"
                 maxLength={10}
               />
