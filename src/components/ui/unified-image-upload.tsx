@@ -257,9 +257,7 @@ export function UnifiedImageUpload({
         <div
           ref={containerRef}
           tabIndex={0}
-          role="button"
-          aria-label={placeholder || "Tải ảnh lên. Bạn có thể kéo thả, dán, hoặc click để chọn file"}
-          onClick={handleClick}
+          aria-label={placeholder || "Tải ảnh lên. Bạn có thể kéo thả hoặc dán ảnh"}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -271,10 +269,10 @@ export function UnifiedImageUpload({
             ${globalUploadInProgress && !isUploading 
               ? 'opacity-50 cursor-not-allowed pointer-events-none border-dashed border-muted-foreground/20'
               : isDragging 
-              ? 'border-primary bg-primary/20 border-solid scale-[1.02] cursor-pointer' 
+              ? 'border-primary bg-primary/20 border-solid scale-[1.02]' 
               : isUploading 
               ? 'border-primary/50 bg-muted/30 border-solid cursor-wait'
-              : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md cursor-pointer'
+              : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md'
             }
           `}
         >
@@ -321,8 +319,7 @@ export function UnifiedImageUpload({
               </p>
               {!isMobile && (
                 <p className="text-sm text-muted-foreground">
-                  hoặc <span className="font-medium text-primary">Ctrl+V</span> để dán, hoặc{' '}
-                  <span className="font-medium text-primary">click</span> để chọn
+                  hoặc <span className="font-medium text-primary">Ctrl+V</span> để dán
                 </p>
               )}
               <p className="text-xs text-muted-foreground/60 mt-2 border-t border-border/50 pt-2">
