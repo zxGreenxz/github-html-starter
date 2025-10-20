@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getVariantType, generateColorCode } from "@/lib/variant-attributes";
 import { detectVariantsFromText } from "@/lib/variant-detector";
 import { generateAllVariants } from "@/lib/variant-code-generator";
-import { useQuery } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -53,90 +52,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
     }
   }, [items, imageFilter]);
 
-  // Get unique base product codes from filtered items
-  const baseProductCodes = useMemo(() => {
-    const codes = new Set<string>();
-    filteredItems.forEach(item => {
-      const baseCode = item.base_product_code || item.product_code?.match(/^[A-Z]+\d+/)?.[0] || item.product_code || 'AUTO';
-      codes.add(baseCode);
-    });
-    return Array.from(codes);
-  }, [filteredItems]);
-
-  // Query base products to get their variant field and product name
-  const { data: baseProductVariants = [] } = useQuery({
-    queryKey: ["base-product-variants", baseProductCodes],
-    queryFn: async () => {
-      if (baseProductCodes.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from("products")
-        .select("product_code, product_name, variant")
-        .in("product_code", baseProductCodes)
-        .not("variant", "is", null);
-      
-      if (error) {
-        console.error("Error fetching base product variants:", error);
-        return [];
-      }
-      
-      return data || [];
-    },
-    enabled: baseProductCodes.length > 0
-  });
-
-  // Group items by base_product_code
-  const groupedItems = useMemo(() => {
-    const groups = new Map<string, {
-      baseProductCode: string;
-      variants: string[];
-      items: TPOSProductItem[];
-      baseItem: TPOSProductItem;
-      allSelected: boolean;
-    }>();
-
-    for (const item of filteredItems) {
-      const baseCode = item.base_product_code || item.product_code?.match(/^[A-Z]+\d+/)?.[0] || item.product_code || 'AUTO';
-      
-      if (!groups.has(baseCode)) {
-        groups.set(baseCode, {
-          baseProductCode: baseCode,
-          variants: [],
-          items: [],
-          baseItem: item,
-          allSelected: false
-        });
-      }
-
-      const group = groups.get(baseCode)!;
-      group.items.push(item);
-
-      // Use item with base_product_code as baseItem, or first item with images
-      if (item.base_product_code === baseCode || 
-          (item.product_images && item.product_images.length > 0 && !group.baseItem.product_images)) {
-        group.baseItem = item;
-      }
-    }
-
-    // Add variant from base product (single variant string from inventory)
-    groups.forEach(group => {
-      const baseProduct = baseProductVariants.find(pv => pv.product_code === group.baseProductCode);
-      if (baseProduct?.variant) {
-        // Store as single string, not split into array
-        group.variants = [baseProduct.variant];
-      } else {
-        group.variants = [];
-      }
-    });
-
-    // Check if all items in each group are selected
-    groups.forEach(group => {
-      group.allSelected = group.items.every(item => selectedIds.has(item.id));
-    });
-
-    return Array.from(groups.values());
-  }, [filteredItems, selectedIds, baseProductVariants]);
-
   // Get selected items
   const selectedItems = useMemo(() => {
     return items.filter(item => selectedIds.has(item.id));
@@ -151,16 +66,14 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
   const itemsUploadedToTPOS = items.filter(item => item.tpos_product_id);
   const itemsNotUploadedToTPOS = items.filter(item => !item.tpos_product_id);
 
-  // Toggle group (all items in the group)
-  const toggleGroup = (group: typeof groupedItems[0]) => {
+  // Toggle individual item
+  const toggleItem = (itemId: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (group.allSelected) {
-        // Deselect all items in group
-        group.items.forEach(item => next.delete(item.id));
+      if (next.has(itemId)) {
+        next.delete(itemId);
       } else {
-        // Select all items in group
-        group.items.forEach(item => next.add(item.id));
+        next.add(itemId);
       }
       return next;
     });
@@ -652,74 +565,17 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
     try {
       console.log(`📦 Processing ${selectedItems.length} selected items...`);
       
-      // ============================================
-      // BƯỚC 1: GROUP BY BASE_PRODUCT_CODE
-      // ============================================
-      const groupedByBase = new Map<string, {
-        baseProductCode: string;
-        items: TPOSProductItem[];
-        representativeItem: TPOSProductItem;
-        allVariants: string[];
-      }>();
+      // Prepare items for upload - use product_code and variant from each item directly
+      const itemsToUpload: TPOSProductItem[] = selectedItems.map(item => ({
+        ...item,
+        product_code: item.product_code, // Use exact product code from item
+        variant: item.variant || null,   // Use exact variant from item
+      }));
 
-      for (const item of selectedItems) {
-        const baseCode = item.base_product_code 
-          || item.product_code?.match(/^[A-Z]+\d+/)?.[0] 
-          || item.product_code 
-          || 'AUTO';
-        
-        if (!groupedByBase.has(baseCode)) {
-          groupedByBase.set(baseCode, {
-            baseProductCode: baseCode,
-            items: [],
-            representativeItem: item,
-            allVariants: []
-          });
-        }
+      console.log(`📤 Uploading ${itemsToUpload.length} items to TPOS...`);
+      setCurrentStep(`Đang upload ${itemsToUpload.length} sản phẩm...`);
 
-        const group = groupedByBase.get(baseCode)!;
-        group.items.push(item);
-
-        // Collect variants
-        if (item.variant) {
-          group.allVariants.push(item.variant);
-        }
-
-        // Use item with images as representative
-        if (item.product_images && item.product_images.length > 0) {
-          group.representativeItem = item;
-        }
-      }
-
-      console.log(`📦 Grouped ${selectedItems.length} items into ${groupedByBase.size} base products`);
-
-      // ============================================
-      // BƯỚC 2: TẠO ITEMS ĐỂ UPLOAD
-      // ============================================
-      const itemsToUpload: TPOSProductItem[] = [];
-
-      for (const group of groupedByBase.values()) {
-        const mergedItem: TPOSProductItem = {
-          ...group.representativeItem,
-          product_code: group.baseProductCode,
-          base_product_code: group.baseProductCode,
-          // Merge all variants into comma-separated string
-          variant: group.allVariants.length > 0 
-            ? group.allVariants.join(', ') 
-            : group.representativeItem.variant,
-          // Sum quantities
-          quantity: group.items.reduce((sum, item) => sum + (item.quantity || 0), 0),
-        };
-
-        itemsToUpload.push(mergedItem);
-      }
-
-      console.log(`📤 Uploading ${itemsToUpload.length} base products to TPOS...`);
-      setCurrentStep(`Đang upload ${itemsToUpload.length} sản phẩm gốc...`);
-
-      // ============================================
-      // BƯỚC 3: UPLOAD TO TPOS
-      // ============================================
+      // Upload to TPOS
       const uploadResult = await uploadToTPOS(
         itemsToUpload,
         (step, total, message) => {
@@ -925,7 +781,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           <div className="border rounded-lg">
             <div className="p-3 bg-muted border-b">
               <h3 className="font-semibold">
-                Danh sách sản phẩm ({groupedItems.length} nhóm, {filteredItems.length} sản phẩm)
+                Danh sách sản phẩm ({filteredItems.length} sản phẩm)
               </h3>
             </div>
             <div className="max-h-[400px] overflow-y-auto">
@@ -939,7 +795,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
                         aria-label="Chọn tất cả"
                       />
                     </TableHead>
-                    <TableHead>Mã SP gốc</TableHead>
+                    <TableHead>Mã SP</TableHead>
                     <TableHead>Tên sản phẩm</TableHead>
                     <TableHead>Biến thể</TableHead>
                     <TableHead className="text-right">Giá bán</TableHead>
@@ -948,51 +804,47 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedItems.map((group) => (
+                  {filteredItems.map((item) => (
                     <TableRow 
-                      key={group.baseProductCode}
-                      className={group.allSelected ? "bg-muted/50" : ""}
+                      key={item.id}
+                      className={selectedIds.has(item.id) ? "bg-muted/50" : ""}
                     >
                       <TableCell>
                         <Checkbox
-                          checked={group.allSelected}
-                          onCheckedChange={() => toggleGroup(group)}
-                          aria-label={`Chọn ${group.baseProductCode}`}
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={() => toggleItem(item.id)}
+                          aria-label={`Chọn ${item.product_code}`}
                         />
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {group.baseProductCode}
+                        {item.product_code}
                       </TableCell>
-                      <TableCell className="font-medium">{group.baseProductCode}</TableCell>
+                      <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>
-                        {group.variants.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {group.variants.map((variant, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {variant}
-                              </Badge>
-                            ))}
-                          </div>
+                        {item.variant ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {item.variant}
+                          </Badge>
                         ) : (
-                          <span className="text-muted-foreground text-xs">Không có</span>
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatVND(group.baseItem.selling_price || 0)}
+                        {formatVND(item.selling_price || 0)}
                       </TableCell>
                       <TableCell>
-                        {group.baseItem.product_images && group.baseItem.product_images.length > 0 ? (
+                        {item.product_images && item.product_images.length > 0 ? (
                           <Badge variant="default" className="bg-green-600">
-                            ✓ {group.baseItem.product_images.length}
+                            ✓ {item.product_images.length}
                           </Badge>
                         ) : (
                           <Badge variant="secondary">Không có</Badge>
                         )}
                       </TableCell>
                       <TableCell>
-                        {group.baseItem.tpos_product_id ? (
+                        {item.tpos_product_id ? (
                           <Badge variant="default" className="bg-green-600">
-                            ✓ ID: {group.baseItem.tpos_product_id}
+                            ✓ ID: {item.tpos_product_id}
                           </Badge>
                         ) : (
                           <Badge variant="secondary">Chưa upload</Badge>
