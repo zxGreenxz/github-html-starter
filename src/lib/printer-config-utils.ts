@@ -92,8 +92,8 @@ export const generatePrintHTML = (
         .phone { font-size: ${settings.fontPhone}px; margin: ${settings.lineSpacing}px 0; }
         .customer { font-size: ${settings.fontCustomer}px; margin: ${settings.lineSpacing}px 0; }
         .product-code { font-size: ${settings.fontProduct}px; margin: ${settings.lineSpacing}px 0; }
-        .product-name { font-size: ${settings.fontProduct}px; margin: ${settings.lineSpacing}px 0; line-height: 1.4; word-wrap: break-word; }
-        .comment { font-size: ${settings.fontProduct - 4}px; margin: ${settings.lineSpacing}px 0; font-weight: 900; }
+        .product-name { font-size: ${settings.fontProduct}px; margin: ${settings.lineSpacing}px 0; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; white-space: normal; max-width: 100%; hyphens: auto; }
+        .comment { font-size: ${settings.fontProduct - 4}px; margin: ${settings.lineSpacing}px 0; font-weight: 900; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; white-space: normal; max-width: 100%; hyphens: auto; }
         .time { font-size: ${settings.fontProduct - 8}px; margin: ${settings.lineSpacing * 1.5}px 0; }
       </style>
     </head>
