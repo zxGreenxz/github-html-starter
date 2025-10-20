@@ -491,6 +491,48 @@ export function BulkTPOSUploadDialog({
       resolvedUpdates.map(u => [u.product_code, u.fields_to_update])
     );
     
+    // Upsert parent product first
+    try {
+      const parentRecord = {
+        product_code: baseItem.product_code,
+        product_name: baseItem.product_name,
+        variant: null,
+        selling_price: baseItem.selling_price || 0,
+        purchase_price: baseItem.unit_price || 0,
+        barcode: baseItem.product_code,
+        stock_quantity: 0,
+        base_product_code: baseItem.product_code,
+        supplier_name: baseItem.supplier_name,
+        product_images: baseItem.product_images,
+        price_images: baseItem.price_images,
+        tpos_product_id: tposProductId,
+        productid_bienthe: null,
+        tpos_image_url: baseItem.product_images?.[0] || null,
+        unit: "Cái",
+        updated_at: new Date().toISOString()
+      };
+      
+      const { error: parentError } = await supabase
+        .from('products')
+        .upsert([parentRecord], {
+          onConflict: 'product_code',
+          ignoreDuplicates: false
+        });
+      
+      if (parentError) {
+        throw new Error(`Lỗi lưu parent product: ${parentError.message}`);
+      }
+      
+      console.log(`[Upload TPOS] Upserted parent: ${baseItem.product_code} with tpos_product_id=${tposProductId}`);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi lưu parent product",
+        description: error.message
+      });
+      throw error;
+    }
+    
     for (const variant of variantsFromTPOS) {
       const code = variant.DefaultCode;
       if (!code) continue;
@@ -575,6 +617,40 @@ export function BulkTPOSUploadDialog({
     tposProductId: number
   ): Promise<void> => {
     try {
+      // Upsert parent product first
+      const parentRecord = {
+        product_code: baseItem.product_code,
+        product_name: baseItem.product_name,
+        variant: null,
+        selling_price: baseItem.selling_price || 0,
+        purchase_price: baseItem.unit_price || 0,
+        barcode: baseItem.product_code,
+        stock_quantity: 0,
+        base_product_code: baseItem.product_code,
+        supplier_name: baseItem.supplier_name,
+        product_images: baseItem.product_images,
+        price_images: baseItem.price_images,
+        tpos_product_id: tposProductId,
+        productid_bienthe: null,
+        tpos_image_url: baseItem.product_images?.[0] || null,
+        unit: "Cái",
+        updated_at: new Date().toISOString()
+      };
+      
+      const { error: parentError } = await supabase
+        .from('products')
+        .upsert([parentRecord], {
+          onConflict: 'product_code',
+          ignoreDuplicates: false
+        });
+      
+      if (parentError) {
+        throw new Error(`Lỗi lưu parent product: ${parentError.message}`);
+      }
+      
+      console.log(`[Upload TPOS] Upserted parent: ${baseItem.product_code} with tpos_product_id=${tposProductId}`);
+      
+      // Then upsert variants
       const variantRecords = variantsFromTPOS.map(variant => ({
         product_code: variant.DefaultCode,
         product_name: variant.Name,
