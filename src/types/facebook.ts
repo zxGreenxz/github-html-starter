@@ -89,6 +89,9 @@ export interface FacebookCommentArchive {
   comment_message: string;
   comment_created_time: string;
   like_count: number;
+  session_index?: number | null;
+  tpos_session_index?: string | null;
+  tpos_order_id?: string | null;
 }
 
 export interface CustomerRecord {

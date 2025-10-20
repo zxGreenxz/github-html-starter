@@ -138,106 +138,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     return Array.from(uniqueComments.values());
   }, [commentsData]);
 
-  // Cache orders data - merge from facebook_pending_orders and TPOS API
-  const { data: ordersData = [] } = useQuery({
-    queryKey: ["tpos-orders", videoId],
-    queryFn: async () => {
-      if (!videoId) return [];
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      // Fetch from facebook_pending_orders table
-      const { data: pendingOrders } = await supabase
-        .from('facebook_pending_orders')
-        .select('*')
-        .eq('facebook_post_id', videoId)
-        .order('created_at', { ascending: false });
-
-      // Fetch from TPOS API
-      const ordersResponse = await fetch(`https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/fetch-facebook-orders`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ postId: videoId, top: 200 }),
-      });
-
-      const tposOrders = ordersResponse.ok ? (await ordersResponse.json()).value || [] : [];
-
-      // Merge orders: prioritize facebook_pending_orders
-      const mergedOrdersMap = new Map<string, TPOSOrder>();
-
-      // Add TPOS API orders first
-      tposOrders.forEach((order: TPOSOrder) => {
-        if (order.Facebook_CommentId) {
-          mergedOrdersMap.set(order.Facebook_CommentId, order);
-        }
-      });
-
-      // Override with pending orders that have TPOS order ID
-      pendingOrders?.forEach((pending) => {
-        if (pending.facebook_comment_id && pending.tpos_order_id) {
-          // Convert pending order to TPOSOrder format
-          const tposOrder: TPOSOrder = {
-            Id: pending.tpos_order_id,
-            Code: pending.code || '',
-            SessionIndex: pending.session_index,
-            Facebook_UserId: pending.facebook_user_id,
-            Facebook_PostId: pending.facebook_post_id,
-            Facebook_ASUserId: '',
-            Facebook_CommentId: pending.facebook_comment_id,
-            Facebook_UserName: pending.name,
-            Telephone: pending.phone || '',
-            Name: pending.name,
-            Note: pending.comment || '',
-            PartnerId: 0,
-            PartnerName: '',
-            PartnerStatus: '',
-            PartnerStatusText: null,
-            TotalAmount: 0,
-            TotalQuantity: 0,
-            DateCreated: pending.created_time || pending.created_at,
-            StatusText: 'Đã tạo đơn',
-          };
-          mergedOrdersMap.set(pending.facebook_comment_id, tposOrder);
-        }
-      });
-
-      return Array.from(mergedOrdersMap.values());
-    },
-    enabled: !!videoId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Real-time subscription for facebook_pending_orders
-  useEffect(() => {
-    if (!videoId) return;
-
-    const channel = supabase
-      .channel(`facebook-realtime-${videoId}`)
-      
-      // Subscribe to pending orders changes
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'facebook_pending_orders',
-          filter: `facebook_post_id=eq.${videoId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] facebook_pending_orders change:', payload);
-          queryClient.invalidateQueries({ queryKey: ['tpos-orders', videoId] });
-        }
-      )
-      
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [videoId, pageId, queryClient]);
+  // Note: Orders data removed - now using session_index directly from comments
 
   // Track new comments
   useEffect(() => {
@@ -261,7 +162,6 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
 
   return {
     comments,
-    ordersData,
     selectedVideo,
     setSelectedVideo,
     newCommentIds,
