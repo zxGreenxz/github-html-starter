@@ -22,11 +22,5 @@
   },
   "engines": {
     "node": ">=14.0.0"
-  },
-  "notes": {
-    "poppler": "Cần cài đặt poppler-utils để sử dụng pdftoppm command",
-    "ubuntu": "sudo apt-get install poppler-utils",
-    "macos": "brew install poppler",
-    "windows": "Download từ https://github.com/oschwartz10612/poppler-windows/releases/"
   }
 }
