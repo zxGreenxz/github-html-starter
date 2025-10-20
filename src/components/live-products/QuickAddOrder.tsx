@@ -302,34 +302,83 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill using HTML template
+      // Auto-print bill using saved printer configuration
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
           try {
             console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
             
-            // Generate HTML using new generator
-            const { generateBillHTML } = await import('@/lib/bill-pdf-generator');
+            // Load saved printer settings
+            const { loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
+            const savedSettings = loadFormatSettings();
             
-            const billHTML = generateBillHTML({
-              sessionIndex: billData.sessionIndex,
-              phone: billData.phone,
-              customerName: billData.customerName,
-              productCode: billData.productCode,
-              productName: billData.productName,
-              comment: billData.comment,
-              createdTime: billData.createdTime,
+            // Parse settings with defaults
+            const width = savedSettings?.width === 'custom' 
+              ? parseInt(savedSettings.customWidth) || 576
+              : parseInt(savedSettings?.width || '576');
+            
+            const height = savedSettings?.height === 'custom'
+              ? parseInt(savedSettings.customHeight) || null
+              : savedSettings?.height === 'auto' 
+                ? null 
+                : parseInt(savedSettings?.height || '0') || null;
+            
+            const threshold = parseInt(savedSettings?.threshold || '95');
+            const scale = parseFloat(savedSettings?.scale || '2');
+            
+            // Font settings
+            const fontSession = parseInt(savedSettings?.fontSession || '72');
+            const fontPhone = parseInt(savedSettings?.fontPhone || '52');
+            const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
+            const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+            const padding = parseInt(savedSettings?.padding || '20');
+            const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
+            const alignment = savedSettings?.alignment || 'center';
+            const isBold = savedSettings?.isBold ?? true;
+            const isItalic = savedSettings?.isItalic ?? false;
+            
+            console.log('📐 Using printer settings:', {
+              width, height, threshold, scale,
+              fontSession, fontPhone, fontCustomer, fontProduct,
+              padding, lineSpacing, alignment, isBold, isItalic
             });
             
-            console.log('✅ HTML generated');
+            // Generate HTML with full format settings
+            const billHTML = generatePrintHTML(
+              {
+                width,
+                height,
+                threshold,
+                scale,
+                fontSession,
+                fontPhone,
+                fontCustomer,
+                fontProduct,
+                padding,
+                lineSpacing,
+                alignment,
+                isBold,
+                isItalic
+              },
+              {
+                sessionIndex: billData.sessionIndex,
+                phone: billData.phone || '',
+                customerName: billData.customerName || '',
+                productCode: billData.productCode || '',
+                productName: billData.productName || '',
+                comment: billData.comment || ''
+              }
+            );
             
-            // Print via Bridge with default settings
+            console.log('✅ HTML generated with custom settings');
+            
+            // Print via Bridge with saved settings
             const printResult = await printHTMLToXC80(activePrinter, billHTML, {
-              width: 576,
-              height: null,
-              threshold: 95,
-              scale: 2,
+              width,
+              height,
+              threshold,
+              scale
             });
             
             if (printResult.success) {
