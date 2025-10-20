@@ -742,7 +742,6 @@ export type Database = {
           created_at: string
           custom_height: string
           custom_width: string
-          font_comment: string | null
           font_customer: string
           font_phone: string
           font_product: string
@@ -764,7 +763,6 @@ export type Database = {
           created_at?: string
           custom_height: string
           custom_width: string
-          font_comment?: string | null
           font_customer: string
           font_phone: string
           font_product: string
@@ -786,7 +784,6 @@ export type Database = {
           created_at?: string
           custom_height?: string
           custom_width?: string
-          font_comment?: string | null
           font_customer?: string
           font_phone?: string
           font_product?: string
@@ -844,7 +841,6 @@ export type Database = {
           created_at: string
           custom_height: string
           custom_width: string
-          font_comment: string | null
           font_customer: string
           font_phone: string
           font_product: string
@@ -868,7 +864,6 @@ export type Database = {
           created_at?: string
           custom_height: string
           custom_width: string
-          font_comment?: string | null
           font_customer: string
           font_phone: string
           font_product: string
@@ -892,7 +887,6 @@ export type Database = {
           created_at?: string
           custom_height?: string
           custom_width?: string
-          font_comment?: string | null
           font_customer?: string
           font_phone?: string
           font_product?: string
