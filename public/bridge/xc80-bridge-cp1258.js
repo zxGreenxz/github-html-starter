@@ -5,8 +5,8 @@
  * Hỗ trợ in PDF trắng đen
  *
  * Cách chạy:
- * npm install express body-parser cors iconv-lite pdf-poppler sharp
- * node xc80-bridge-pdf-support.js
+ * npm install express body-parser cors iconv-lite sharp
+ * node xc80-bridge-cp1258.js
  */
 
 const express = require("express");
@@ -47,25 +47,94 @@ const GS = "\x1D";
  */
 const CP1258_MAP = {
   // Lowercase vowels
-  à: "\xE0", á: "\xE1", ả: "\xE3", ã: "\xE3", ạ: "\xE1",
-  ằ: "\xE0", ắ: "\xE1", ẳ: "\xE3", ẵ: "\xE3", ặ: "\xE1",
-  è: "\xE8", é: "\xE9", ẻ: "\xEB", ẽ: "\xEB", ẹ: "\xE9",
-  ề: "\xE8", ế: "\xE9", ể: "\xEB", ễ: "\xEB", ệ: "\xE9",
-  ì: "\xEC", í: "\xED", ỉ: "\xEF", ĩ: "\xEF", ị: "\xED",
-  ò: "\xF2", ó: "\xF3", ỏ: "\xF5", õ: "\xF5", ọ: "\xF3",
-  ồ: "\xF2", ố: "\xF3", ổ: "\xF5", ỗ: "\xF5", ộ: "\xF3",
-  ờ: "\xF2", ớ: "\xF3", ở: "\xF5", ỡ: "\xF5", ợ: "\xF3",
-  ù: "\xF9", ú: "\xFA", ủ: "\xFC", ũ: "\xFC", ụ: "\xFA",
-  ừ: "\xF9", ứ: "\xFA", ử: "\xFC", ữ: "\xFC", ự: "\xFA",
-  ỳ: "\xFD", ý: "\xFD", ỷ: "\xFF", ỹ: "\xFF", ỵ: "\xFD",
-  đ: "\xF0", Đ: "\xD0",
+  à: "\xE0",
+  á: "\xE1",
+  ả: "\xE3",
+  ã: "\xE3",
+  ạ: "\xE1",
+  ằ: "\xE0",
+  ắ: "\xE1",
+  ẳ: "\xE3",
+  ẵ: "\xE3",
+  ặ: "\xE1",
+  è: "\xE8",
+  é: "\xE9",
+  ẻ: "\xEB",
+  ẽ: "\xEB",
+  ẹ: "\xE9",
+  ề: "\xE8",
+  ế: "\xE9",
+  ể: "\xEB",
+  ễ: "\xEB",
+  ệ: "\xE9",
+  ì: "\xEC",
+  í: "\xED",
+  ỉ: "\xEF",
+  ĩ: "\xEF",
+  ị: "\xED",
+  ò: "\xF2",
+  ó: "\xF3",
+  ỏ: "\xF5",
+  õ: "\xF5",
+  ọ: "\xF3",
+  ồ: "\xF2",
+  ố: "\xF3",
+  ổ: "\xF5",
+  ỗ: "\xF5",
+  ộ: "\xF3",
+  ờ: "\xF2",
+  ớ: "\xF3",
+  ở: "\xF5",
+  ỡ: "\xF5",
+  ợ: "\xF3",
+  ù: "\xF9",
+  ú: "\xFA",
+  ủ: "\xFC",
+  ũ: "\xFC",
+  ụ: "\xFA",
+  ừ: "\xF9",
+  ứ: "\xFA",
+  ử: "\xFC",
+  ữ: "\xFC",
+  ự: "\xFA",
+  ỳ: "\xFD",
+  ý: "\xFD",
+  ỷ: "\xFF",
+  ỹ: "\xFF",
+  ỵ: "\xFD",
+  đ: "\xF0",
+  Đ: "\xD0",
   // Uppercase vowels
-  À: "\xC0", Á: "\xC1", Ả: "\xC3", Ã: "\xC3", Ạ: "\xC1",
-  È: "\xC8", É: "\xC9", Ẻ: "\xCB", Ẽ: "\xCB", Ẹ: "\xC9",
-  Ì: "\xCC", Í: "\xCD", Ỉ: "\xCF", Ĩ: "\xCF", Ị: "\xCD",
-  Ò: "\xD2", Ó: "\xD3", Ỏ: "\xD5", Õ: "\xD5", Ọ: "\xD3",
-  Ù: "\xD9", Ú: "\xDA", Ủ: "\xDC", Ũ: "\xDC", Ụ: "\xDA",
-  Ỳ: "\xDD", Ý: "\xDD", Ỷ: "\xDF", Ỹ: "\xDF", Ỵ: "\xDD",
+  À: "\xC0",
+  Á: "\xC1",
+  Ả: "\xC3",
+  Ã: "\xC3",
+  Ạ: "\xC1",
+  È: "\xC8",
+  É: "\xC9",
+  Ẻ: "\xCB",
+  Ẽ: "\xCB",
+  Ẹ: "\xC9",
+  Ì: "\xCC",
+  Í: "\xCD",
+  Ỉ: "\xCF",
+  Ĩ: "\xCF",
+  Ị: "\xCD",
+  Ò: "\xD2",
+  Ó: "\xD3",
+  Ỏ: "\xD5",
+  Õ: "\xD5",
+  Ọ: "\xD3",
+  Ù: "\xD9",
+  Ú: "\xDA",
+  Ủ: "\xDC",
+  Ũ: "\xDC",
+  Ụ: "\xDA",
+  Ỳ: "\xDD",
+  Ý: "\xDD",
+  Ỷ: "\xDF",
+  Ỹ: "\xDF",
+  Ỵ: "\xDD",
 };
 
 /**
@@ -91,71 +160,68 @@ function convertToCP1258(text) {
  */
 async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
   const { dpi = 300, threshold = 115, width = 944 } = options;
-  
+
   const timestamp = Date.now();
   const pdfPath = path.join(TEMP_DIR, `temp_${timestamp}.pdf`);
   const outputPrefix = path.join(TEMP_DIR, `output_${timestamp}`);
-  
+
   try {
     // Step 1: Save PDF buffer to file (async)
     await fs.writeFile(pdfPath, pdfBuffer);
-    
+
     // Step 2: Convert PDF to PNG using pdftoppm (better Sharp support)
-    console.log(`🔄 Converting PDF to PNG (DPI: ${dpi})...`);
+    console.log(`📄 Converting PDF to PNG (DPI: ${dpi})...`);
     const command = `pdftoppm -r ${dpi} -png "${pdfPath}" "${outputPrefix}"`;
     await execAsync(command);
-    
+
     // Step 3: Find generated PNG file
     const pngPath = `${outputPrefix}-1.png`;
     if (!fsSync.existsSync(pngPath)) {
-      throw new Error('PDF conversion failed - no output file generated');
+      throw new Error("PDF conversion failed - no output file generated");
     }
-    
+
     // Step 4: Load and enhance image with sharp
-    console.log(`🔄 Processing image (width: ${width}px, threshold: ${threshold})...`);
+    console.log(`📄 Processing image (width: ${width}px, threshold: ${threshold})...`);
     let img = sharp(pngPath);
-    
+
     // Get metadata
     const metadata = await img.metadata();
-    console.log(`📐 Original size: ${metadata.width}x${metadata.height}px`);
-    
+    console.log(`📏 Original size: ${metadata.width}x${metadata.height}px`);
+
     // Resize if necessary
     if (metadata.width > width) {
       img = img.resize(width, null, {
-        kernel: 'lanczos3',
-        fit: 'inside'
+        kernel: "lanczos3",
+        fit: "inside",
       });
     }
-    
+
     // Enhance and convert to monochrome
     const processedBuffer = await img
       .greyscale()
       .sharpen({ sigma: 1.2, m1: 0.5, m2: 0.5 })
       .normalise()
       .threshold(threshold)
-      .toFormat('png')
+      .toFormat("png")
       .toBuffer();
-    
+
     // Step 5: Get raw pixel data
-    const { data: imageData, info } = await sharp(processedBuffer)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
+    const { data: imageData, info } = await sharp(processedBuffer).raw().toBuffer({ resolveWithObject: true });
+
     console.log(`✅ Final size: ${info.width}x${info.height}px`);
-    
+
     // Step 6: Convert to ESC/POS format
     const escposData = encodeImageToESCPOS(imageData, info.width, info.height);
-    
+
     // Cleanup temp files (async)
     try {
       await fs.unlink(pdfPath);
       await fs.unlink(pngPath);
     } catch (e) {
-      console.warn('Warning: Could not delete temp files:', e.message);
+      console.warn("Warning: Could not delete temp files:", e.message);
     }
-    
+
     return escposData;
-    
   } catch (error) {
     // Cleanup on error (async)
     try {
@@ -163,7 +229,7 @@ async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
       const pngPath = `${outputPrefix}-1.png`;
       await fs.unlink(pngPath).catch(() => {});
     } catch (e) {}
-    
+
     throw new Error(`PDF to ESC/POS conversion failed: ${error.message}`);
   }
 }
@@ -173,23 +239,23 @@ async function pdfToESCPOSBitmap(pdfBuffer, options = {}) {
  */
 function encodeImageToESCPOS(imageData, width, height) {
   const commands = [];
-  
+
   // Initialize printer
-  commands.push(Buffer.from([0x1B, 0x40])); // ESC @ - Initialize
-  
+  commands.push(Buffer.from([0x1b, 0x40])); // ESC @ - Initialize
+
   // Center alignment
-  commands.push(Buffer.from([0x1B, 0x61, 0x01])); // ESC a 1 - Center
-  
+  commands.push(Buffer.from([0x1b, 0x61, 0x01])); // ESC a 1 - Center
+
   // Calculate bitmap dimensions
   const widthBytes = Math.ceil(width / 8);
-  const xL = widthBytes & 0xFF;
-  const xH = (widthBytes >> 8) & 0xFF;
-  const yL = height & 0xFF;
-  const yH = (height >> 8) & 0xFF;
-  
+  const xL = widthBytes & 0xff;
+  const xH = (widthBytes >> 8) & 0xff;
+  const yL = height & 0xff;
+  const yH = (height >> 8) & 0xff;
+
   // GS v 0 - Print raster bitmap
-  commands.push(Buffer.from([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]));
-  
+  commands.push(Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]));
+
   // Convert pixels to bitmap (1 bit per pixel)
   const bitmapData = [];
   for (let y = 0; y < height; y++) {
@@ -201,31 +267,30 @@ function encodeImageToESCPOS(imageData, width, height) {
           // For grayscale/RGB, take first channel
           const pixelIndex = (y * width + pixelX) * (imageData.length / (width * height));
           const pixelValue = imageData[Math.floor(pixelIndex)];
-          
+
           // Black pixel = 1, White pixel = 0
           if (pixelValue < 128) {
-            byte |= (1 << (7 - bit));
+            byte |= 1 << (7 - bit);
           }
         }
       }
       bitmapData.push(byte);
     }
   }
-  
+
   commands.push(Buffer.from(bitmapData));
-  
+
   // Left align for next commands
-  commands.push(Buffer.from([0x1B, 0x61, 0x00])); // ESC a 0 - Left
-  
+  commands.push(Buffer.from([0x1b, 0x61, 0x00])); // ESC a 0 - Left
+
   // Feed paper
-  commands.push(Buffer.from([0x1B, 0x64, 3])); // ESC d 3 - Feed 3 lines
-  
+  commands.push(Buffer.from([0x1b, 0x64, 3])); // ESC d 3 - Feed 3 lines
+
   // Cut paper
-  commands.push(Buffer.from([0x1D, 0x56, 0x00])); // GS V 0 - Full cut
-  
+  commands.push(Buffer.from([0x1d, 0x56, 0x00])); // GS V 0 - Full cut
+
   return Buffer.concat(commands);
 }
-
 
 /**
  * Gửi data đến máy in qua network
@@ -249,7 +314,7 @@ async function sendToPrinter(printerIp, printerPort, data) {
             }, 500);
           }
         });
-      }
+      },
     );
 
     client.on("timeout", () => {
@@ -268,43 +333,6 @@ async function sendToPrinter(printerIp, printerPort, data) {
 // ============================================
 
 /**
- * Bitmap printing endpoint (ESC/POS bitmap format)
- */
-app.post('/print/bitmap', async (req, res) => {
-  try {
-    const { printerIp, printerPort, bitmapData } = req.body;
-
-    if (!printerIp || !printerPort || !bitmapData) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: printerIp, printerPort, bitmapData' 
-      });
-    }
-
-    console.log(`📄 Printing ESC/POS bitmap to ${printerIp}:${printerPort}`);
-    console.log(`Bitmap size: ${bitmapData.length} bytes`);
-
-    // Convert array back to Uint8Array
-    const uint8Data = new Uint8Array(bitmapData);
-
-    // Send to printer
-    await sendToPrinter(printerIp, printerPort, uint8Data);
-
-    res.json({ 
-      success: true, 
-      message: 'ESC/POS bitmap sent to printer',
-      bytesTransferred: uint8Data.length
-    });
-
-  } catch (error) {
-    console.error('❌ Bitmap print error:', error.message);
-    res.status(500).json({ 
-      error: error.message,
-      details: 'Failed to print ESC/POS bitmap'
-    });
-  }
-});
-
-/**
  * Health check
  */
 app.get("/health", (req, res) => {
@@ -318,25 +346,10 @@ app.get("/health", (req, res) => {
 
 /**
  * POST /print/pdf - In file PDF trắng đen (pdftoppm + sharp)
- * Body: {
- *   printerIp: "192.168.1.100",
- *   printerPort: 9100,
- *   pdfBase64: "base64_encoded_pdf_data",
- *   dpi: 300 (optional, default 300),
- *   threshold: 115 (optional, 0-255, default 115),
- *   width: 944 (optional, default 944px for 80mm @ 300 DPI)
- * }
  */
 app.post("/print/pdf", async (req, res) => {
   try {
-    const { 
-      printerIp, 
-      printerPort = 9100, 
-      pdfBase64, 
-      dpi = 300, 
-      threshold = 115, 
-      width = 944 
-    } = req.body;
+    const { printerIp, printerPort = 9100, pdfBase64, dpi = 300, threshold = 115, width = 944 } = req.body;
 
     if (!printerIp || !pdfBase64) {
       return res.status(400).json({
@@ -353,7 +366,7 @@ app.post("/print/pdf", async (req, res) => {
     console.log(`   PDF size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
 
     // Convert PDF to ESC/POS bitmap
-    console.log(`   🔄 Converting PDF to ESC/POS bitmap...`);
+    console.log(`   📄 Converting PDF to ESC/POS bitmap...`);
     const escposData = await pdfToESCPOSBitmap(pdfBuffer, { dpi, threshold, width });
     console.log(`   ✅ ESC/POS data: ${escposData.length} bytes`);
 
@@ -367,7 +380,7 @@ app.post("/print/pdf", async (req, res) => {
       message: "PDF printed successfully",
       details: {
         dataSize: escposData.length,
-        settings: { dpi, threshold, width }
+        settings: { dpi, threshold, width },
       },
     });
   } catch (error) {
@@ -375,6 +388,42 @@ app.post("/print/pdf", async (req, res) => {
     res.status(500).json({
       error: error.message,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+});
+
+/**
+ * POST /print/bitmap - In bitmap từ canvas
+ */
+app.post("/print/bitmap", async (req, res) => {
+  try {
+    const { printerIp, printerPort, bitmapData } = req.body;
+
+    if (!printerIp || !printerPort || !bitmapData) {
+      return res.status(400).json({
+        error: "Missing required fields: printerIp, printerPort, bitmapData",
+      });
+    }
+
+    console.log(`📄 Printing ESC/POS bitmap to ${printerIp}:${printerPort}`);
+    console.log(`Bitmap size: ${bitmapData.length} bytes`);
+
+    // Convert array back to Uint8Array
+    const uint8Data = new Uint8Array(bitmapData);
+
+    // Send to printer
+    await sendToPrinter(printerIp, printerPort, uint8Data);
+
+    res.json({
+      success: true,
+      message: "ESC/POS bitmap sent to printer",
+      bytesTransferred: uint8Data.length,
+    });
+  } catch (error) {
+    console.error("❌ Bitmap print error:", error.message);
+    res.status(500).json({
+      error: error.message,
+      details: "Failed to print ESC/POS bitmap",
     });
   }
 });
@@ -400,11 +449,11 @@ app.post("/print/text", async (req, res) => {
     const commands = [];
 
     // Initialize
-    commands.push(Buffer.from([0x1B, 0x40]));
+    commands.push(Buffer.from([0x1b, 0x40]));
 
     // Set code page to CP1258 if requested
     if (encoding === "cp1258") {
-      commands.push(Buffer.from([0x1B, 0x74, 0x1E])); // ESC t 30
+      commands.push(Buffer.from([0x1b, 0x74, 0x1e])); // ESC t 30
     }
 
     // Convert text
@@ -412,7 +461,7 @@ app.post("/print/text", async (req, res) => {
     commands.push(Buffer.from(convertedText + "\n\n\n", "binary"));
 
     // Cut
-    commands.push(Buffer.from([0x1D, 0x56, 0x00]));
+    commands.push(Buffer.from([0x1d, 0x56, 0x00]));
 
     const escposData = Buffer.concat(commands);
 
@@ -432,15 +481,14 @@ app.post("/print/text", async (req, res) => {
   }
 });
 
-
 // ============================================
 // START SERVER
 // ============================================
 
 app.listen(PORT, () => {
-  console.log(`\n╔════════════════════════════════════════════════════════════════╗`);
-  console.log(`║   XC80 Print Bridge Server v7.0 - PDF SUPPORT                ║`);
-  console.log(`╚════════════════════════════════════════════════════════════════╝\n`);
+  console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
+  console.log(`║   XC80 Print Bridge Server v7.0 - PDF SUPPORT            ║`);
+  console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
   console.log(`📡 Server running on port ${PORT}`);
   console.log(`🌐 Endpoints:`);
   console.log(`   GET  /health           - Health check`);
@@ -453,5 +501,5 @@ app.listen(PORT, () => {
   console.log(`   • macOS: brew install poppler`);
   console.log(`   • Windows: Download poppler from https://blog.alivate.com.au/poppler-windows/\n`);
   console.log(`🚀 Ready to accept print jobs!`);
-  console.log(`════════════════════════════════════════════════════════════════\n`);
+  console.log(`═══════════════════════════════════════════════════════════\n`);
 });
