@@ -21,6 +21,7 @@ interface UnifiedImageUploadProps {
   showPreview?: boolean;
   compressThreshold?: number;
   preventMultiple?: boolean; // If true, prevent upload when image already exists
+  customHeight?: string; // Custom height for upload area (e.g., "50px", "160px")
 }
 
 export function UnifiedImageUpload({
@@ -34,6 +35,7 @@ export function UnifiedImageUpload({
   showPreview = true,
   compressThreshold = 1,
   preventMultiple = false,
+  customHeight = "160px",
 }: UnifiedImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -46,6 +48,7 @@ export function UnifiedImageUpload({
 
   const images = Array.isArray(value) ? value : value ? [value] : [];
   const isSingle = maxFiles === 1;
+  const isCompact = customHeight && parseInt(customHeight) < 100;
 
   const uploadImage = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -278,8 +281,9 @@ export function UnifiedImageUpload({
           onDragLeave={handleDragLeave}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
+          style={{ minHeight: customHeight }}
           className={`
-            relative min-h-[160px] p-8 rounded-lg border-2 transition-all
+            relative ${isCompact ? 'p-2' : 'p-8'} rounded-lg border-2 transition-all
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
             ${globalUploadInProgress && !isUploading 
               ? 'opacity-50 cursor-not-allowed pointer-events-none border-dashed border-muted-foreground/20'
@@ -291,55 +295,61 @@ export function UnifiedImageUpload({
             }
           `}
         >
-        <div className="flex flex-col items-center justify-center text-center space-y-3">
+        <div className={`flex flex-col items-center justify-center text-center ${isCompact ? 'space-y-1' : 'space-y-3'}`}>
           {/* Icon */}
           {showSuccess ? (
             <div className="animate-scale-in">
-              <Check className="w-12 h-12 text-green-500" />
+              <Check className={isCompact ? "w-4 h-4 text-green-500" : "w-12 h-12 text-green-500"} />
             </div>
           ) : isUploading ? (
-            <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            <Loader2 className={isCompact ? "w-4 h-4 text-primary animate-spin" : "w-10 h-10 text-primary animate-spin"} />
           ) : isDragging ? (
-            <UploadCloud className="w-12 h-12 text-primary animate-bounce" />
+            <UploadCloud className={isCompact ? "w-6 h-6 text-primary animate-bounce" : "w-12 h-12 text-primary animate-bounce"} />
           ) : (
-            <ImageIcon className="w-12 h-12 text-muted-foreground/60" />
+            <ImageIcon className={isCompact ? "w-6 h-6 text-muted-foreground/60" : "w-12 h-12 text-muted-foreground/60"} />
           )}
 
           {/* Status Text */}
           {isUploading ? (
             <div className="w-full space-y-2">
-              <p className="text-sm font-medium text-primary">
-                ⬆️ Đang tải... {uploadProgress}%
+              <p className={isCompact ? "text-[10px] font-medium text-primary" : "text-sm font-medium text-primary"}>
+                {isCompact ? `${uploadProgress}%` : `⬆️ Đang tải... ${uploadProgress}%`}
               </p>
-              <Progress value={uploadProgress} className="w-full" />
+              {!isCompact && <Progress value={uploadProgress} className="w-full" />}
             </div>
           ) : showSuccess ? (
-            <p className="text-sm font-medium text-green-600">
-              ✅ Tải lên thành công!
+            <p className={isCompact ? "text-[10px] font-medium text-green-600" : "text-sm font-medium text-green-600"}>
+              {isCompact ? "✓" : "✅ Tải lên thành công!"}
             </p>
           ) : isDragging ? (
-            <p className="text-sm font-semibold text-primary">
-              👍 Thả ảnh vào đây
+            <p className={isCompact ? "text-[10px] font-semibold text-primary" : "text-sm font-semibold text-primary"}>
+              {isCompact ? "👍" : "👍 Thả ảnh vào đây"}
             </p>
           ) : (
             <div className="space-y-1">
-              <p className="text-base font-semibold text-foreground">
-                {isMobile ? (
-                  <span className="flex items-center gap-1 justify-center">
-                    📷 <span>Chọn ảnh từ thư viện</span>
-                  </span>
-                ) : (
-                  placeholder || "Dán ảnh (Ctrl+V) hoặc kéo thả"
-                )}
-              </p>
-              {!isMobile && (
-                <p className="text-sm text-muted-foreground">
-                  hoặc <span className="font-medium text-primary">Ctrl+V</span> để dán
-                </p>
+              {isCompact ? (
+                <p className="text-[10px] text-muted-foreground">Ctrl+V</p>
+              ) : (
+                <>
+                  <p className="text-base font-semibold text-foreground">
+                    {isMobile ? (
+                      <span className="flex items-center gap-1 justify-center">
+                        📷 <span>Chọn ảnh từ thư viện</span>
+                      </span>
+                    ) : (
+                      placeholder || "Dán ảnh (Ctrl+V) hoặc kéo thả"
+                    )}
+                  </p>
+                  {!isMobile && (
+                    <p className="text-sm text-muted-foreground">
+                      hoặc <span className="font-medium text-primary">Ctrl+V</span> để dán
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground/60 mt-2 border-t border-border/50 pt-2">
+                    {isSingle ? '1 ảnh' : `Tối đa ${maxFiles} ảnh`} • Tự động nén {'>'}{compressThreshold}MB
+                  </p>
+                </>
               )}
-              <p className="text-xs text-muted-foreground/60 mt-2 border-t border-border/50 pt-2">
-                {isSingle ? '1 ảnh' : `Tối đa ${maxFiles} ảnh`} • Tự động nén {'>'}{compressThreshold}MB
-              </p>
             </div>
           )}
         </div>
