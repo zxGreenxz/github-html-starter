@@ -113,7 +113,6 @@ export type Database = {
           last_fetched_at: string | null
           last_synced_at: string | null
           like_count: number | null
-          session_index: number | null
           tpos_order_id: string | null
           tpos_session_index: string | null
           tpos_sync_status: string | null
@@ -133,7 +132,6 @@ export type Database = {
           last_fetched_at?: string | null
           last_synced_at?: string | null
           like_count?: number | null
-          session_index?: number | null
           tpos_order_id?: string | null
           tpos_session_index?: string | null
           tpos_sync_status?: string | null
@@ -153,7 +151,6 @@ export type Database = {
           last_fetched_at?: string | null
           last_synced_at?: string | null
           like_count?: number | null
-          session_index?: number | null
           tpos_order_id?: string | null
           tpos_session_index?: string | null
           tpos_sync_status?: string | null

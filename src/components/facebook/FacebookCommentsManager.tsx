@@ -447,7 +447,39 @@ export function FacebookCommentsManager({
     staleTime: 0, // Always consider data stale to allow immediate refetch
   });
 
-  // Note: Orders data removed - now using session_index directly from comments
+  // Cache orders data
+  const { data: ordersData = [] } = useQuery({
+    queryKey: ["tpos-orders", selectedVideo?.objectId],
+    queryFn: async () => {
+      if (!selectedVideo?.objectId) return [];
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const ordersResponse = await fetch(
+        `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/fetch-facebook-orders`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            postId: selectedVideo.objectId,
+            top: ORDERS_TOP,
+          }),
+        },
+      );
+
+      if (!ordersResponse.ok) return [];
+
+      const ordersDataResult = await ordersResponse.json();
+      return ordersDataResult.value || [];
+    },
+    enabled: !!selectedVideo?.objectId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // ============================================================================
   // MUTATIONS
@@ -973,7 +1005,17 @@ export function FacebookCommentsManager({
     };
   }, []);
 
-  // Note: Status fetching removed - session_index now comes directly from comments
+  useEffect(() => {
+    if (!comments.length || !ordersData.length) return;
+
+    const commentsNeedingStatus = comments.filter(
+      (c) => !customerStatusMapRef.current.has(c.from.id),
+    );
+
+    if (commentsNeedingStatus.length > 0) {
+      debouncedFetchStatus(commentsNeedingStatus, ordersData);
+    }
+  }, [comments, ordersData, debouncedFetchStatus]);
 
   // ============================================================================
   // COMPUTE COMMENTS WITH STATUS
