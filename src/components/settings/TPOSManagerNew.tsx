@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getActiveTPOSToken, getTPOSHeaders, generateRandomId } from "@/lib/tpos-config";
-import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
+import { TPOS_ATTRIBUTES, TPOS_ATTRIBUTE_IDS } from "@/lib/variant-attributes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,27 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, X, Plus, Trash2 } from "lucide-react";
 
-// Map TPOS_ATTRIBUTES to component structure
-const availableAttributes = {
-  sizeText: {
-    id: 1,
-    name: "Size Chữ",
-    code: "SZCh",
-    values: TPOS_ATTRIBUTES.sizeText,
-  },
-  color: {
-    id: 3,
-    name: "Màu",
-    code: "Mau",
-    values: TPOS_ATTRIBUTES.color,
-  },
-  sizeNumber: {
-    id: 4,
-    name: "Size Số",
-    code: "SZNu",
-    values: TPOS_ATTRIBUTES.sizeNumber,
-  },
-};
 
 interface AttributeValue {
   Id: number;
@@ -248,26 +227,39 @@ export function TPOSManagerNew() {
   };
 
   // Add/remove attribute values for edit module
-  const addEditAttributeValue = (type: keyof typeof availableAttributes, valueId: number) => {
-    const attrConfig = availableAttributes[type];
-    const selectedValue = attrConfig.values.find(v => v.Id === valueId);
+  const addEditAttributeValue = (type: keyof typeof TPOS_ATTRIBUTES, valueId: number) => {
+    const attrValues = TPOS_ATTRIBUTES[type];
+    const selectedValue = attrValues.find(v => v.Id === valueId);
     if (!selectedValue) return;
+
+    // Get AttributeId from TPOS_ATTRIBUTE_IDS
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
+    
+    const attributeName = type === 'sizeText' ? "Size Chữ" 
+      : type === 'color' ? "Màu" 
+      : "Size Số";
+
+    const attributeCode = type === 'sizeText' ? 'SZCh' 
+      : type === 'color' ? 'Mau' 
+      : 'SZNu';
 
     setEditAttributeLines(prev => {
       const updated = [...prev];
-      let attrLine = updated.find(line => line.AttributeId === attrConfig.id);
+      let attrLine = updated.find(line => line.AttributeId === attributeId);
       
       if (!attrLine) {
         attrLine = {
           Attribute: {
-            Id: attrConfig.id,
-            Name: attrConfig.name,
-            Code: attrConfig.code,
+            Id: attributeId,
+            Name: attributeName,
+            Code: attributeCode,
             Sequence: null,
             CreateVariant: true,
           },
           Values: [],
-          AttributeId: attrConfig.id,
+          AttributeId: attributeId,
         };
         updated.push(attrLine);
       }
@@ -282,10 +274,10 @@ export function TPOSManagerNew() {
         Name: selectedValue.Name,
         Code: selectedValue.Code,
         Sequence: selectedValue.Sequence,
-        AttributeId: attrConfig.id,
-        AttributeName: attrConfig.name,
+        AttributeId: attributeId,
+        AttributeName: attributeName,
         PriceExtra: null,
-        NameGet: `${attrConfig.name}: ${selectedValue.Name}`,
+        NameGet: `${attributeName}: ${selectedValue.Name}`,
         DateCreated: null,
       });
 
@@ -293,12 +285,14 @@ export function TPOSManagerNew() {
     });
   };
 
-  const removeEditAttributeValue = (type: keyof typeof availableAttributes, valueId: number) => {
-    const attrConfig = availableAttributes[type];
+  const removeEditAttributeValue = (type: keyof typeof TPOS_ATTRIBUTES, valueId: number) => {
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
     
     setEditAttributeLines(prev => {
       const updated = prev.map(line => {
-        if (line.AttributeId === attrConfig.id) {
+        if (line.AttributeId === attributeId) {
           return {
             ...line,
             Values: line.Values.filter((v: any) => v.Id !== valueId)
@@ -510,18 +504,30 @@ export function TPOSManagerNew() {
   };
 
   const addAttributeValue = (type: "sizeText" | "color" | "sizeNumber", valueId: number) => {
-    const attrConfig = availableAttributes[type];
-    const selectedValue = attrConfig.values.find(v => v.Id === valueId);
+    const attrValues = TPOS_ATTRIBUTES[type];
+    const selectedValue = attrValues.find(v => v.Id === valueId);
     if (!selectedValue) return;
 
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
+    
+    const attributeName = type === 'sizeText' ? "Size Chữ" 
+      : type === 'color' ? "Màu" 
+      : "Size Số";
+
+    const attributeCode = type === 'sizeText' ? 'SZCh' 
+      : type === 'color' ? 'Mau' 
+      : 'SZNu';
+
     const newAttributeLines = [...attributeLines];
-    let attrLine = newAttributeLines.find(line => line.AttributeId === attrConfig.id);
+    let attrLine = newAttributeLines.find(line => line.AttributeId === attributeId);
     
     if (!attrLine) {
       attrLine = {
-        Attribute: { Id: attrConfig.id, Name: attrConfig.name, Code: attrConfig.code, Sequence: null, CreateVariant: true },
+        Attribute: { Id: attributeId, Name: attributeName, Code: attributeCode, Sequence: null, CreateVariant: true },
         Values: [],
-        AttributeId: attrConfig.id
+        AttributeId: attributeId
       };
       newAttributeLines.push(attrLine);
     }
@@ -536,10 +542,10 @@ export function TPOSManagerNew() {
       Name: selectedValue.Name,
       Code: selectedValue.Code,
       Sequence: selectedValue.Sequence,
-      AttributeId: attrConfig.id,
-      AttributeName: attrConfig.name,
+      AttributeId: attributeId,
+      AttributeName: attributeName,
       PriceExtra: null,
-      NameGet: `${attrConfig.name}: ${selectedValue.Name}`,
+      NameGet: `${attributeName}: ${selectedValue.Name}`,
       DateCreated: null
     });
 
@@ -547,9 +553,12 @@ export function TPOSManagerNew() {
   };
 
   const removeAttributeValue = (type: "sizeText" | "color" | "sizeNumber", valueId: number) => {
-    const attrConfig = availableAttributes[type];
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
+    
     const newAttributeLines = attributeLines.map(line => {
-      if (line.AttributeId === attrConfig.id) {
+      if (line.AttributeId === attributeId) {
         return { ...line, Values: line.Values.filter(v => v.Id !== valueId) };
       }
       return line;
@@ -1721,8 +1730,8 @@ export function TPOSManagerNew() {
                   <SelectTrigger>
                     <SelectValue placeholder="-- Chọn --" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {availableAttributes[type].values.map((item) => (
+                  <SelectContent className="max-h-[300px]">
+                    {TPOS_ATTRIBUTES[type].map((item) => (
                       <SelectItem key={item.Id} value={item.Id.toString()}>
                         {item.Name}
                       </SelectItem>
@@ -1733,7 +1742,7 @@ export function TPOSManagerNew() {
                 <div className="mt-3 p-3 bg-muted rounded-lg min-h-[80px]">
                   <div className="flex flex-wrap gap-2">
                     {attributeLines
-                      .find(line => line.AttributeId === availableAttributes[type].id)
+                      .find(line => line.AttributeId === (type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER))
                       ?.Values.map((val) => (
                         <Badge key={val.Id} variant="secondary" className="gap-2">
                           {val.Name}
@@ -1781,7 +1790,7 @@ export function TPOSManagerNew() {
                   <SelectValue placeholder="-- Chọn size chữ --" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableAttributes.sizeText.values.map(val => (
+                  {TPOS_ATTRIBUTES.sizeText.map(val => (
                     <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1789,7 +1798,7 @@ export function TPOSManagerNew() {
               
               <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
                 {editAttributeLines
-                  .find(line => line.AttributeId === availableAttributes.sizeText.id)
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.SIZE_TEXT)
                   ?.Values.map((val: any) => (
                     <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
                       {val.Name}
@@ -1810,8 +1819,8 @@ export function TPOSManagerNew() {
                 <SelectTrigger>
                   <SelectValue placeholder="-- Chọn màu --" />
                 </SelectTrigger>
-                <SelectContent>
-                  {availableAttributes.color.values.map(val => (
+                <SelectContent className="max-h-[300px]">
+                  {TPOS_ATTRIBUTES.color.map(val => (
                     <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1819,7 +1828,7 @@ export function TPOSManagerNew() {
               
               <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
                 {editAttributeLines
-                  .find(line => line.AttributeId === availableAttributes.color.id)
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.COLOR)
                   ?.Values.map((val: any) => (
                     <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
                       {val.Name}
@@ -1841,7 +1850,7 @@ export function TPOSManagerNew() {
                   <SelectValue placeholder="-- Chọn size số --" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableAttributes.sizeNumber.values.map(val => (
+                  {TPOS_ATTRIBUTES.sizeNumber.map(val => (
                     <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1849,7 +1858,7 @@ export function TPOSManagerNew() {
               
               <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
                 {editAttributeLines
-                  .find(line => line.AttributeId === availableAttributes.sizeNumber.id)
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.SIZE_NUMBER)
                   ?.Values.map((val: any) => (
                     <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
                       {val.Name}
