@@ -7,10 +7,10 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
-import { AlertCircle, Trash2, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { compressImage } from "@/lib/image-utils";
+import { UnifiedImageUpload } from "@/components/ui/unified-image-upload";
 
 interface EditProductDialogProps {
   open: boolean;
@@ -43,9 +43,6 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const uploadAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -85,8 +82,6 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
       });
       setDuplicateWarning("");
       setImageUrl("");
-      setIsUploading(false);
-      setIsFocused(false);
     }
   }, [open, form]);
 
@@ -119,88 +114,6 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
     form.setValue("variants", currentVariants.filter((_, i) => i !== index));
   };
 
-  const uploadImage = useCallback(async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng chọn file hình ảnh",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      // Tự động nén ảnh nếu > 1MB
-      let fileToUpload = file;
-      if (file.size > 1 * 1024 * 1024) {
-        toast({
-          title: "Đang nén ảnh...",
-          description: `Ảnh gốc ${(file.size / 1024 / 1024).toFixed(1)}MB, đang tối ưu...`,
-        });
-        fileToUpload = await compressImage(file, 1, 1920, 1920);
-        toast({
-          title: "Đã nén ảnh",
-          description: `Giảm từ ${(file.size / 1024 / 1024).toFixed(1)}MB xuống ${(fileToUpload.size / 1024 / 1024).toFixed(1)}MB`,
-        });
-      }
-
-      const fileExt = fileToUpload.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `live-products/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('purchase-images')
-        .upload(filePath, fileToUpload);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('purchase-images')
-        .getPublicUrl(filePath);
-
-      setImageUrl(publicUrl);
-      toast({
-        title: "Thành công",
-        description: "Đã tải ảnh lên thành công",
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Lỗi tải ảnh",
-        description: error instanceof Error ? error.message : "Không thể tải ảnh lên",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
-
-  const handlePaste = useCallback(async (e: ClipboardEvent) => {
-    if (!isFocused) return;
-    
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        e.stopPropagation();
-        const file = item.getAsFile();
-        if (file) {
-          await uploadImage(file);
-        }
-        break;
-      }
-    }
-  }, [isFocused, uploadImage]);
-
-  useEffect(() => {
-    const handlePasteEvent = (e: ClipboardEvent) => handlePaste(e);
-    document.addEventListener('paste', handlePasteEvent);
-    return () => document.removeEventListener('paste', handlePasteEvent);
-  }, [handlePaste]);
 
   const updateProductMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -434,54 +347,15 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
 
             <div>
               <FormLabel>Hình ảnh sản phẩm</FormLabel>
-              <div 
-                ref={uploadAreaRef}
-                className={`mt-2 flex flex-col gap-2 min-h-[120px] p-3 rounded border-2 transition-colors outline-none ${
-                  isFocused ? 'border-primary bg-muted/20' : 'border-dashed border-muted-foreground/25'
-                }`}
-                tabIndex={0}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-              >
-                {/* Image preview */}
-                {imageUrl && (
-                  <div className="relative inline-block">
-                    <img 
-                      src={imageUrl} 
-                      alt="Preview" 
-                      className="w-32 h-32 object-cover rounded border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                      onClick={() => setImageUrl("")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Upload area */}
-                <div className="flex items-center justify-center flex-1">
-                  {isUploading ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Đang tải...</span>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground font-medium">
-                        Ctrl+V để dán ảnh
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {imageUrl ? "Dán để thay thế ảnh" : "Ảnh sẽ tự động nén nếu > 1MB"}
-                      </p>
-                    </div>
-                  )}
-                </div>
+              <div className="mt-2">
+                <UnifiedImageUpload
+                  value={imageUrl}
+                  onChange={(url) => setImageUrl(typeof url === 'string' ? url : url[0] || '')}
+                  bucket="purchase-images"
+                  folder="live-products"
+                  placeholder="Dán ảnh (Ctrl+V), kéo thả, hoặc click"
+                  showPreview={true}
+                />
               </div>
             </div>
 

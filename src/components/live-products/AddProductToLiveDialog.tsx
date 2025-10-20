@@ -20,8 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ImageIcon, X, Loader2, Warehouse, Package, ChevronDown } from "lucide-react";
-import { compressImage } from "@/lib/image-utils";
+import { Warehouse, Package, ChevronDown, Loader2 } from "lucide-react";
+import { UnifiedImageUpload } from "@/components/ui/unified-image-upload";
 import { generateProductCode, getNextNACode } from "@/lib/product-code-generator";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "@/components/products/VariantDetectionBadge";
@@ -56,8 +56,6 @@ interface FormData {
 export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId, onProductAdded }: AddProductToLiveDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const debouncedSearch = useDebounce(productSearchQuery, 300);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
@@ -67,7 +65,6 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const [isAutoDetectingVariants, setIsAutoDetectingVariants] = useState(false);
   const [autoDetectedProducts, setAutoDetectedProducts] = useState<any[]>([]);
-  const uploadAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -222,71 +219,6 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     enabled: debouncedSearch.length >= 2
   });
 
-  const uploadImage = useCallback(async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error("Vui lòng chọn file hình ảnh");
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      // Tự động nén ảnh nếu > 1MB
-      let fileToUpload = file;
-      if (file.size > 1 * 1024 * 1024) {
-        toast.success(`Đang nén ảnh ${(file.size / 1024 / 1024).toFixed(1)}MB...`);
-        fileToUpload = await compressImage(file, 1, 1920, 1920);
-        toast.success(`Đã nén xuống ${(fileToUpload.size / 1024 / 1024).toFixed(1)}MB`);
-      }
-
-      const fileExt = fileToUpload.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `live-products/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('purchase-images')
-        .upload(filePath, fileToUpload);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('purchase-images')
-        .getPublicUrl(filePath);
-
-      setImageUrl(publicUrl);
-      toast.success("Đã tải ảnh lên thành công");
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error instanceof Error ? error.message : "Không thể tải ảnh lên");
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
-
-  const handlePaste = useCallback(async (e: ClipboardEvent) => {
-    if (!isFocused) return;
-    
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        e.stopPropagation();
-        const file = item.getAsFile();
-        if (file) {
-          await uploadImage(file);
-        }
-        break;
-      }
-    }
-  }, [isFocused, uploadImage]);
-
-  useEffect(() => {
-    const handlePasteEvent = (e: ClipboardEvent) => handlePaste(e);
-    document.addEventListener('paste', handlePasteEvent);
-    return () => document.removeEventListener('paste', handlePasteEvent);
-  }, [handlePaste]);
 
   // Handle product selection from suggestions or dialog
   const handleSelectProduct = async (product: any) => {
@@ -855,54 +787,15 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
 
             <div>
               <FormLabel>Hình ảnh sản phẩm</FormLabel>
-              <div 
-                ref={uploadAreaRef}
-                className={`mt-2 flex flex-col gap-2 min-h-[120px] p-3 rounded border-2 transition-colors outline-none ${
-                  isFocused ? 'border-primary bg-muted/20' : 'border-dashed border-muted-foreground/25'
-                }`}
-                tabIndex={0}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-              >
-                {/* Image preview */}
-                {imageUrl && (
-                  <div className="relative inline-block">
-                    <img 
-                      src={imageUrl} 
-                      alt="Preview" 
-                      className="w-32 h-32 object-cover rounded border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                      onClick={() => setImageUrl("")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Upload area */}
-                <div className="flex items-center justify-center flex-1">
-                  {isUploading ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Đang tải...</span>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground font-medium">
-                        Ctrl+V để dán ảnh
-                      </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {imageUrl ? "Dán để thay thế ảnh" : "Ảnh sẽ tự động nén nếu > 1MB"}
-            </p>
-                    </div>
-                  )}
-                </div>
+              <div className="mt-2">
+                <UnifiedImageUpload
+                  value={imageUrl}
+                  onChange={(url) => setImageUrl(typeof url === 'string' ? url : url[0] || '')}
+                  bucket="purchase-images"
+                  folder="live-products"
+                  placeholder="Dán ảnh (Ctrl+V), kéo thả, hoặc click"
+                  showPreview={true}
+                />
               </div>
             </div>
 
@@ -1003,10 +896,10 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
               </Button>
               <Button 
                 type="submit" 
-                disabled={isSubmitting || isUploading || !phaseId}
+                disabled={isSubmitting || !phaseId}
                 className="flex-1"
               >
-                {isUploading ? "Đang tải ảnh..." : isSubmitting ? "Đang thêm..." : "Thêm sản phẩm"}
+                {isSubmitting ? "Đang thêm..." : "Thêm sản phẩm"}
               </Button>
             </div>
           </form>
