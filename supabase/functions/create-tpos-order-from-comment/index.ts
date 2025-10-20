@@ -479,21 +479,29 @@ serve(async (req) => {
           console.log('   - Comment Type:', commentType);
         }
       
-      // Update facebook_comments_archive
+      // Upsert to facebook_comments_archive
       if (!updateError) {
         const { error: archiveUpdateError } = await supabase
           .from('facebook_comments_archive')
-          .update({
+          .upsert({
+            facebook_comment_id: comment.id,
+            facebook_post_id: video.objectId,
+            facebook_user_id: comment.from.id,
+            facebook_user_name: comment.from.name,
+            comment_message: comment.message || null,
+            comment_created_time: convertFacebookTimeToISO(comment.created_time),
             tpos_order_id: data.Id?.toString() || null,
             session_index: data.SessionIndex ? parseInt(data.SessionIndex, 10) : null,
             tpos_sync_status: 'synced',
             last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
-          .eq('facebook_comment_id', comment.id);
+          }, {
+            onConflict: 'facebook_comment_id',
+            ignoreDuplicates: false
+          });
 
         if (archiveUpdateError) {
-          console.error('Error updating comment archive:', archiveUpdateError);
+          console.error('Error upserting comment archive:', archiveUpdateError);
         }
       }
       } else {
@@ -529,21 +537,29 @@ serve(async (req) => {
           console.log('   - Facebook Comment ID:', comment.id);
         }
       
-      // Update facebook_comments_archive
+      // Upsert to facebook_comments_archive
       if (!insertError) {
         const { error: archiveUpdateError } = await supabase
           .from('facebook_comments_archive')
-          .update({
+          .upsert({
+            facebook_comment_id: comment.id,
+            facebook_post_id: video.objectId,
+            facebook_user_id: comment.from.id,
+            facebook_user_name: comment.from.name,
+            comment_message: comment.message || null,
+            comment_created_time: convertFacebookTimeToISO(comment.created_time),
             tpos_order_id: data.Id?.toString() || null,
             session_index: data.SessionIndex ? parseInt(data.SessionIndex, 10) : null,
             tpos_sync_status: 'synced',
             last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
-          .eq('facebook_comment_id', comment.id);
+          }, {
+            onConflict: 'facebook_comment_id',
+            ignoreDuplicates: false
+          });
 
         if (archiveUpdateError) {
-          console.error('Error updating comment archive:', archiveUpdateError);
+          console.error('Error upserting comment archive:', archiveUpdateError);
         }
       }
       }
