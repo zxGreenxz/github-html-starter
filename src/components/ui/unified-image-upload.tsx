@@ -7,6 +7,9 @@ import { compressImage } from "@/lib/image-utils";
 import { Progress } from "@/components/ui/progress";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+// Global upload lock to prevent multiple simultaneous uploads
+let globalUploadInProgress = false;
+
 interface UnifiedImageUploadProps {
   value?: string | string[];
   onChange: (urls: string | string[]) => void;
@@ -48,6 +51,7 @@ export function UnifiedImageUpload({
       return null;
     }
 
+    globalUploadInProgress = true;
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -93,12 +97,18 @@ export function UnifiedImageUpload({
       toast.error(error instanceof Error ? error.message : "Không thể tải ảnh lên");
       return null;
     } finally {
+      globalUploadInProgress = false;
       setIsUploading(false);
       setUploadProgress(0);
     }
   }, [bucket, folder, maxSizeMB, compressThreshold]);
 
   const handleFiles = async (files: FileList | File[]) => {
+    if (globalUploadInProgress) {
+      toast.info("⏳ Vui lòng đợi upload hiện tại hoàn tất");
+      return;
+    }
+
     const fileArray = Array.from(files);
     const imagesToUpload = fileArray.filter(f => f.type.startsWith('image/'));
     
@@ -127,6 +137,13 @@ export function UnifiedImageUpload({
   };
 
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    // Block if ANY component is uploading
+    if (globalUploadInProgress) {
+      e.preventDefault();
+      toast.info("⏳ Vui lòng đợi upload hiện tại hoàn tất");
+      return;
+    }
+
     // Only process if this component is focused or hovered
     if (!isHovered && !containerRef.current?.contains(document.activeElement)) return;
     
@@ -210,7 +227,7 @@ export function UnifiedImageUpload({
               <img 
                 src={imageUrl} 
                 alt={`Upload ${index + 1}`}
-                className="w-20 h-20 object-cover rounded-lg border-2 border-border"
+                className="w-24 h-24 object-contain rounded-lg border-2 border-border bg-muted/20 p-1"
                 loading="lazy"
               />
               <Button
@@ -240,13 +257,15 @@ export function UnifiedImageUpload({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`
-          relative min-h-[140px] p-6 rounded-lg border-2 transition-all cursor-pointer
+          relative min-h-[160px] p-8 rounded-lg border-2 transition-all
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
-          ${isDragging 
-            ? 'border-primary bg-primary/20 border-solid scale-[1.02]' 
+          ${globalUploadInProgress && !isUploading 
+            ? 'opacity-50 cursor-not-allowed pointer-events-none border-dashed border-muted-foreground/20'
+            : isDragging 
+            ? 'border-primary bg-primary/20 border-solid scale-[1.02] cursor-pointer' 
             : isUploading 
-            ? 'border-primary/50 bg-muted/30 border-solid'
-            : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md'
+            ? 'border-primary/50 bg-muted/30 border-solid cursor-wait'
+            : 'border-dashed border-muted-foreground/30 bg-muted/5 hover:border-primary hover:bg-primary/5 hover:shadow-md cursor-pointer'
           }
         `}
       >
@@ -269,9 +288,9 @@ export function UnifiedImageUpload({
           ) : isUploading ? (
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
           ) : isDragging ? (
-            <UploadCloud className="w-10 h-10 text-primary animate-bounce" />
+            <UploadCloud className="w-12 h-12 text-primary animate-bounce" />
           ) : (
-            <ImageIcon className="w-10 h-10 text-muted-foreground" />
+            <ImageIcon className="w-12 h-12 text-muted-foreground/60" />
           )}
 
           {/* Status Text */}
@@ -291,23 +310,24 @@ export function UnifiedImageUpload({
               👍 Thả ảnh vào đây
             </p>
           ) : (
-            <div>
-              <p className="text-sm font-medium text-foreground">
+            <div className="space-y-1">
+              <p className="text-base font-semibold text-foreground">
                 {isMobile ? (
                   <span className="flex items-center gap-1 justify-center">
                     📷 <span>Chọn ảnh từ thư viện</span>
                   </span>
                 ) : (
-                  placeholder || "Kéo thả ảnh vào đây"
+                  placeholder || "Dán ảnh (Ctrl+V) hoặc kéo thả"
                 )}
               </p>
               {!isMobile && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  hoặc <span className="font-semibold">Ctrl+V</span> để dán, hoặc <span className="font-semibold">click</span> để chọn
+                <p className="text-sm text-muted-foreground">
+                  hoặc <span className="font-medium text-primary">Ctrl+V</span> để dán, hoặc{' '}
+                  <span className="font-medium text-primary">click</span> để chọn
                 </p>
               )}
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                {isSingle ? 'Ảnh đơn' : maxFiles ? `Tối đa ${maxFiles} ảnh` : 'Nhiều ảnh'} • Tự động nén nếu {'>'} {compressThreshold}MB
+              <p className="text-xs text-muted-foreground/60 mt-2 border-t border-border/50 pt-2">
+                {isSingle ? '1 ảnh' : `Tối đa ${maxFiles} ảnh`} • Tự động nén {'>'}{compressThreshold}MB
               </p>
             </div>
           )}
