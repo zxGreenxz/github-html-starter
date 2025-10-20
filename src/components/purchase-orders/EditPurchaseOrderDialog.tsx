@@ -528,8 +528,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         productData.product_name,
         variantText,
         {
-          selling_price: productData.selling_price / 1000,
-          purchase_price: productData.purchase_price / 1000,
+          selling_price: productData.selling_price * 1000,
+          purchase_price: productData.purchase_price * 1000,
           product_images: productData.product_images,
           price_images: productData.price_images,
           supplier_name: productData.supplier_name
