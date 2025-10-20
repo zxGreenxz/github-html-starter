@@ -974,9 +974,11 @@ export function PrinterConfigManager() {
           </CardHeader>
           <CardContent>
             <div className="bg-muted p-4 rounded-lg overflow-auto max-h-[800px]">
-              <div
-                className="bg-white border-2 border-dashed border-border max-w-md mx-auto shadow-lg"
-                dangerouslySetInnerHTML={{ __html: previewHTML() }}
+              <iframe
+                srcDoc={previewHTML()}
+                className="bg-white border-2 border-dashed border-border max-w-md mx-auto shadow-lg w-full h-[600px]"
+                title="Print Preview"
+                sandbox="allow-same-origin"
               />
             </div>
           </CardContent>
