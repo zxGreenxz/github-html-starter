@@ -109,18 +109,18 @@ export const generatePrintHTML = (
 };
 
 /**
- * Load printers from sessionStorage
+ * Load printers from localStorage
  */
 export const loadPrinters = (): NetworkPrinter[] => {
-  const saved = sessionStorage.getItem('networkPrinters');
+  const saved = localStorage.getItem('networkPrinters');
   return saved ? JSON.parse(saved) : [];
 };
 
 /**
- * Save printers to sessionStorage
+ * Save printers to localStorage
  */
 export const savePrinters = (printers: NetworkPrinter[]): void => {
-  sessionStorage.setItem('networkPrinters', JSON.stringify(printers));
+  localStorage.setItem('networkPrinters', JSON.stringify(printers));
 };
 
 /**
@@ -132,7 +132,7 @@ export const getActivePrinter = (): NetworkPrinter | null => {
 };
 
 /**
- * Save printer format settings to sessionStorage
+ * Save printer format settings to localStorage
  */
 export interface SavedPrinterConfig {
   width: string;
@@ -153,11 +153,11 @@ export interface SavedPrinterConfig {
 }
 
 export const saveFormatSettings = (settings: SavedPrinterConfig): void => {
-  sessionStorage.setItem('printerFormatSettings', JSON.stringify(settings));
+  localStorage.setItem('printerFormatSettings', JSON.stringify(settings));
 };
 
 export const loadFormatSettings = (): SavedPrinterConfig | null => {
-  const saved = sessionStorage.getItem('printerFormatSettings');
+  const saved = localStorage.getItem('printerFormatSettings');
   return saved ? JSON.parse(saved) : null;
 };
 
@@ -165,12 +165,12 @@ export const loadFormatSettings = (): SavedPrinterConfig | null => {
  * Template management functions
  */
 export const loadTemplates = (): PrinterTemplate[] => {
-  const saved = sessionStorage.getItem('printerTemplates');
+  const saved = localStorage.getItem('printerTemplates');
   return saved ? JSON.parse(saved) : [];
 };
 
 export const saveTemplates = (templates: PrinterTemplate[]): void => {
-  sessionStorage.setItem('printerTemplates', JSON.stringify(templates));
+  localStorage.setItem('printerTemplates', JSON.stringify(templates));
 };
 
 export const getActiveTemplate = (): PrinterTemplate | null => {
