@@ -286,6 +286,7 @@ async function fetchAndSaveVariantsFromTPOS(
         purchase_price: purchasePriceVND, // Store actual VND from TPOS
         stock_quantity: variant.QtyAvailable || 0,
         supplier_name: baseProductData.supplier_name,
+        product_images: baseProductData.product_images, // Copy images from base product
         price_images: baseProductData.price_images,
         base_product_code: baseProductCode,
         tpos_product_id: variant.Id,
@@ -317,7 +318,7 @@ async function fetchAndSaveVariantsFromTPOS(
       variant: vp.variant || '',
       selling_price: vp.selling_price / 1000, // Convert from DB format to UI format (VND)
       purchase_price: vp.purchase_price / 1000, // Convert from DB format to UI format (VND)
-      product_images: [], // No product_images, use tpos_image_url instead
+      product_images: vp.product_images || [], // Return images from base product
       price_images: vp.price_images || [],
       tpos_product_id: vp.tpos_product_id,
       tpos_image_url: vp.tpos_image_url, // Return TPOS image URL
