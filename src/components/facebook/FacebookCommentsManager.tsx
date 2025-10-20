@@ -567,7 +567,7 @@ export function FacebookCommentsManager({
           { getActivePrinter, printHTMLToXC80 },
           { generateBillHTML }
         ] = await Promise.all([
-          import('@/lib/printer-utils'),
+          import('@/lib/printer-config-utils'),
           import('@/lib/bill-pdf-generator')
         ]);
 
