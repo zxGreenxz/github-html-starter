@@ -321,10 +321,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
     const newItems = [...items];
     
+    // Validate currentItemIndex is within bounds
+    if (currentItemIndex >= newItems.length || currentItemIndex < 0) {
+      console.error('Invalid currentItemIndex:', currentItemIndex, 'items length:', newItems.length);
+      return;
+    }
+
+    // Ensure current item has quantity property
+    const currentItem = newItems[currentItemIndex];
+    if (!currentItem || typeof currentItem.quantity !== 'number') {
+      console.error('Invalid item at index:', currentItemIndex, currentItem);
+      return;
+    }
+    
     // Fill first product into current line
     const firstProduct = products[0];
     newItems[currentItemIndex] = {
-      ...newItems[currentItemIndex],
+      ...currentItem,
       product_name: firstProduct.product_name,
       product_code: firstProduct.product_code,
       variant: firstProduct.variant || "",
@@ -332,7 +345,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       selling_price: firstProduct.selling_price / 1000,
       product_images: firstProduct.product_images || [],
       price_images: firstProduct.price_images || [],
-      _tempTotalPrice: newItems[currentItemIndex].quantity * (firstProduct.purchase_price / 1000)
+      _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000)
     };
 
     // Add remaining products as new lines after current line
