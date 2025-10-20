@@ -62,7 +62,7 @@ interface AttributeLine {
 
 export function TPOSManagerNew() {
   const { toast } = useToast();
-  const [activeModule, setActiveModule] = useState<"product" | "order" | "variants">("product");
+  const [activeModule, setActiveModule] = useState<"product" | "order" | "variants" | "edit">("product");
 
   // === MODULE 1: PRODUCT STATES ===
   const [defaultCode, setDefaultCode] = useState("NTEST");
@@ -94,6 +94,12 @@ export function TPOSManagerNew() {
   const [variantData, setVariantData] = useState<any>(null);
   const [isLoadingVariants, setIsLoadingVariants] = useState(false);
 
+  // === MODULE 4: EDIT PRODUCT STATES ===
+  const [editProductId, setEditProductId] = useState("");
+  const [originalProductData, setOriginalProductData] = useState<any>(null);
+  const [currentProductData, setCurrentProductData] = useState<any>(null);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+
   // Initialize dates
   useEffect(() => {
     const today = new Date();
@@ -115,6 +121,114 @@ export function TPOSManagerNew() {
       throw new Error('No TPOS token');
     }
     return getTPOSHeaders(token);
+  };
+
+  // === MODULE 4: EDIT PRODUCT FUNCTIONS ===
+  const fetchProductForEdit = async () => {
+    if (!editProductId.trim()) {
+      toast({ variant: "destructive", title: "Lỗi", description: "Vui lòng nhập Product Template ID" });
+      return;
+    }
+
+    setIsLoadingEdit(true);
+    try {
+      const headers = await getHeaders();
+      const url = `https://tomato.tpos.vn/odata/ProductTemplate(${editProductId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error("Không tìm thấy sản phẩm");
+      }
+      
+      const data = await response.json();
+      setOriginalProductData(JSON.parse(JSON.stringify(data))); // Deep clone
+      setCurrentProductData(data);
+      
+      toast({
+        title: "✅ Thành công",
+        description: `Đã tải sản phẩm: ${data.Name} (${data.ProductVariants?.length || 0} variants)`
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: error instanceof Error ? error.message : "Không thể tải sản phẩm"
+      });
+      console.error("Fetch error:", error);
+    } finally {
+      setIsLoadingEdit(false);
+    }
+  };
+
+  const updateEditProductField = (field: string, value: any) => {
+    if (!currentProductData) return;
+    setCurrentProductData({ ...currentProductData, [field]: value });
+  };
+
+  const updateEditVariantField = (index: number, field: string, value: any) => {
+    if (!currentProductData?.ProductVariants?.[index]) return;
+    const updated = { ...currentProductData };
+    updated.ProductVariants[index][field] = parseFloat(value) || 0;
+    setCurrentProductData(updated);
+  };
+
+  const removeEditVariant = (index: number) => {
+    if (!currentProductData?.ProductVariants) return;
+    if (!confirm("Bạn có chắc chắn muốn xóa variant này?")) return;
+    
+    const updated = { ...currentProductData };
+    updated.ProductVariants.splice(index, 1);
+    setCurrentProductData(updated);
+    
+    toast({ title: "✅ Thành công", description: "Đã xóa variant" });
+  };
+
+  const submitEditProduct = async () => {
+    if (!currentProductData) {
+      toast({ variant: "destructive", title: "Lỗi", description: "Chưa có dữ liệu sản phẩm" });
+      return;
+    }
+    
+    if (!currentProductData.Name || !currentProductData.DefaultCode) {
+      toast({ variant: "destructive", title: "Lỗi", description: "Vui lòng nhập đầy đủ tên và mã sản phẩm" });
+      return;
+    }
+    
+    setIsLoadingEdit(true);
+    try {
+      const headers = await getHeaders();
+      
+      const response = await fetch(
+        "https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(currentProductData)
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "🎉 Thành công",
+          description: "Đã cập nhật sản phẩm lên TPOS"
+        });
+        console.log("Update result:", result);
+      } else {
+        throw new Error(result.error?.message || "Unknown error");
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: error instanceof Error ? error.message : "Không thể cập nhật sản phẩm"
+      });
+      console.error("Update error:", error);
+    } finally {
+      setIsLoadingEdit(false);
+    }
   };
 
   // === MODULE 1: PRODUCT FUNCTIONS ===
@@ -686,6 +800,12 @@ export function TPOSManagerNew() {
               >
                 🔍 Xem Variants
               </Button>
+              <Button
+                variant={activeModule === "edit" ? "default" : "outline"}
+                onClick={() => setActiveModule("edit")}
+              >
+                ✏️ Chỉnh sửa sản phẩm
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -1176,6 +1296,158 @@ export function TPOSManagerNew() {
                 </div>
               </CardContent>
             </Card>
+          )}
+        </div>
+      )}
+
+      {/* MODULE 4: EDIT PRODUCT */}
+      {activeModule === "edit" && (
+        <div className="space-y-6">
+          {/* Step 1: Fetch Product */}
+          <Card>
+            <CardHeader>
+              <CardTitle>📥 Bước 1: Tải dữ liệu sản phẩm</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Label>Product Template ID *</Label>
+                  <Input
+                    type="number"
+                    value={editProductId}
+                    onChange={(e) => setEditProductId(e.target.value)}
+                    placeholder="Nhập ID sản phẩm (VD: 108715)"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={fetchProductForEdit} disabled={isLoadingEdit}>
+                    {isLoadingEdit ? "⏳ Đang tải..." : "📥 Tải Dữ Liệu"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Step 2: Edit Product (Only show if loaded) */}
+          {currentProductData && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>✏️ Bước 2: Chỉnh sửa thông tin sản phẩm</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Tên Sản Phẩm *</Label>
+                    <Input
+                      value={currentProductData.Name || ""}
+                      onChange={(e) => updateEditProductField("Name", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Mã Sản Phẩm (DefaultCode) *</Label>
+                    <Input
+                      value={currentProductData.DefaultCode || ""}
+                      onChange={(e) => updateEditProductField("DefaultCode", e.target.value.toUpperCase())}
+                    />
+                  </div>
+                  <div>
+                    <Label>Giá Bán (VNĐ) *</Label>
+                    <Input
+                      type="number"
+                      value={currentProductData.ListPrice || 0}
+                      onChange={(e) => updateEditProductField("ListPrice", parseFloat(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Giá Mua (VNĐ) *</Label>
+                    <Input
+                      type="number"
+                      value={currentProductData.PurchasePrice || 0}
+                      onChange={(e) => updateEditProductField("PurchasePrice", parseFloat(e.target.value))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Variants List */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>🔍 Biến Thể (ProductVariants)</CardTitle>
+                  <Badge variant="secondary">
+                    Tổng: {currentProductData.ProductVariants?.length || 0}
+                  </Badge>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[400px] pr-4">
+                    <div className="space-y-3">
+                      {currentProductData.ProductVariants?.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>Không có variants</AlertDescription>
+                        </Alert>
+                      ) : (
+                        currentProductData.ProductVariants?.map((variant: any, index: number) => (
+                          <div key={variant.Id} className="border-2 border-border rounded-lg p-4 bg-muted/30 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <p className="font-bold text-lg">{variant.Name || "N/A"}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  ID: {variant.Id} | Mã: {variant.DefaultCode || "N/A"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {variant.AttributeValues?.map((attr: any) => attr.NameGet).join(", ") || "N/A"}
+                                </p>
+                              </div>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => removeEditVariant(index)}
+                              >
+                                🗑️ Xóa
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs">Giá Bán (VNĐ)</Label>
+                                <Input
+                                  type="number"
+                                  value={variant.PriceVariant || 0}
+                                  onChange={(e) => updateEditVariantField(index, "PriceVariant", e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Giá Mua (VNĐ)</Label>
+                                <Input
+                                  type="number"
+                                  value={variant.StandardPrice || 0}
+                                  onChange={(e) => updateEditVariantField(index, "StandardPrice", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+              {/* Step 3: Submit */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>💾 Bước 3: Cập nhật sản phẩm</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={submitEditProduct}
+                    disabled={isLoadingEdit}
+                    className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                    size="lg"
+                  >
+                    {isLoadingEdit ? "⏳ Đang cập nhật..." : "🚀 Cập Nhật Sản Phẩm"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       )}
