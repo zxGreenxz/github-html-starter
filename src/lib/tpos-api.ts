@@ -680,6 +680,200 @@ export async function createProductDirectly(
   return response.json();
 }
 
+/**
+ * Update product on TPOS using PUT
+ * Similar to InsertV2 but with existing product ID
+ */
+export async function updateProductOnTPOS(
+  tposProductId: number,
+  item: TPOSProductItem,
+  imageBase64: string | null,
+  attributeLines: any[]
+): Promise<any> {
+  const token = await getActiveTPOSToken();
+  if (!token) throw new Error("TPOS Bearer Token not found");
+  
+  const payload = {
+    Id: tposProductId,
+    Name: item.product_name,
+    Type: "product",
+    ListPrice: item.selling_price || 0,
+    PurchasePrice: item.unit_price || 0,
+    DefaultCode: item.base_product_code || item.product_code,
+    Image: imageBase64 ? cleanBase64(imageBase64) : null,
+    ImageUrl: null,
+    Thumbnails: [],
+    AttributeLines: attributeLines,
+    Active: true,
+    SaleOK: true,
+    PurchaseOK: true,
+    UOMId: 1,
+    UOMPOId: 1,
+    CategId: 2,
+    CompanyId: 1,
+    Tracking: "none",
+    InvoicePolicy: "order",
+    PurchaseMethod: "receive",
+    AvailableInPOS: true,
+    DiscountSale: 0,
+    DiscountPurchase: 0,
+    StandardPrice: 0,
+    Weight: 0,
+    SaleDelay: 0,
+  };
+  
+  console.log(`📝 [TPOS] Updating product ${tposProductId}...`);
+  
+  const response = await fetch(
+    `${TPOS_CONFIG.API_BASE}(${tposProductId})`,
+    {
+      method: 'PUT',
+      headers: getTPOSHeaders(token),
+      body: JSON.stringify(payload)
+    }
+  );
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update product: ${errorText}`);
+  }
+  
+  console.log(`✅ [TPOS] Product ${tposProductId} updated successfully`);
+  return response.json();
+}
+
+/**
+ * Delete parent product and all its variants from local inventory
+ */
+export async function deleteProductAndVariants(baseProductCode: string): Promise<void> {
+  console.log(`🗑️ [Inventory] Deleting product ${baseProductCode} and variants...`);
+  
+  // Delete all variants (where base_product_code matches)
+  const { error: variantsError } = await supabase
+    .from("products")
+    .delete()
+    .eq("base_product_code", baseProductCode);
+  
+  if (variantsError) {
+    console.error("❌ Failed to delete variants:", variantsError);
+    throw variantsError;
+  }
+  
+  // Delete parent product (where product_code matches base_product_code)
+  const { error: parentError } = await supabase
+    .from("products")
+    .delete()
+    .eq("product_code", baseProductCode);
+  
+  if (parentError) {
+    console.error("❌ Failed to delete parent product:", parentError);
+    throw parentError;
+  }
+  
+  console.log(`✅ [Inventory] Deleted product ${baseProductCode} and all variants`);
+}
+
+/**
+ * Fetch product details from TPOS and upsert to local inventory
+ * Includes parent product + all variants
+ */
+export async function fetchAndUpsertFromTPOS(
+  tposProductId: number,
+  baseProductCode: string,
+  basePurchasePrice: number,
+  baseSellingPrice: number,
+  supplierName: string
+): Promise<{ parent: any; variants: any[] }> {
+  console.log(`📥 [TPOS → Inventory] Fetching product ${tposProductId}...`);
+  
+  await randomDelay(300, 700);
+  
+  const token = await getActiveTPOSToken();
+  if (!token) throw new Error("TPOS Bearer Token not found");
+  
+  // Fetch full product details with variants
+  const url = `${TPOS_CONFIG.API_BASE}(${tposProductId})?$expand=ProductVariants`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getTPOSHeaders(token),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch TPOS product: ${response.status}`);
+  }
+  
+  const tposProduct = await response.json();
+  console.log(`✅ [TPOS] Fetched product:`, tposProduct.Name);
+  
+  // 1. Upsert parent product
+  const parentData = {
+    product_code: baseProductCode,
+    product_name: tposProduct.Name,
+    base_product_code: baseProductCode,
+    variant: null,
+    selling_price: baseSellingPrice,
+    purchase_price: basePurchasePrice,
+    stock_quantity: 0,
+    supplier_name: supplierName,
+    tpos_product_id: tposProductId,
+    tpos_image_url: tposProduct.ImageUrl || null,
+    product_images: tposProduct.ImageUrl ? [tposProduct.ImageUrl] : null,
+  };
+  
+  const { data: parentProduct, error: parentError } = await supabase
+    .from("products")
+    .upsert(parentData, { onConflict: "product_code" })
+    .select()
+    .single();
+  
+  if (parentError) throw parentError;
+  console.log(`✅ [Inventory] Upserted parent product: ${baseProductCode}`);
+  
+  // 2. Upsert variants
+  const variants: any[] = [];
+  if (tposProduct.ProductVariants && tposProduct.ProductVariants.length > 0) {
+    for (const variant of tposProduct.ProductVariants) {
+      // Parse variant text from AttributeValues
+      const variantText = variant.AttributeValues
+        ?.map((av: any) => av.Name)
+        .join(", ") || "";
+      
+      const variantData = {
+        product_code: variant.DefaultCode,
+        product_name: tposProduct.Name,
+        base_product_code: baseProductCode,
+        variant: variantText,
+        selling_price: baseSellingPrice,
+        purchase_price: basePurchasePrice,
+        stock_quantity: 0,
+        supplier_name: supplierName,
+        tpos_product_id: tposProductId,
+        productid_bienthe: variant.Id,
+        barcode: variant.Barcode || null,
+        tpos_image_url: tposProduct.ImageUrl || null,
+        product_images: tposProduct.ImageUrl ? [tposProduct.ImageUrl] : null,
+      };
+      
+      const { data: variantProduct, error: variantError } = await supabase
+        .from("products")
+        .upsert(variantData, { onConflict: "product_code" })
+        .select()
+        .single();
+      
+      if (variantError) {
+        console.error(`❌ Failed to upsert variant ${variant.DefaultCode}:`, variantError);
+        continue;
+      }
+      
+      variants.push(variantProduct);
+    }
+    
+    console.log(`✅ [Inventory] Upserted ${variants.length} variants`);
+  }
+  
+  return { parent: parentProduct, variants };
+}
+
 // DEPRECATED: Excel upload method - keeping for reference
 // export async function uploadExcelToTPOS(excelBlob: Blob): Promise<TPOSUploadResponse> { ... }
 

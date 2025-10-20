@@ -22,6 +22,16 @@ import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
 import { generateProductCodeFromMax, incrementProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import { 
+  checkProductExists, 
+  createProductDirectly, 
+  updateProductOnTPOS,
+  deleteProductAndVariants,
+  fetchAndUpsertFromTPOS,
+  createAttributeLines,
+  detectAttributesFromText,
+  imageUrlToBase64
+} from "@/lib/tpos-api";
 
 
 interface PurchaseOrderItem {
@@ -769,6 +779,96 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             .insert(itemData);
 
           if (insertError) throw insertError;
+        }
+      }
+
+      // Step 4: Process TPOS sync for items with variants
+      for (const item of items) {
+        // Only process if has variant
+        if (!item._tempVariant || item._tempVariant.trim().length === 0) {
+          continue;
+        }
+        
+        const baseProductCode = item._tempProductCode.trim().toUpperCase();
+        
+        console.log(`🔄 [TPOS Sync] Processing ${baseProductCode}...`);
+        
+        try {
+          // 1. Check if product exists on TPOS
+          const existingTPOSProduct = await checkProductExists(baseProductCode);
+          
+          // 2. Prepare attribute lines
+          const detected = detectAttributesFromText(item._tempVariant);
+          const attributeLines = createAttributeLines(detected);
+          
+          // 3. Load image as base64 (if exists)
+          let imageBase64: string | null = null;
+          if (item._tempProductImages && item._tempProductImages.length > 0) {
+            imageBase64 = await imageUrlToBase64(item._tempProductImages[0]);
+          }
+          
+          // 4. Prepare TPOS item data
+          const tposItem = {
+            id: item.id || crypto.randomUUID(),
+            product_code: baseProductCode,
+            base_product_code: baseProductCode,
+            product_name: item._tempProductName.trim().toUpperCase(),
+            variant: item._tempVariant.trim().toUpperCase(),
+            quantity: item.quantity,
+            unit_price: Number(item._tempUnitPrice || 0),
+            selling_price: Number(item._tempSellingPrice || 0),
+            product_images: item._tempProductImages || null,
+            price_images: item._tempPriceImages || null,
+            purchase_order_id: order.id,
+            supplier_name: supplierName.trim().toUpperCase(),
+            tpos_product_id: null,
+          };
+          
+          let tposProductId: number;
+          
+          if (existingTPOSProduct) {
+            // PUT: Update existing product on TPOS
+            console.log(`📝 [TPOS] Updating product ${baseProductCode}...`);
+            const updateResult = await updateProductOnTPOS(
+              existingTPOSProduct.Id,
+              tposItem,
+              imageBase64,
+              attributeLines
+            );
+            tposProductId = existingTPOSProduct.Id;
+          } else {
+            // POST: Create new product on TPOS
+            console.log(`➕ [TPOS] Creating product ${baseProductCode}...`);
+            const createResult = await createProductDirectly(
+              tposItem,
+              imageBase64,
+              attributeLines
+            );
+            tposProductId = createResult.Id;
+          }
+          
+          // 5. Delete old products from local inventory
+          await deleteProductAndVariants(baseProductCode);
+          
+          // 6. Fetch from TPOS and upsert to local inventory
+          await fetchAndUpsertFromTPOS(
+            tposProductId,
+            baseProductCode,
+            Number(item._tempUnitPrice || 0),
+            Number(item._tempSellingPrice || 0),
+            supplierName.trim().toUpperCase()
+          );
+          
+          console.log(`✅ [TPOS Sync] Completed for ${baseProductCode}`);
+          
+        } catch (error) {
+          console.error(`❌ [TPOS Sync] Failed for ${baseProductCode}:`, error);
+          // Don't throw error to continue processing other items
+          toast({
+            title: `Lỗi đồng bộ TPOS cho ${baseProductCode}`,
+            description: error instanceof Error ? error.message : "Unknown error",
+            variant: "destructive"
+          });
         }
       }
 
