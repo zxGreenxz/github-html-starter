@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Printer } from "lucide-react";
+import { Plus, Trash2, Printer, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ import {
   generatePrintHTML,
   printHTMLToXC80,
   testPrinterConnection,
+  saveFormatSettings,
+  loadFormatSettings,
+  SavedPrinterConfig,
 } from "@/lib/printer-config-utils";
 
 export function PrinterConfigManager() {
@@ -86,10 +89,31 @@ export function PrinterConfigManager() {
     }
   };
 
-  // Load printers on mount
+  // Load printers and settings on mount
   useEffect(() => {
     const loaded = loadPrinters();
     setPrinters(loaded);
+    
+    // Load saved format settings
+    const savedSettings = loadFormatSettings();
+    if (savedSettings) {
+      setWidth(savedSettings.width);
+      setCustomWidth(savedSettings.customWidth);
+      setHeight(savedSettings.height);
+      setCustomHeight(savedSettings.customHeight);
+      setThreshold(savedSettings.threshold);
+      setScale(savedSettings.scale);
+      setFontSession(savedSettings.fontSession);
+      setFontPhone(savedSettings.fontPhone);
+      setFontCustomer(savedSettings.fontCustomer);
+      setFontProduct(savedSettings.fontProduct);
+      setPadding(savedSettings.padding);
+      setLineSpacing(savedSettings.lineSpacing);
+      setAlignment(savedSettings.alignment);
+      setIsBold(savedSettings.isBold);
+      setIsItalic(savedSettings.isItalic);
+    }
+    
     checkServer(loaded);
     const interval = setInterval(() => checkServer(), 5000);
     return () => clearInterval(interval);
@@ -279,6 +303,41 @@ export function PrinterConfigManager() {
     setAlignment('center');
     setIsBold(true);
     setIsItalic(false);
+    
+    // Clear saved settings
+    sessionStorage.removeItem('printerFormatSettings');
+    
+    toast({
+      title: "Đã reset",
+      description: "Đã về cấu hình mặc định!",
+    });
+  };
+
+  // Save current configuration
+  const handleSaveConfig = () => {
+    const config: SavedPrinterConfig = {
+      width,
+      customWidth,
+      height,
+      customHeight,
+      threshold,
+      scale,
+      fontSession,
+      fontPhone,
+      fontCustomer,
+      fontProduct,
+      padding,
+      lineSpacing,
+      alignment,
+      isBold,
+      isItalic,
+    };
+    
+    saveFormatSettings(config);
+    toast({
+      title: "Đã lưu",
+      description: "Cấu hình máy in và settings đã được lưu!",
+    });
   };
 
   return (
@@ -672,9 +731,15 @@ export function PrinterConfigManager() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">👁️ Xem trước</CardTitle>
-              <Button variant="ghost" size="sm" onClick={handleReset}>
-                Reset
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleSaveConfig}>
+                  <Save className="h-4 w-4 mr-1" />
+                  Lưu
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleReset}>
+                  Reset
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

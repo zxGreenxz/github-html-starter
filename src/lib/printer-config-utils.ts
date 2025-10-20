@@ -110,6 +110,36 @@ export const getActivePrinter = (): NetworkPrinter | null => {
 };
 
 /**
+ * Save printer format settings to sessionStorage
+ */
+export interface SavedPrinterConfig {
+  width: string;
+  customWidth: string;
+  height: string;
+  customHeight: string;
+  threshold: string;
+  scale: string;
+  fontSession: string;
+  fontPhone: string;
+  fontCustomer: string;
+  fontProduct: string;
+  padding: string;
+  lineSpacing: string;
+  alignment: 'left' | 'center' | 'right';
+  isBold: boolean;
+  isItalic: boolean;
+}
+
+export const saveFormatSettings = (settings: SavedPrinterConfig): void => {
+  sessionStorage.setItem('printerFormatSettings', JSON.stringify(settings));
+};
+
+export const loadFormatSettings = (): SavedPrinterConfig | null => {
+  const saved = sessionStorage.getItem('printerFormatSettings');
+  return saved ? JSON.parse(saved) : null;
+};
+
+/**
  * Print HTML via bridge server
  */
 export const printHTMLToXC80 = async (
