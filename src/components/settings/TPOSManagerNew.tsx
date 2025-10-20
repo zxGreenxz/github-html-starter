@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, X, Plus, Trash2 } from "lucide-react";
 
@@ -99,6 +101,9 @@ export function TPOSManagerNew() {
   const [originalProductData, setOriginalProductData] = useState<any>(null);
   const [currentProductData, setCurrentProductData] = useState<any>(null);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  const [editAttributeLines, setEditAttributeLines] = useState<any[]>([]);
+  const [showEditAttributeModal, setShowEditAttributeModal] = useState(false);
+  const [editAttributeTab, setEditAttributeTab] = useState<"sizeText" | "color" | "sizeNumber">("sizeText");
 
   // Initialize dates
   useEffect(() => {
@@ -124,6 +129,211 @@ export function TPOSManagerNew() {
   };
 
   // === MODULE 4: EDIT PRODUCT FUNCTIONS ===
+  
+  // Reconstruct AttributeLines from ProductVariants
+  const reconstructAttributeLines = (variants: any[]) => {
+    if (!variants || variants.length === 0) return [];
+
+    const attributeMap: Record<number, any> = {};
+
+    variants.forEach((variant) => {
+      if (variant.AttributeValues && variant.AttributeValues.length > 0) {
+        variant.AttributeValues.forEach((attrValue: any) => {
+          const attrId = attrValue.AttributeId;
+
+          if (!attributeMap[attrId]) {
+            attributeMap[attrId] = {
+              Attribute: {
+                Id: attrId,
+                Name: attrValue.AttributeName,
+                Code: null,
+                Sequence: null,
+                CreateVariant: true,
+              },
+              Values: [],
+              AttributeId: attrId,
+            };
+          }
+
+          const existingValue = attributeMap[attrId].Values.find(
+            (v: any) => v.Id === attrValue.Id
+          );
+          if (!existingValue) {
+            attributeMap[attrId].Values.push({
+              Id: attrValue.Id,
+              Name: attrValue.Name,
+              Code: attrValue.Code,
+              Sequence: attrValue.Sequence,
+              AttributeId: attrValue.AttributeId,
+              AttributeName: attrValue.AttributeName,
+              PriceExtra: null,
+              NameGet: attrValue.NameGet,
+              DateCreated: attrValue.DateCreated,
+            });
+          }
+        });
+      }
+    });
+
+    const attributeLines = Object.values(attributeMap);
+    attributeLines.forEach((line: any) => {
+      line.Values.sort((a: any, b: any) => {
+        if (a.Sequence !== null && b.Sequence !== null) {
+          return a.Sequence - b.Sequence;
+        }
+        return 0;
+      });
+    });
+
+    return attributeLines;
+  };
+
+  // Generate variants from AttributeLines
+  const generateVariantsFromAttributes = (
+    productName: string,
+    listPrice: number,
+    attributeLines: any[],
+    imageBase64?: string
+  ) => {
+    if (!attributeLines || attributeLines.length === 0) return [];
+
+    const combinations: any[][] = [];
+
+    function getCombinations(lines: any[], current: any[] = [], index = 0) {
+      if (index === lines.length) {
+        combinations.push([...current]);
+        return;
+      }
+      const line = lines[index];
+      for (const value of line.Values) {
+        current.push(value);
+        getCombinations(lines, current, index + 1);
+        current.pop();
+      }
+    }
+
+    getCombinations(attributeLines);
+
+    return combinations.map((attrs) => {
+      const variantName = attrs.map((a) => a.Name).join(", ");
+      return {
+        Id: 0,
+        DefaultCode: null,
+        NameTemplate: productName,
+        ProductTmplId: currentProductData?.Id || 0,
+        UOMId: 1,
+        UOMPOId: 1,
+        QtyAvailable: 0,
+        NameGet: `${productName} (${variantName})`,
+        Image: imageBase64,
+        PriceVariant: listPrice,
+        SaleOK: true,
+        PurchaseOK: true,
+        StandardPrice: listPrice,
+        Active: true,
+        Type: "product",
+        CategId: 2,
+        InvoicePolicy: "order",
+        Name: `${productName} (${variantName})`,
+        AvailableInPOS: true,
+        AttributeValues: attrs.map((a) => ({
+          Id: a.Id,
+          Name: a.Name,
+          AttributeId: a.AttributeId,
+          AttributeName: a.AttributeName,
+          NameGet: a.NameGet,
+        })),
+      };
+    });
+  };
+
+  // Add/remove attribute values for edit module
+  const addEditAttributeValue = (type: keyof typeof availableAttributes, valueId: number) => {
+    const attrConfig = availableAttributes[type];
+    const selectedValue = attrConfig.values.find(v => v.Id === valueId);
+    if (!selectedValue) return;
+
+    setEditAttributeLines(prev => {
+      const updated = [...prev];
+      let attrLine = updated.find(line => line.AttributeId === attrConfig.id);
+      
+      if (!attrLine) {
+        attrLine = {
+          Attribute: {
+            Id: attrConfig.id,
+            Name: attrConfig.name,
+            Code: attrConfig.code,
+            Sequence: null,
+            CreateVariant: true,
+          },
+          Values: [],
+          AttributeId: attrConfig.id,
+        };
+        updated.push(attrLine);
+      }
+
+      if (attrLine.Values.find((v: any) => v.Id === valueId)) {
+        toast({ variant: "destructive", title: "Giá trị đã tồn tại" });
+        return prev;
+      }
+
+      attrLine.Values.push({
+        Id: selectedValue.Id,
+        Name: selectedValue.Name,
+        Code: selectedValue.Code,
+        Sequence: selectedValue.Sequence,
+        AttributeId: attrConfig.id,
+        AttributeName: attrConfig.name,
+        PriceExtra: null,
+        NameGet: `${attrConfig.name}: ${selectedValue.Name}`,
+        DateCreated: null,
+      });
+
+      return updated;
+    });
+  };
+
+  const removeEditAttributeValue = (type: keyof typeof availableAttributes, valueId: number) => {
+    const attrConfig = availableAttributes[type];
+    
+    setEditAttributeLines(prev => {
+      const updated = prev.map(line => {
+        if (line.AttributeId === attrConfig.id) {
+          return {
+            ...line,
+            Values: line.Values.filter((v: any) => v.Id !== valueId)
+          };
+        }
+        return line;
+      }).filter(line => line.Values.length > 0);
+      
+      return updated;
+    });
+  };
+
+  const handleSaveEditAttributeLines = () => {
+    if (!currentProductData) return;
+
+    const newVariants = generateVariantsFromAttributes(
+      currentProductData.Name,
+      currentProductData.ListPrice || 0,
+      editAttributeLines,
+      currentProductData.Image
+    );
+
+    setCurrentProductData({
+      ...currentProductData,
+      AttributeLines: editAttributeLines,
+      ProductVariants: newVariants
+    });
+
+    setShowEditAttributeModal(false);
+    toast({
+      title: "✅ Thành công",
+      description: `Đã tạo ${newVariants.length} variants mới`
+    });
+  };
+  
   const fetchProductForEdit = async () => {
     if (!editProductId.trim()) {
       toast({ variant: "destructive", title: "Lỗi", description: "Vui lòng nhập Product Template ID" });
@@ -141,14 +351,29 @@ export function TPOSManagerNew() {
         throw new Error("Không tìm thấy sản phẩm");
       }
       
-      const data = await response.json();
-      setOriginalProductData(JSON.parse(JSON.stringify(data))); // Deep clone
-      setCurrentProductData(data);
-      
+    const data = await response.json();
+    setOriginalProductData(JSON.parse(JSON.stringify(data))); // Deep clone
+    setCurrentProductData(data);
+    
+    // Load AttributeLines
+    if (data.AttributeLines && data.AttributeLines.length > 0) {
+      setEditAttributeLines(JSON.parse(JSON.stringify(data.AttributeLines)));
+    } else if (data.ProductVariants && data.ProductVariants.length > 0) {
+      // Reconstruct from variants
+      const reconstructed = reconstructAttributeLines(data.ProductVariants);
+      setEditAttributeLines(reconstructed);
       toast({
-        title: "✅ Thành công",
-        description: `Đã tải sản phẩm: ${data.Name} (${data.ProductVariants?.length || 0} variants)`
+        title: "ℹ️ Thông báo",
+        description: "Đã tái tạo AttributeLines từ variants hiện có"
       });
+    } else {
+      setEditAttributeLines([]);
+    }
+    
+    toast({
+      title: "✅ Thành công",
+      description: `Đã tải sản phẩm: ${data.Name} (${data.ProductVariants?.length || 0} variants)`
+    });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -1369,15 +1594,23 @@ export function TPOSManagerNew() {
                 </CardContent>
               </Card>
 
-              {/* Variants List */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>🔍 Biến Thể (ProductVariants)</CardTitle>
-                  <Badge variant="secondary">
-                    Tổng: {currentProductData.ProductVariants?.length || 0}
-                  </Badge>
-                </CardHeader>
-                <CardContent>
+        {/* Variants List */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>🔍 Biến Thể (ProductVariants)</CardTitle>
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary">
+                Tổng: {currentProductData.ProductVariants?.length || 0}
+              </Badge>
+              <Button 
+                onClick={() => setShowEditAttributeModal(true)}
+                className="bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800"
+              >
+                📝 Chỉnh Sửa Biến Thể
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
                   <ScrollArea className="h-[400px] pr-4">
                     <div className="space-y-3">
                       {currentProductData.ProductVariants?.length === 0 ? (
@@ -1426,10 +1659,19 @@ export function TPOSManagerNew() {
                           </div>
                         ))
                       )}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
+              </div>
+            </ScrollArea>
+          </CardContent>
+          <div className="px-6 pb-4">
+            <Label className="text-xs text-muted-foreground">AttributeLines (JSON)</Label>
+            <Textarea
+              readOnly
+              value={JSON.stringify(editAttributeLines, null, 2)}
+              className="font-mono text-xs bg-muted mt-1"
+              rows={3}
+            />
+          </div>
+        </Card>
 
               {/* Step 3: Submit */}
               <Card>
@@ -1515,6 +1757,122 @@ export function TPOSManagerNew() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Attribute Modal */}
+      <Dialog open={showEditAttributeModal} onOpenChange={setShowEditAttributeModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📝 Chỉnh Sửa Biến Thể</DialogTitle>
+          </DialogHeader>
+          
+          <Tabs value={editAttributeTab} onValueChange={(v) => setEditAttributeTab(v as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="sizeText">Size Chữ</TabsTrigger>
+              <TabsTrigger value="color">Màu</TabsTrigger>
+              <TabsTrigger value="sizeNumber">Size Số</TabsTrigger>
+            </TabsList>
+            
+            {/* Size Text Tab */}
+            <TabsContent value="sizeText" className="space-y-4">
+              <Select onValueChange={(v) => addEditAttributeValue("sizeText", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn size chữ --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAttributes.sizeText.values.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {editAttributeLines
+                  .find(line => line.AttributeId === availableAttributes.sizeText.id)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeEditAttributeValue("sizeText", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+            
+            {/* Color Tab */}
+            <TabsContent value="color" className="space-y-4">
+              <Select onValueChange={(v) => addEditAttributeValue("color", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn màu --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAttributes.color.values.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {editAttributeLines
+                  .find(line => line.AttributeId === availableAttributes.color.id)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeEditAttributeValue("color", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+            
+            {/* Size Number Tab */}
+            <TabsContent value="sizeNumber" className="space-y-4">
+              <Select onValueChange={(v) => addEditAttributeValue("sizeNumber", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn size số --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAttributes.sizeNumber.values.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {editAttributeLines
+                  .find(line => line.AttributeId === availableAttributes.sizeNumber.id)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeEditAttributeValue("sizeNumber", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditAttributeModal(false)}>
+              ❌ Hủy
+            </Button>
+            <Button onClick={handleSaveEditAttributeLines} className="bg-green-500 hover:bg-green-600 text-white">
+              ✅ Lưu & Tạo Variants
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
