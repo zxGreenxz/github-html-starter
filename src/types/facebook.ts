@@ -72,9 +72,7 @@ export interface TPOSPartner {
 // ============================================================================
 
 export interface CommentWithStatus extends FacebookComment {
-  partnerStatus?: string;
-  orderInfo?: TPOSOrder;
-  isLoadingStatus?: boolean;
+  session_index?: number | null;
 }
 
 // ============================================================================
@@ -89,6 +87,8 @@ export interface FacebookCommentArchive {
   comment_message: string;
   comment_created_time: string;
   like_count: number;
+  session_index?: number | null;
+  tpos_session_index?: string | null;
 }
 
 export interface CustomerRecord {

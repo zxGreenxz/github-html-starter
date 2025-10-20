@@ -428,6 +428,7 @@ export function FacebookCommentsManager({
             like_count: c.like_count || 0,
             is_deleted_by_tpos: c.is_deleted_by_tpos || false,
             deleted_at: c.updated_at,
+            session_index: c.session_index || null,
           });
         }
         return acc;
@@ -445,40 +446,6 @@ export function FacebookCommentsManager({
     refetchInterval: false, // Disable auto-refetch, rely on invalidation only
     refetchOnWindowFocus: true, // Refetch when user returns to tab
     staleTime: 0, // Always consider data stale to allow immediate refetch
-  });
-
-  // Cache orders data
-  const { data: ordersData = [] } = useQuery({
-    queryKey: ["tpos-orders", selectedVideo?.objectId],
-    queryFn: async () => {
-      if (!selectedVideo?.objectId) return [];
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const ordersResponse = await fetch(
-        `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/fetch-facebook-orders`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            postId: selectedVideo.objectId,
-            top: ORDERS_TOP,
-          }),
-        },
-      );
-
-      if (!ordersResponse.ok) return [];
-
-      const ordersDataResult = await ordersResponse.json();
-      return ordersDataResult.value || [];
-    },
-    enabled: !!selectedVideo?.objectId,
-    staleTime: 5 * 60 * 1000,
   });
 
   // ============================================================================
@@ -993,50 +960,12 @@ export function FacebookCommentsManager({
     [toast],
   );
 
-  const debouncedFetchStatus = useMemo(
-    () => debounce(fetchPartnerStatusBatch, DEBOUNCE_DELAY),
-    [fetchPartnerStatusBatch],
-  );
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Cleanup
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!comments.length || !ordersData.length) return;
-
-    const commentsNeedingStatus = comments.filter(
-      (c) => !customerStatusMapRef.current.has(c.from.id),
-    );
-
-    if (commentsNeedingStatus.length > 0) {
-      debouncedFetchStatus(commentsNeedingStatus, ordersData);
-    }
-  }, [comments, ordersData, debouncedFetchStatus]);
-
-  // ============================================================================
-  // COMPUTE COMMENTS WITH STATUS
-  // ============================================================================
-
   const commentsWithStatus = useMemo((): CommentWithStatus[] => {
-    return comments.map((comment) => {
-      const status = customerStatusMap.get(comment.from.id);
-
-      return {
-        ...comment,
-        partnerStatus: status?.partnerStatus,
-        orderInfo: status?.orderInfo,
-        isLoadingStatus: status?.isLoadingStatus,
-      };
-    });
-  }, [comments, customerStatusMap]);
-
-  // ============================================================================
-  // DETECT NEW COMMENTS
-  // ============================================================================
+    return comments.map((comment) => ({
+      ...comment,
+      session_index: (comment as any).session_index || null,
+    }));
+  }, [comments]);
 
   useEffect(() => {
     if (comments.length === 0) {
@@ -1101,7 +1030,7 @@ export function FacebookCommentsManager({
       // Order filter
       if (
         showOnlyWithOrders &&
-        (!comment.orderInfo || !comment.orderInfo.Code)
+        !comment.session_index
       ) {
         return false;
       }
@@ -1898,7 +1827,6 @@ export function FacebookCommentsManager({
                     ) : (
                       filteredComments.map((comment) => {
                         const isNew = newCommentIds.has(comment.id);
-                        const status = comment.partnerStatus || "Khách lạ";
                         const isDeleted = comment.is_deleted || false;
 
                         return (
@@ -1916,13 +1844,13 @@ export function FacebookCommentsManager({
                                   <div
                                     className={cn(
                                       "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm",
-                                      comment.orderInfo?.SessionIndex
+                                      comment.session_index
                                         ? "bg-red-500"
                                         : "bg-gradient-to-br from-primary to-primary/60",
                                     )}
                                   >
-                                    {comment.orderInfo?.SessionIndex
-                                      ? comment.orderInfo.SessionIndex
+                                    {comment.session_index
+                                      ? comment.session_index
                                       : comment.from?.name?.charAt(0) || "?"}
                                   </div>
                                 </div>
@@ -1935,54 +1863,6 @@ export function FacebookCommentsManager({
                                     >
                                       {comment.from?.name}
                                     </Badge>
-
-                                    {comment.partnerStatus &&
-                                      comment.partnerStatus !== "Khách lạ" &&
-                                      comment.partnerStatus !== "Cần thêm TT" &&
-                                      comment.partnerStatus !==
-                                        "Bình thường" && (
-                                        <Badge
-                                          variant={
-                                            comment.partnerStatus === "Cảnh báo"
-                                              ? "secondary"
-                                              : comment.partnerStatus ===
-                                                    "Bom hàng" ||
-                                                  comment.partnerStatus ===
-                                                    "Nguy hiểm"
-                                                ? "destructive"
-                                                : "default"
-                                          }
-                                          className="text-xs"
-                                        >
-                                          {comment.partnerStatus}
-                                        </Badge>
-                                      )}
-
-                                    {!isMobile &&
-                                    comment.orderInfo?.Telephone ? (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs"
-                                      >
-                                        {comment.orderInfo.Telephone}
-                                      </Badge>
-                                    ) : !comment.orderInfo?.Telephone &&
-                                      comment.partnerStatus ===
-                                        "Cần thêm TT" ? (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-xs bg-red-500/20 text-red-700"
-                                      >
-                                        Cần thêm TT
-                                      </Badge>
-                                    ) : !comment.orderInfo?.Telephone ? (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-xs bg-orange-500/20 text-orange-700"
-                                      >
-                                        Chưa có TT
-                                      </Badge>
-                                    ) : null}
 
                                     {isNew && (
                                       <Badge
@@ -2048,17 +1928,6 @@ export function FacebookCommentsManager({
                                       Hàng Lẻ
                                     </Button>
 
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 text-xs"
-                                      onClick={() =>
-                                        handleShowInfo(comment.orderInfo)
-                                      }
-                                      aria-label="Xem thông tin đơn hàng"
-                                    >
-                                      Thông tin
-                                    </Button>
 
                                     <Button
                                       size="sm"
