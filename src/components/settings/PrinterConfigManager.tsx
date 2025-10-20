@@ -229,6 +229,17 @@ export function PrinterConfigManager() {
     };
 
     const html = generatePrintHTML(settings, testData);
+    
+    // Debug log để kiểm tra
+    console.log('🖨️ Print Settings:', {
+      width: settings.width,
+      height: settings.height,
+      threshold: settings.threshold,
+      scale: settings.scale,
+      printerIp: activePrinter.ipAddress,
+      bridgeUrl: activePrinter.bridgeUrl
+    });
+    
     const result = await printHTMLToXC80(activePrinter, html, {
       width: settings.width,
       height: settings.height,

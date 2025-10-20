@@ -123,18 +123,28 @@ export const printHTMLToXC80 = async (
   }
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    const payload = {
+      printerIp: printer.ipAddress,
+      printerPort: printer.port,
+      html: html,
+      width: settings.width,
+      height: settings.height,
+      threshold: settings.threshold,
+      scale: settings.scale
+    };
+    
+    console.log('📤 Sending to bridge server:', {
+      url: `${printer.bridgeUrl}/print/html`,
+      width: payload.width,
+      height: payload.height,
+      threshold: payload.threshold,
+      scale: payload.scale
+    });
+    
     const response = await fetch(`${printer.bridgeUrl}/print/html`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        printerIp: printer.ipAddress,
-        printerPort: printer.port,
-        html: html,
-        width: settings.width,
-        height: settings.height,
-        threshold: settings.threshold,
-        scale: settings.scale
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
