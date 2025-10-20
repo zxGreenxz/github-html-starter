@@ -384,161 +384,21 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   };
 
   const handleVariantsGenerated = async (index: number, variantText: string) => {
-    console.log('🎯 handleVariantsGenerated called:', { index, variantText, itemsLength: items.length });
-    const baseItem = items[index];
-    console.log('📦 Base item:', { product_code: baseItem.product_code, product_name: baseItem.product_name });
+    console.log('🎯 handleVariantsGenerated called:', { index, variantText });
     
-    // Prepare product data for upsert
-    const productData = {
-      product_code: baseItem.product_code.trim().toUpperCase(),
-      product_name: baseItem.product_name.trim().toUpperCase(),
-      variant: variantText || null,
-      purchase_price: Number(baseItem.purchase_price) * 1000,
-      selling_price: Number(baseItem.selling_price) * 1000,
-      supplier_name: formData.supplier_name || null,
-      stock_quantity: 0,
-      unit: "Cái",
-      product_images: baseItem.product_images || [],
-      price_images: baseItem.price_images || [],
-      base_product_code: baseItem.product_code.trim().toUpperCase()
-    };
-    console.log('💾 Product data:', { code: productData.product_code, name: productData.product_name, prices: { purchase: productData.purchase_price, sell: productData.selling_price } });
+    setItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = {
+        ...newItems[index],
+        variant: variantText,
+      };
+      return newItems;
+    });
 
-    // Check if product exists
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("id")
-      .eq("product_code", productData.product_code)
-      .maybeSingle();
-
-    if (existingProduct) {
-      // Update existing product
-      const { error } = await supabase
-        .from("products")
-        .update({
-          variant: productData.variant,
-          product_images: productData.product_images,
-          price_images: productData.price_images,
-          purchase_price: productData.purchase_price,
-          selling_price: productData.selling_price,
-          supplier_name: productData.supplier_name,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", existingProduct.id);
-
-      if (error) {
-        toast({
-          title: "Lỗi cập nhật sản phẩm",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "✅ Cập nhật kho thành công",
-        description: `${productData.product_code}`,
-      });
-    } else {
-      // Insert new product
-      const { error } = await supabase
-        .from("products")
-        .insert(productData);
-
-      if (error) {
-        toast({
-          title: "Lỗi tạo sản phẩm",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "✅ Tạo vào kho thành công",
-        description: `${productData.product_code}`,
-      });
-    }
-    
-    // Upload to TPOS and create variants
-    try {
-      const { uploadToTPOSAndCreateVariants } = await import('@/lib/tpos-variant-uploader');
-      
-      const createdVariants = await uploadToTPOSAndCreateVariants(
-        productData.product_code,
-        productData.product_name,
-        variantText,
-        {
-          selling_price: productData.selling_price,
-          purchase_price: productData.purchase_price,
-          product_images: productData.product_images,
-          price_images: productData.price_images,
-          supplier_name: productData.supplier_name
-        },
-        (message) => {
-          toast({ description: message, duration: 1500 });
-        }
-      );
-      
-      console.log('🔍 Created variants from TPOS:', createdVariants);
-      
-      // Add created variants to items list  
-      if (createdVariants && createdVariants.length > 0) {
-        console.log(`📦 Adding ${createdVariants.length} variants to purchase order`);
-        console.log('📊 First variant sample:', createdVariants[0]);
-        
-        const newVariantItems = createdVariants.map((variant, i) => {
-          console.log(`🔢 Variant ${i}: price=${variant.purchase_price}, sell=${variant.selling_price}`);
-          return {
-            quantity: 1,
-            notes: "",
-            product_code: variant.product_code,
-            product_name: variant.product_name,
-            variant: variant.variant,
-            purchase_price: variant.purchase_price,
-            selling_price: variant.selling_price,
-            product_images: [...(baseItem.product_images || [])],
-            price_images: [...(baseItem.price_images || [])],
-            _tempTotalPrice: variant.purchase_price,
-          };
-        });
-        
-        // Replace the base item with variant items
-        setItems(prev => {
-          const newItems = [...prev];
-          // Remove base item and insert all variant items in its place
-          newItems.splice(index, 1, ...newVariantItems);
-          // Update position for all items to prevent column shifting
-          newItems.forEach((item, idx) => {
-            item.position = idx;
-          });
-          console.log('✅ Updated items list (base item removed):', newItems);
-          return newItems;
-        });
-        
-        toast({
-          title: "✅ Đã thêm variants vào danh sách",
-          description: `Đã thêm ${createdVariants.length} variants vào đơn đặt hàng`,
-        });
-      }
-    } catch (error: any) {
-      console.error("TPOS upload error:", error);
-      toast({
-        variant: "destructive",
-        title: "⚠️ Lỗi upload TPOS",
-        description: error.message
-      });
-      
-      // Still update the variant field even if TPOS upload fails
-      setItems(prev => {
-        const newItems = [...prev];
-        newItems[index] = {
-          ...newItems[index],
-          variant: variantText,
-        };
-        return newItems;
-      });
-    }
+    toast({
+      title: "✅ Đã thêm biến thể",
+      description: `Biến thể: ${variantText}`,
+    });
   };
 
   const openVariantGenerator = (index: number) => {

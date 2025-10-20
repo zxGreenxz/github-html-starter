@@ -28,7 +28,6 @@ export function VariantGeneratorDialog({
   const [selectedSizeText, setSelectedSizeText] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizeNumber, setSelectedSizeNumber] = useState<string[]>([]);
-  const [activeAttributeType, setActiveAttributeType] = useState<'sizeText' | 'color' | 'sizeNumber' | null>(null);
   const [sizeTextFilter, setSizeTextFilter] = useState("");
   const [colorFilter, setColorFilter] = useState("");
   const [sizeNumberFilter, setSizeNumberFilter] = useState("");
@@ -36,29 +35,21 @@ export function VariantGeneratorDialog({
 
 
   const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
-    // Block if different type is already active
-    if (activeAttributeType && activeAttributeType !== type) {
-      return;
-    }
-
     if (type === 'sizeText') {
       const newSelection = selectedSizeText.includes(value)
         ? selectedSizeText.filter(v => v !== value)
         : [...selectedSizeText, value];
       setSelectedSizeText(newSelection);
-      setActiveAttributeType(newSelection.length > 0 ? 'sizeText' : null);
     } else if (type === 'color') {
       const newSelection = selectedColors.includes(value)
         ? selectedColors.filter(v => v !== value)
         : [...selectedColors, value];
       setSelectedColors(newSelection);
-      setActiveAttributeType(newSelection.length > 0 ? 'color' : null);
     } else {
       const newSelection = selectedSizeNumber.includes(value)
         ? selectedSizeNumber.filter(v => v !== value)
         : [...selectedSizeNumber, value];
       setSelectedSizeNumber(newSelection);
-      setActiveAttributeType(newSelection.length > 0 ? 'sizeNumber' : null);
     }
   };
 
@@ -86,7 +77,6 @@ export function VariantGeneratorDialog({
     setSelectedSizeText([]);
     setSelectedColors([]);
     setSelectedSizeNumber([]);
-    setActiveAttributeType(null);
     setSizeTextFilter("");
     setColorFilter("");
     setSizeNumberFilter("");
@@ -133,10 +123,7 @@ export function VariantGeneratorDialog({
           {/* Selection Columns - Now with 4 columns including Selected Variants */}
           <div className="grid grid-cols-4 gap-4 flex-1 overflow-hidden">
             {/* Size Text */}
-            <div className={cn(
-              "space-y-2 flex flex-col h-full transition-opacity",
-              activeAttributeType && activeAttributeType !== 'sizeText' && "opacity-40 pointer-events-none"
-            )}>
+            <div className="space-y-2 flex flex-col h-full">
               <Label>Size Chữ ({selectedSizeText.length})</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -179,10 +166,7 @@ export function VariantGeneratorDialog({
             </div>
 
             {/* Color */}
-            <div className={cn(
-              "space-y-2 flex flex-col h-full transition-opacity",
-              activeAttributeType && activeAttributeType !== 'color' && "opacity-40 pointer-events-none"
-            )}>
+            <div className="space-y-2 flex flex-col h-full">
               <Label>Màu Sắc ({selectedColors.length})</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -225,10 +209,7 @@ export function VariantGeneratorDialog({
             </div>
 
             {/* Size Number */}
-            <div className={cn(
-              "space-y-2 flex flex-col h-full transition-opacity",
-              activeAttributeType && activeAttributeType !== 'sizeNumber' && "opacity-40 pointer-events-none"
-            )}>
+            <div className="space-y-2 flex flex-col h-full">
               <Label>Size Số ({selectedSizeNumber.length})</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
