@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface NetworkPrinter {
   id: string;
   name: string;
@@ -109,25 +111,140 @@ export const generatePrintHTML = (
 };
 
 /**
- * Load printers from localStorage
+ * Load printers from database
  */
-export const loadPrinters = (): NetworkPrinter[] => {
-  const saved = localStorage.getItem('networkPrinters');
-  return saved ? JSON.parse(saved) : [];
+export const loadPrinters = async (): Promise<NetworkPrinter[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('printer_configs')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error loading printers:', error);
+    return [];
+  }
+
+  return (data || []).map(p => ({
+    id: p.id,
+    name: p.name,
+    ipAddress: p.ip_address,
+    port: p.port,
+    bridgeUrl: p.bridge_url,
+    isActive: p.is_active,
+    createdAt: p.created_at
+  }));
 };
 
 /**
- * Save printers to localStorage
+ * Save a printer to database
  */
-export const savePrinters = (printers: NetworkPrinter[]): void => {
-  localStorage.setItem('networkPrinters', JSON.stringify(printers));
+export const savePrinter = async (printer: Omit<NetworkPrinter, 'id' | 'createdAt'>): Promise<NetworkPrinter | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // Deactivate all printers if this one is active
+  if (printer.isActive) {
+    await supabase
+      .from('printer_configs')
+      .update({ is_active: false })
+      .eq('user_id', user.id);
+  }
+
+  const { data, error } = await supabase
+    .from('printer_configs')
+    .insert({
+      user_id: user.id,
+      name: printer.name,
+      ip_address: printer.ipAddress,
+      port: printer.port,
+      bridge_url: printer.bridgeUrl,
+      is_active: printer.isActive
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving printer:', error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    ipAddress: data.ip_address,
+    port: data.port,
+    bridgeUrl: data.bridge_url,
+    isActive: data.is_active,
+    createdAt: data.created_at
+  };
+};
+
+/**
+ * Update a printer in database
+ */
+export const updatePrinter = async (id: string, updates: Partial<NetworkPrinter>): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  // Deactivate all printers if this one is being activated
+  if (updates.isActive) {
+    await supabase
+      .from('printer_configs')
+      .update({ is_active: false })
+      .eq('user_id', user.id);
+  }
+
+  const dbUpdates: any = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.ipAddress !== undefined) dbUpdates.ip_address = updates.ipAddress;
+  if (updates.port !== undefined) dbUpdates.port = updates.port;
+  if (updates.bridgeUrl !== undefined) dbUpdates.bridge_url = updates.bridgeUrl;
+  if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+
+  const { error } = await supabase
+    .from('printer_configs')
+    .update(dbUpdates)
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error updating printer:', error);
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Delete a printer from database
+ */
+export const deletePrinter = async (id: string): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from('printer_configs')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error deleting printer:', error);
+    return false;
+  }
+
+  return true;
 };
 
 /**
  * Get the currently active printer
  */
-export const getActivePrinter = (): NetworkPrinter | null => {
-  const printers = loadPrinters();
+export const getActivePrinter = async (): Promise<NetworkPrinter | null> => {
+  const printers = await loadPrinters();
   return printers.find(p => p.isActive) || null;
 };
 
@@ -152,55 +269,214 @@ export interface SavedPrinterConfig {
   isItalic: boolean;
 }
 
-export const saveFormatSettings = (settings: SavedPrinterConfig): void => {
-  localStorage.setItem('printerFormatSettings', JSON.stringify(settings));
+export const saveFormatSettings = async (settings: SavedPrinterConfig): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from('printer_format_settings')
+    .upsert({
+      user_id: user.id,
+      width: settings.width,
+      custom_width: settings.customWidth,
+      height: settings.height,
+      custom_height: settings.customHeight,
+      threshold: settings.threshold,
+      scale: settings.scale,
+      font_session: settings.fontSession,
+      font_phone: settings.fontPhone,
+      font_customer: settings.fontCustomer,
+      font_product: settings.fontProduct,
+      padding: settings.padding,
+      line_spacing: settings.lineSpacing,
+      alignment: settings.alignment,
+      is_bold: settings.isBold,
+      is_italic: settings.isItalic
+    }, { onConflict: 'user_id' });
+
+  if (error) {
+    console.error('Error saving format settings:', error);
+    return false;
+  }
+
+  return true;
 };
 
-export const loadFormatSettings = (): SavedPrinterConfig | null => {
-  const saved = localStorage.getItem('printerFormatSettings');
-  return saved ? JSON.parse(saved) : null;
+export const loadFormatSettings = async (): Promise<SavedPrinterConfig | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('printer_format_settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    width: data.width,
+    customWidth: data.custom_width,
+    height: data.height,
+    customHeight: data.custom_height,
+    threshold: data.threshold,
+    scale: data.scale,
+    fontSession: data.font_session,
+    fontPhone: data.font_phone,
+    fontCustomer: data.font_customer,
+    fontProduct: data.font_product,
+    padding: data.padding,
+    lineSpacing: data.line_spacing,
+    alignment: data.alignment as 'left' | 'center' | 'right',
+    isBold: data.is_bold,
+    isItalic: data.is_italic
+  };
 };
 
 /**
  * Template management functions
  */
-export const loadTemplates = (): PrinterTemplate[] => {
-  const saved = localStorage.getItem('printerTemplates');
-  return saved ? JSON.parse(saved) : [];
+export const loadTemplates = async (): Promise<PrinterTemplate[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('printer_templates')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error loading templates:', error);
+    return [];
+  }
+
+  return (data || []).map(t => ({
+    id: t.id,
+    name: t.name,
+    width: t.width,
+    customWidth: t.custom_width,
+    height: t.height,
+    customHeight: t.custom_height,
+    threshold: t.threshold,
+    scale: t.scale,
+    fontSession: t.font_session,
+    fontPhone: t.font_phone,
+    fontCustomer: t.font_customer,
+    fontProduct: t.font_product,
+    padding: t.padding,
+    lineSpacing: t.line_spacing,
+    alignment: t.alignment as 'left' | 'center' | 'right',
+    isBold: t.is_bold,
+    isItalic: t.is_italic,
+    isActive: t.is_active,
+    createdAt: t.created_at
+  }));
 };
 
-export const saveTemplates = (templates: PrinterTemplate[]): void => {
-  localStorage.setItem('printerTemplates', JSON.stringify(templates));
-};
-
-export const getActiveTemplate = (): PrinterTemplate | null => {
-  const templates = loadTemplates();
+export const getActiveTemplate = async (): Promise<PrinterTemplate | null> => {
+  const templates = await loadTemplates();
   return templates.find(t => t.isActive) || null;
 };
 
-export const createTemplate = (name: string, settings: SavedPrinterConfig): PrinterTemplate => {
+export const createTemplate = async (name: string, settings: SavedPrinterConfig): Promise<PrinterTemplate | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('printer_templates')
+    .insert({
+      user_id: user.id,
+      name,
+      width: settings.width,
+      custom_width: settings.customWidth,
+      height: settings.height,
+      custom_height: settings.customHeight,
+      threshold: settings.threshold,
+      scale: settings.scale,
+      font_session: settings.fontSession,
+      font_phone: settings.fontPhone,
+      font_customer: settings.fontCustomer,
+      font_product: settings.fontProduct,
+      padding: settings.padding,
+      line_spacing: settings.lineSpacing,
+      alignment: settings.alignment,
+      is_bold: settings.isBold,
+      is_italic: settings.isItalic,
+      is_active: false
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating template:', error);
+    return null;
+  }
+
   return {
-    id: `template_${Date.now()}`,
-    name,
-    ...settings,
-    isActive: false,
-    createdAt: new Date().toISOString()
+    id: data.id,
+    name: data.name,
+    width: data.width,
+    customWidth: data.custom_width,
+    height: data.height,
+    customHeight: data.custom_height,
+    threshold: data.threshold,
+    scale: data.scale,
+    fontSession: data.font_session,
+    fontPhone: data.font_phone,
+    fontCustomer: data.font_customer,
+    fontProduct: data.font_product,
+    padding: data.padding,
+    lineSpacing: data.line_spacing,
+    alignment: data.alignment as 'left' | 'center' | 'right',
+    isBold: data.is_bold,
+    isItalic: data.is_italic,
+    isActive: data.is_active,
+    createdAt: data.created_at
   };
 };
 
-export const setActiveTemplate = (templateId: string): void => {
-  const templates = loadTemplates();
-  const updated = templates.map(t => ({
-    ...t,
-    isActive: t.id === templateId
-  }));
-  saveTemplates(updated);
+export const setActiveTemplate = async (templateId: string): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  // Deactivate all templates
+  await supabase
+    .from('printer_templates')
+    .update({ is_active: false })
+    .eq('user_id', user.id);
+
+  // Activate the selected template
+  const { error } = await supabase
+    .from('printer_templates')
+    .update({ is_active: true })
+    .eq('id', templateId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error setting active template:', error);
+    return false;
+  }
+
+  return true;
 };
 
-export const deleteTemplate = (templateId: string): void => {
-  const templates = loadTemplates();
-  const filtered = templates.filter(t => t.id !== templateId);
-  saveTemplates(filtered);
+export const deleteTemplate = async (templateId: string): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from('printer_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error deleting template:', error);
+    return false;
+  }
+
+  return true;
 };
 
 /**

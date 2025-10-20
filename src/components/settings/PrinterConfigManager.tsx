@@ -16,7 +16,9 @@ import {
   BillData,
   PrinterTemplate,
   loadPrinters,
-  savePrinters,
+  savePrinter,
+  updatePrinter,
+  deletePrinter,
   generatePrintHTML,
   printHTMLToXC80,
   testPrinterConnection,
@@ -24,7 +26,6 @@ import {
   loadFormatSettings,
   SavedPrinterConfig,
   loadTemplates,
-  saveTemplates,
   createTemplate,
   setActiveTemplate,
   deleteTemplate,
@@ -102,34 +103,38 @@ export function PrinterConfigManager() {
 
   // Load printers and settings on mount
   useEffect(() => {
-    const loaded = loadPrinters();
-    setPrinters(loaded);
+    const loadData = async () => {
+      const loaded = await loadPrinters();
+      setPrinters(loaded);
+      
+      // Load templates
+      const loadedTemplates = await loadTemplates();
+      setTemplates(loadedTemplates);
+      
+      // Load saved format settings
+      const savedSettings = await loadFormatSettings();
+      if (savedSettings) {
+        setWidth(savedSettings.width);
+        setCustomWidth(savedSettings.customWidth);
+        setHeight(savedSettings.height);
+        setCustomHeight(savedSettings.customHeight);
+        setThreshold(savedSettings.threshold);
+        setScale(savedSettings.scale);
+        setFontSession(savedSettings.fontSession);
+        setFontPhone(savedSettings.fontPhone);
+        setFontCustomer(savedSettings.fontCustomer);
+        setFontProduct(savedSettings.fontProduct);
+        setPadding(savedSettings.padding);
+        setLineSpacing(savedSettings.lineSpacing);
+        setAlignment(savedSettings.alignment);
+        setIsBold(savedSettings.isBold);
+        setIsItalic(savedSettings.isItalic);
+      }
+      
+      checkServer(loaded);
+    };
     
-    // Load templates
-    const loadedTemplates = loadTemplates();
-    setTemplates(loadedTemplates);
-    
-    // Load saved format settings
-    const savedSettings = loadFormatSettings();
-    if (savedSettings) {
-      setWidth(savedSettings.width);
-      setCustomWidth(savedSettings.customWidth);
-      setHeight(savedSettings.height);
-      setCustomHeight(savedSettings.customHeight);
-      setThreshold(savedSettings.threshold);
-      setScale(savedSettings.scale);
-      setFontSession(savedSettings.fontSession);
-      setFontPhone(savedSettings.fontPhone);
-      setFontCustomer(savedSettings.fontCustomer);
-      setFontProduct(savedSettings.fontProduct);
-      setPadding(savedSettings.padding);
-      setLineSpacing(savedSettings.lineSpacing);
-      setAlignment(savedSettings.alignment);
-      setIsBold(savedSettings.isBold);
-      setIsItalic(savedSettings.isItalic);
-    }
-    
-    checkServer(loaded);
+    loadData();
     const interval = setInterval(() => checkServer(), 5000);
     return () => clearInterval(interval);
   }, []);
@@ -140,7 +145,7 @@ export function PrinterConfigManager() {
   }, [printers]);
 
   // Printer management
-  const handleAddPrinter = () => {
+  const handleAddPrinter = async () => {
     if (!newPrinterName.trim() || !newPrinterIp.trim()) {
       toast({
         variant: "destructive",
@@ -150,47 +155,52 @@ export function PrinterConfigManager() {
       return;
     }
 
-    const newPrinter: NetworkPrinter = {
-      id: Date.now().toString(),
+    const newPrinter = await savePrinter({
       name: newPrinterName,
       ipAddress: newPrinterIp,
       port: parseInt(newPrinterPort) || 9100,
       bridgeUrl: newBridgeUrl,
       isActive: printers.length === 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updated = [...printers, newPrinter];
-    setPrinters(updated);
-    savePrinters(updated);
-
-    setNewPrinterName("");
-    setNewPrinterIp("");
-    setNewPrinterPort("9100");
-    setNewBridgeUrl("http://localhost:3001");
-    setShowAddForm(false);
-
-    toast({
-      title: "Thành công",
-      description: "Đã thêm máy in mới!",
     });
+
+    if (newPrinter) {
+      setPrinters([...printers, newPrinter]);
+      setNewPrinterName("");
+      setNewPrinterIp("");
+      setNewPrinterPort("9100");
+      setNewBridgeUrl("http://localhost:3001");
+      setShowAddForm(false);
+
+      toast({
+        title: "Thành công",
+        description: "Đã thêm máy in mới!",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể thêm máy in",
+      });
+    }
   };
 
-  const handleDeletePrinter = (id: string) => {
-    const updated = printers.filter(p => p.id !== id);
-    setPrinters(updated);
-    savePrinters(updated);
-    toast({
-      title: "Đã xóa",
-      description: "Máy in đã được xóa",
-    });
+  const handleDeletePrinter = async (id: string) => {
+    const success = await deletePrinter(id);
+    if (success) {
+      setPrinters(printers.filter(p => p.id !== id));
+      toast({
+        title: "Đã xóa",
+        description: "Máy in đã được xóa",
+      });
+    }
   };
 
-  const handleSetActivePrinter = (id: string) => {
-    const updated = printers.map(p => ({ ...p, isActive: p.id === id }));
-    setPrinters(updated);
-    savePrinters(updated);
-    checkServer();
+  const handleSetActivePrinter = async (id: string) => {
+    const success = await updatePrinter(id, { isActive: true });
+    if (success) {
+      setPrinters(printers.map(p => ({ ...p, isActive: p.id === id })));
+      checkServer();
+    }
   };
 
   // Get current width/height
@@ -329,7 +339,7 @@ export function PrinterConfigManager() {
   };
 
   // Save current configuration
-  const handleSaveConfig = () => {
+  const handleSaveConfig = async () => {
     const config: SavedPrinterConfig = {
       width,
       customWidth,
@@ -348,15 +358,17 @@ export function PrinterConfigManager() {
       isItalic,
     };
     
-    saveFormatSettings(config);
-    toast({
-      title: "Đã lưu",
-      description: "Cấu hình máy in và settings đã được lưu!",
-    });
+    const success = await saveFormatSettings(config);
+    if (success) {
+      toast({
+        title: "Đã lưu",
+        description: "Cấu hình máy in và settings đã được lưu!",
+      });
+    }
   };
 
   // Template management
-  const handleCreateTemplate = () => {
+  const handleCreateTemplate = async () => {
     if (!newTemplateName.trim()) {
       toast({
         title: "Lỗi",
@@ -384,21 +396,20 @@ export function PrinterConfigManager() {
       isItalic,
     };
 
-    const newTemplate = createTemplate(newTemplateName, config);
-    const updated = [...templates, newTemplate];
-    setTemplates(updated);
-    saveTemplates(updated);
-    
-    setNewTemplateName("");
-    setShowTemplateForm(false);
-    
-    toast({
-      title: "✅ Đã tạo template",
-      description: `Template "${newTemplateName}" đã được lưu`,
-    });
+    const newTemplate = await createTemplate(newTemplateName, config);
+    if (newTemplate) {
+      setTemplates([...templates, newTemplate]);
+      setNewTemplateName("");
+      setShowTemplateForm(false);
+      
+      toast({
+        title: "✅ Đã tạo template",
+        description: `Template "${newTemplateName}" đã được lưu`,
+      });
+    }
   };
 
-  const handleLoadTemplate = (templateId: string) => {
+  const handleLoadTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -418,7 +429,7 @@ export function PrinterConfigManager() {
     setIsBold(template.isBold);
     setIsItalic(template.isItalic);
 
-    // Save to sessionStorage so other components can use it
+    // Save to database so other components can use it
     const config: SavedPrinterConfig = {
       width: template.width,
       customWidth: template.customWidth,
@@ -436,9 +447,9 @@ export function PrinterConfigManager() {
       isBold: template.isBold,
       isItalic: template.isItalic,
     };
-    saveFormatSettings(config);
+    await saveFormatSettings(config);
 
-    setActiveTemplate(templateId);
+    await setActiveTemplate(templateId);
     const updated = templates.map(t => ({
       ...t,
       isActive: t.id === templateId
@@ -451,18 +462,18 @@ export function PrinterConfigManager() {
     });
   };
 
-  const handleDeleteTemplate = (templateId: string) => {
+  const handleDeleteTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (!template) return;
 
-    deleteTemplate(templateId);
-    const updated = templates.filter(t => t.id !== templateId);
-    setTemplates(updated);
-
-    toast({
-      title: "🗑️ Đã xóa template",
-      description: `Template "${template.name}" đã được xóa`,
-    });
+    const success = await deleteTemplate(templateId);
+    if (success) {
+      setTemplates(templates.filter(t => t.id !== templateId));
+      toast({
+        title: "🗑️ Đã xóa template",
+        description: `Template "${template.name}" đã được xóa`,
+      });
+    }
   };
 
   return (

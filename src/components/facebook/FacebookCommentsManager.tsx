@@ -565,7 +565,7 @@ export function FacebookCommentsManager({
       try {
         const { getActivePrinter, printHTMLToXC80, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
 
-        const printer = getActivePrinter();
+        const printer = await getActivePrinter();
         if (!printer) {
           console.log('⚠️ No active printer configured');
           return;
@@ -576,7 +576,7 @@ export function FacebookCommentsManager({
         const productCode = productCodeMatch ? productCodeMatch[1] : '';
 
         // Load saved printer settings
-        const savedSettings = loadFormatSettings();
+        const savedSettings = await loadFormatSettings();
         
         // Parse settings with defaults
         const width = savedSettings?.width === 'custom' 

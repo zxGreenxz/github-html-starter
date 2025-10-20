@@ -304,14 +304,14 @@ export function QuickAddOrder({
 
       // Auto-print bill using saved printer configuration
       if (billData) {
-        const activePrinter = getActivePrinter();
+        const activePrinter = await getActivePrinter();
         if (activePrinter) {
           try {
             console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
             
             // Load saved printer settings
             const { loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
-            const savedSettings = loadFormatSettings();
+            const savedSettings = await loadFormatSettings();
             
             // Parse settings with defaults
             const width = savedSettings?.width === 'custom' 

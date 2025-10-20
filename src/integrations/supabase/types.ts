@@ -113,6 +113,7 @@ export type Database = {
           last_fetched_at: string | null
           last_synced_at: string | null
           like_count: number | null
+          session_index: number | null
           tpos_order_id: string | null
           tpos_session_index: string | null
           tpos_sync_status: string | null
@@ -132,6 +133,7 @@ export type Database = {
           last_fetched_at?: string | null
           last_synced_at?: string | null
           like_count?: number | null
+          session_index?: number | null
           tpos_order_id?: string | null
           tpos_session_index?: string | null
           tpos_sync_status?: string | null
@@ -151,6 +153,7 @@ export type Database = {
           last_fetched_at?: string | null
           last_synced_at?: string | null
           like_count?: number | null
+          session_index?: number | null
           tpos_order_id?: string | null
           tpos_session_index?: string | null
           tpos_sync_status?: string | null
@@ -697,6 +700,108 @@ export type Database = {
         }
         Relationships: []
       }
+      printer_configs: {
+        Row: {
+          bridge_url: string
+          created_at: string
+          id: string
+          ip_address: string
+          is_active: boolean
+          name: string
+          port: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bridge_url: string
+          created_at?: string
+          id?: string
+          ip_address: string
+          is_active?: boolean
+          name: string
+          port?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bridge_url?: string
+          created_at?: string
+          id?: string
+          ip_address?: string
+          is_active?: boolean
+          name?: string
+          port?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      printer_format_settings: {
+        Row: {
+          alignment: string
+          created_at: string
+          custom_height: string
+          custom_width: string
+          font_customer: string
+          font_phone: string
+          font_product: string
+          font_session: string
+          height: string
+          id: string
+          is_bold: boolean
+          is_italic: boolean
+          line_spacing: string
+          padding: string
+          scale: string
+          threshold: string
+          updated_at: string
+          user_id: string
+          width: string
+        }
+        Insert: {
+          alignment: string
+          created_at?: string
+          custom_height: string
+          custom_width: string
+          font_customer: string
+          font_phone: string
+          font_product: string
+          font_session: string
+          height: string
+          id?: string
+          is_bold?: boolean
+          is_italic?: boolean
+          line_spacing: string
+          padding: string
+          scale: string
+          threshold: string
+          updated_at?: string
+          user_id: string
+          width: string
+        }
+        Update: {
+          alignment?: string
+          created_at?: string
+          custom_height?: string
+          custom_width?: string
+          font_customer?: string
+          font_phone?: string
+          font_product?: string
+          font_session?: string
+          height?: string
+          id?: string
+          is_bold?: boolean
+          is_italic?: boolean
+          line_spacing?: string
+          padding?: string
+          scale?: string
+          threshold?: string
+          updated_at?: string
+          user_id?: string
+          width?: string
+        }
+        Relationships: []
+      }
       printer_settings: {
         Row: {
           created_at: string
@@ -727,6 +832,78 @@ export type Database = {
           printer_port?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      printer_templates: {
+        Row: {
+          alignment: string
+          created_at: string
+          custom_height: string
+          custom_width: string
+          font_customer: string
+          font_phone: string
+          font_product: string
+          font_session: string
+          height: string
+          id: string
+          is_active: boolean
+          is_bold: boolean
+          is_italic: boolean
+          line_spacing: string
+          name: string
+          padding: string
+          scale: string
+          threshold: string
+          updated_at: string
+          user_id: string
+          width: string
+        }
+        Insert: {
+          alignment: string
+          created_at?: string
+          custom_height: string
+          custom_width: string
+          font_customer: string
+          font_phone: string
+          font_product: string
+          font_session: string
+          height: string
+          id?: string
+          is_active?: boolean
+          is_bold?: boolean
+          is_italic?: boolean
+          line_spacing: string
+          name: string
+          padding: string
+          scale: string
+          threshold: string
+          updated_at?: string
+          user_id: string
+          width: string
+        }
+        Update: {
+          alignment?: string
+          created_at?: string
+          custom_height?: string
+          custom_width?: string
+          font_customer?: string
+          font_phone?: string
+          font_product?: string
+          font_session?: string
+          height?: string
+          id?: string
+          is_active?: boolean
+          is_bold?: boolean
+          is_italic?: boolean
+          line_spacing?: string
+          name?: string
+          padding?: string
+          scale?: string
+          threshold?: string
+          updated_at?: string
+          user_id?: string
+          width?: string
         }
         Relationships: []
       }
