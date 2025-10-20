@@ -39,7 +39,7 @@ export interface InsertV2ProductVariant {
     Code: string;
     Sequence: number | null;
     AttributeId: number;
-    // Note: AttributeName is NOT included in ProductVariants.AttributeValues
+    AttributeName: string;
   }>;
 }
 
@@ -271,14 +271,7 @@ export function buildProductVariants(
           if (tposColor) {
             const fullAttr = TPOS_ATTRIBUTES.color.find(c => c.Id === tposColor.Id);
             if (fullAttr) {
-              // Exclude AttributeName for ProductVariants.AttributeValues
-              attributeValues.push({
-                Id: fullAttr.Id,
-                Name: fullAttr.Name,
-                Code: fullAttr.Code,
-                Sequence: fullAttr.Sequence,
-                AttributeId: fullAttr.AttributeId
-              });
+              attributeValues.push(fullAttr);
             }
           }
           break;
@@ -288,14 +281,7 @@ export function buildProductVariants(
           if (tposSize) {
             const fullAttr = TPOS_ATTRIBUTES.sizeText.find(s => s.Id === tposSize.Id);
             if (fullAttr) {
-              // Exclude AttributeName for ProductVariants.AttributeValues
-              attributeValues.push({
-                Id: fullAttr.Id,
-                Name: fullAttr.Name,
-                Code: fullAttr.Code,
-                Sequence: fullAttr.Sequence,
-                AttributeId: fullAttr.AttributeId
-              });
+              attributeValues.push(fullAttr);
             }
           }
           break;
@@ -305,14 +291,7 @@ export function buildProductVariants(
           if (tposSize) {
             const fullAttr = TPOS_ATTRIBUTES.sizeNumber.find(s => s.Id === tposSize.Id);
             if (fullAttr) {
-              // Exclude AttributeName for ProductVariants.AttributeValues
-              attributeValues.push({
-                Id: fullAttr.Id,
-                Name: fullAttr.Name,
-                Code: fullAttr.Code,
-                Sequence: fullAttr.Sequence,
-                AttributeId: fullAttr.AttributeId
-              });
+              attributeValues.push(fullAttr);
             }
           }
           break;
