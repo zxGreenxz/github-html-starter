@@ -39,7 +39,7 @@ export interface InsertV2ProductVariant {
     Code: string;
     Sequence: number | null;
     AttributeId: number;
-    AttributeName: string;
+    // Note: AttributeName is NOT included in ProductVariants.AttributeValues
   }>;
 }
 
@@ -271,7 +271,14 @@ export function buildProductVariants(
           if (tposColor) {
             const fullAttr = TPOS_ATTRIBUTES.color.find(c => c.Id === tposColor.Id);
             if (fullAttr) {
-              attributeValues.push(fullAttr);
+              // Exclude AttributeName for ProductVariants.AttributeValues
+              attributeValues.push({
+                Id: fullAttr.Id,
+                Name: fullAttr.Name,
+                Code: fullAttr.Code,
+                Sequence: fullAttr.Sequence,
+                AttributeId: fullAttr.AttributeId
+              });
             }
           }
           break;
@@ -281,7 +288,14 @@ export function buildProductVariants(
           if (tposSize) {
             const fullAttr = TPOS_ATTRIBUTES.sizeText.find(s => s.Id === tposSize.Id);
             if (fullAttr) {
-              attributeValues.push(fullAttr);
+              // Exclude AttributeName for ProductVariants.AttributeValues
+              attributeValues.push({
+                Id: fullAttr.Id,
+                Name: fullAttr.Name,
+                Code: fullAttr.Code,
+                Sequence: fullAttr.Sequence,
+                AttributeId: fullAttr.AttributeId
+              });
             }
           }
           break;
@@ -291,7 +305,14 @@ export function buildProductVariants(
           if (tposSize) {
             const fullAttr = TPOS_ATTRIBUTES.sizeNumber.find(s => s.Id === tposSize.Id);
             if (fullAttr) {
-              attributeValues.push(fullAttr);
+              // Exclude AttributeName for ProductVariants.AttributeValues
+              attributeValues.push({
+                Id: fullAttr.Id,
+                Name: fullAttr.Name,
+                Code: fullAttr.Code,
+                Sequence: fullAttr.Sequence,
+                AttributeId: fullAttr.AttributeId
+              });
             }
           }
           break;
