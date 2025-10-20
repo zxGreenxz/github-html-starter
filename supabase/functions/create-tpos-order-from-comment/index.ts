@@ -485,7 +485,7 @@ serve(async (req) => {
           .from('facebook_comments_archive')
           .update({
             tpos_order_id: data.Id?.toString() || null,
-            session_index: data.SessionIndex ? parseInt(data.SessionIndex, 10) : null,
+            tpos_session_index: data.SessionIndex?.toString() || null,
             tpos_sync_status: 'synced',
             last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -535,7 +535,7 @@ serve(async (req) => {
           .from('facebook_comments_archive')
           .update({
             tpos_order_id: data.Id?.toString() || null,
-            session_index: data.SessionIndex ? parseInt(data.SessionIndex, 10) : null,
+            tpos_session_index: data.SessionIndex?.toString() || null,
             tpos_sync_status: 'synced',
             last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
