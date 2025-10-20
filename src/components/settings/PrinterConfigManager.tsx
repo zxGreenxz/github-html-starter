@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Printer, Save } from "lucide-react";
+import { Plus, Trash2, Printer, Save, FileText, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ import {
   NetworkPrinter,
   PrinterFormatSettings,
   BillData,
+  PrinterTemplate,
   loadPrinters,
   savePrinters,
   generatePrintHTML,
@@ -22,6 +23,11 @@ import {
   saveFormatSettings,
   loadFormatSettings,
   SavedPrinterConfig,
+  loadTemplates,
+  saveTemplates,
+  createTemplate,
+  setActiveTemplate,
+  deleteTemplate,
 } from "@/lib/printer-config-utils";
 
 export function PrinterConfigManager() {
@@ -63,6 +69,11 @@ export function PrinterConfigManager() {
   const [padding, setPadding] = useState("20");
   const [lineSpacing, setLineSpacing] = useState("12");
 
+  // Templates management
+  const [templates, setTemplates] = useState<PrinterTemplate[]>([]);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+
   // Test data
   const [testData, setTestData] = useState<BillData>({
     sessionIndex: '001',
@@ -93,6 +104,10 @@ export function PrinterConfigManager() {
   useEffect(() => {
     const loaded = loadPrinters();
     setPrinters(loaded);
+    
+    // Load templates
+    const loadedTemplates = loadTemplates();
+    setTemplates(loadedTemplates);
     
     // Load saved format settings
     const savedSettings = loadFormatSettings();
@@ -340,6 +355,96 @@ export function PrinterConfigManager() {
     });
   };
 
+  // Template management
+  const handleCreateTemplate = () => {
+    if (!newTemplateName.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập tên template",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const config: SavedPrinterConfig = {
+      width,
+      customWidth,
+      height,
+      customHeight,
+      threshold,
+      scale,
+      fontSession,
+      fontPhone,
+      fontCustomer,
+      fontProduct,
+      padding,
+      lineSpacing,
+      alignment,
+      isBold,
+      isItalic,
+    };
+
+    const newTemplate = createTemplate(newTemplateName, config);
+    const updated = [...templates, newTemplate];
+    setTemplates(updated);
+    saveTemplates(updated);
+    
+    setNewTemplateName("");
+    setShowTemplateForm(false);
+    
+    toast({
+      title: "✅ Đã tạo template",
+      description: `Template "${newTemplateName}" đã được lưu`,
+    });
+  };
+
+  const handleLoadTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    setWidth(template.width);
+    setCustomWidth(template.customWidth);
+    setHeight(template.height);
+    setCustomHeight(template.customHeight);
+    setThreshold(template.threshold);
+    setScale(template.scale);
+    setFontSession(template.fontSession);
+    setFontPhone(template.fontPhone);
+    setFontCustomer(template.fontCustomer);
+    setFontProduct(template.fontProduct);
+    setPadding(template.padding);
+    setLineSpacing(template.lineSpacing);
+    setAlignment(template.alignment);
+    setIsBold(template.isBold);
+    setIsItalic(template.isItalic);
+
+    setActiveTemplate(templateId);
+    const updated = templates.map(t => ({
+      ...t,
+      isActive: t.id === templateId
+    }));
+    setTemplates(updated);
+
+    toast({
+      title: "✅ Đã load template",
+      description: `Template "${template.name}" đã được áp dụng`,
+    });
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    deleteTemplate(templateId);
+    const updated = templates.filter(t => t.id !== templateId);
+    setTemplates(updated);
+
+    toast({
+      title: "🗑️ Đã xóa template",
+      description: `Template "${template.name}" đã được xóa`,
+    });
+  };
+
   return (
     <div className={cn("grid gap-6", isMobile ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2")}>
       {/* LEFT SIDE: Controls */}
@@ -441,6 +546,99 @@ export function PrinterConfigManager() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Templates Management */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-5 w-5" />
+                📋 Templates
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowTemplateForm(!showTemplateForm)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Tạo mới
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showTemplateForm && (
+              <div className="bg-muted p-4 rounded-lg space-y-3">
+                <Input
+                  placeholder="Tên template (vd: Template Mặc định, In Nhanh...)"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') handleCreateTemplate();
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateTemplate} size="sm" className="flex-1">
+                    Lưu Template
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setShowTemplateForm(false);
+                      setNewTemplateName("");
+                    }} 
+                    size="sm" 
+                    variant="outline"
+                  >
+                    Hủy
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {templates.length > 0 ? (
+              <div className="space-y-2">
+                {templates.map((template) => (
+                  <div
+                    key={template.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border",
+                      template.isActive ? "bg-primary/10 border-primary" : "bg-background"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      {template.isActive && <Check className="h-4 w-4 text-primary" />}
+                      <div>
+                        <div className="font-medium">{template.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(template.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant={template.isActive ? "default" : "outline"}
+                        onClick={() => handleLoadTemplate(template.id)}
+                      >
+                        {template.isActive ? "Đang dùng" : "Load"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteTemplate(template.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Chưa có template nào. Tạo template để lưu cấu hình in!
+              </p>
             )}
           </CardContent>
         </Card>

@@ -24,6 +24,28 @@ export interface PrinterFormatSettings {
   isItalic: boolean;
 }
 
+export interface PrinterTemplate {
+  id: string;
+  name: string;
+  width: string;
+  customWidth: string;
+  height: string;
+  customHeight: string;
+  threshold: string;
+  scale: string;
+  fontSession: string;
+  fontPhone: string;
+  fontCustomer: string;
+  fontProduct: string;
+  padding: string;
+  lineSpacing: string;
+  alignment: 'left' | 'center' | 'right';
+  isBold: boolean;
+  isItalic: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface BillData {
   sessionIndex: string;
   phone: string;
@@ -137,6 +159,48 @@ export const saveFormatSettings = (settings: SavedPrinterConfig): void => {
 export const loadFormatSettings = (): SavedPrinterConfig | null => {
   const saved = sessionStorage.getItem('printerFormatSettings');
   return saved ? JSON.parse(saved) : null;
+};
+
+/**
+ * Template management functions
+ */
+export const loadTemplates = (): PrinterTemplate[] => {
+  const saved = sessionStorage.getItem('printerTemplates');
+  return saved ? JSON.parse(saved) : [];
+};
+
+export const saveTemplates = (templates: PrinterTemplate[]): void => {
+  sessionStorage.setItem('printerTemplates', JSON.stringify(templates));
+};
+
+export const getActiveTemplate = (): PrinterTemplate | null => {
+  const templates = loadTemplates();
+  return templates.find(t => t.isActive) || null;
+};
+
+export const createTemplate = (name: string, settings: SavedPrinterConfig): PrinterTemplate => {
+  return {
+    id: `template_${Date.now()}`,
+    name,
+    ...settings,
+    isActive: false,
+    createdAt: new Date().toISOString()
+  };
+};
+
+export const setActiveTemplate = (templateId: string): void => {
+  const templates = loadTemplates();
+  const updated = templates.map(t => ({
+    ...t,
+    isActive: t.id === templateId
+  }));
+  saveTemplates(updated);
+};
+
+export const deleteTemplate = (templateId: string): void => {
+  const templates = loadTemplates();
+  const filtered = templates.filter(t => t.id !== templateId);
+  saveTemplates(filtered);
 };
 
 /**

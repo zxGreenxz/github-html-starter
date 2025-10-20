@@ -561,15 +561,9 @@ export function FacebookCommentsManager({
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
-      // Auto-print bill
+      // Auto-print bill using saved printer configuration
       try {
-        const [
-          { getActivePrinter, printHTMLToXC80 },
-          { generateBillHTML }
-        ] = await Promise.all([
-          import('@/lib/printer-config-utils'),
-          import('@/lib/bill-pdf-generator')
-        ]);
+        const { getActivePrinter, printHTMLToXC80, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
 
         const printer = getActivePrinter();
         if (!printer) {
@@ -581,29 +575,76 @@ export function FacebookCommentsManager({
         const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
         const productCode = productCodeMatch ? productCodeMatch[1] : '';
 
-        const billData = {
-          sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
-          phone: data.response.Telephone || null,
-          customerName: data.response.Name || variables.comment.from.name,
-          productCode: productCode,
-          productName: productCode,
-          comment: commentText,
-          createdTime: variables.comment.created_time,
-        };
+        // Load saved printer settings
+        const savedSettings = loadFormatSettings();
+        
+        // Parse settings with defaults
+        const width = savedSettings?.width === 'custom' 
+          ? parseInt(savedSettings.customWidth) || 576
+          : parseInt(savedSettings?.width || '576');
+        
+        const height = savedSettings?.height === 'custom'
+          ? parseInt(savedSettings.customHeight) || null
+          : savedSettings?.height === 'auto' 
+            ? null 
+            : parseInt(savedSettings?.height || '0') || null;
+        
+        const threshold = parseInt(savedSettings?.threshold || '95');
+        const scale = parseFloat(savedSettings?.scale || '2');
+        
+        // Font settings
+        const fontSession = parseInt(savedSettings?.fontSession || '72');
+        const fontPhone = parseInt(savedSettings?.fontPhone || '52');
+        const fontCustomer = parseInt(savedSettings?.fontCustomer || '52');
+        const fontProduct = parseInt(savedSettings?.fontProduct || '36');
+        const padding = parseInt(savedSettings?.padding || '20');
+        const lineSpacing = parseInt(savedSettings?.lineSpacing || '12');
+        const alignment = savedSettings?.alignment || 'center';
+        const isBold = savedSettings?.isBold ?? true;
+        const isItalic = savedSettings?.isItalic ?? false;
 
-        const billHTML = generateBillHTML(billData);
+        console.log('📐 Facebook comment - Using printer settings:', {
+          width, height, threshold, scale,
+          fontSession, fontPhone, fontCustomer, fontProduct
+        });
+
+        const billHTML = generatePrintHTML(
+          {
+            width,
+            height,
+            threshold,
+            scale,
+            fontSession,
+            fontPhone,
+            fontCustomer,
+            fontProduct,
+            padding,
+            lineSpacing,
+            alignment,
+            isBold,
+            isItalic
+          },
+          {
+            sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+            phone: data.response.Telephone || '',
+            customerName: data.response.Name || variables.comment.from.name,
+            productCode: productCode,
+            productName: productCode,
+            comment: commentText
+          }
+        );
 
         const printResult = await printHTMLToXC80(printer, billHTML, {
-          width: 576,
-          height: null,
-          threshold: 95,
-          scale: 2,
+          width,
+          height,
+          threshold,
+          scale
         });
         
         if (printResult.success) {
           toast({
             title: "✅ In bill thành công",
-            description: `Đơn #${billData.sessionIndex}`,
+            description: `Đơn #${data.response.SessionIndex?.toString() || data.response.Code || ''}`,
           });
         } else {
           toast({
