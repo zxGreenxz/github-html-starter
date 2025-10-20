@@ -7,17 +7,10 @@
     "start": "node xc80-bridge-cp1258.js",
     "config": "node config-xc80-cp1258.js",
     "test": "curl http://localhost:9100/health",
-    "test-pdf": "node test-pdf-print.js"
+    "test-pdf": "node test-pdf-print.js",
+    "check": "node check-system.js"
   },
-  "keywords": [
-    "xc80",
-    "thermal-printer",
-    "escpos",
-    "vietnamese",
-    "cp1258",
-    "print-bridge",
-    "pdf"
-  ],
+  "keywords": ["xc80", "thermal-printer", "escpos", "vietnamese", "cp1258", "print-bridge", "pdf"],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -29,5 +22,11 @@
   },
   "engines": {
     "node": ">=14.0.0"
+  },
+  "notes": {
+    "poppler": "Cần cài đặt poppler-utils để sử dụng pdftoppm command",
+    "ubuntu": "sudo apt-get install poppler-utils",
+    "macos": "brew install poppler",
+    "windows": "Download từ https://github.com/oschwartz10612/poppler-windows/releases/"
   }
 }
