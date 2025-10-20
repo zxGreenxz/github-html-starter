@@ -175,8 +175,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           variant: item.variant?.trim().toUpperCase() || null,
           purchase_price: Number(item.purchase_price || 0) * 1000,
           selling_price: Number(item.selling_price || 0) * 1000,
-          product_images: item.product_images || [],
-          price_images: item.price_images || []
+          product_images: Array.isArray(item.product_images) 
+            ? item.product_images 
+            : (item.product_images ? [item.product_images] : []),
+          price_images: Array.isArray(item.price_images) 
+            ? item.price_images 
+            : (item.price_images ? [item.price_images] : [])
         }));
 
       if (orderItems.length > 0) {
