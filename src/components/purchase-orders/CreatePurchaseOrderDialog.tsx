@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import { parseVariant } from "@/lib/variant-utils";
 
 interface PurchaseOrderItem {
   quantity: number;
@@ -532,8 +533,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
       if (variantsError) throw variantsError;
 
-      // ✅ 3. Giữ nguyên parent trong form, KHÔNG thêm variants vào form
-      // Variants đã được thêm vào kho ở bước 2
+      // ✅ 3. Cập nhật variant cho parent item trong form
+      const variantDisplayValue = variants.map(v => {
+        const parsed = parseVariant(v.variant);
+        return parsed.name || parsed.code;
+      }).join(', ');
+
+      setItems(prev => {
+        const newItems = [...prev];
+        newItems[index] = {
+          ...newItems[index],
+          variant: variantDisplayValue
+        };
+        return newItems;
+      });
 
       // ✅ 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["products"] });
