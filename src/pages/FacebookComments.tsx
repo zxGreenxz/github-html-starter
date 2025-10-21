@@ -116,7 +116,7 @@ const FacebookComments = () => {
       <Button
         onClick={() => setIsBarcodePanelOpen(!isBarcodePanelOpen)}
         className={cn(
-          "fixed z-40 shadow-lg",
+          "fixed z-40 shadow-lg relative",
           isMobile ? "bottom-20 right-4" : "bottom-6 right-6",
           "bg-purple-600 hover:bg-purple-700 text-white"
         )}
@@ -125,7 +125,10 @@ const FacebookComments = () => {
         <Barcode className="h-5 w-5 mr-2" />
         Barcode
         {scannedBarcodes.length > 0 && (
-          <Badge className="ml-2 bg-amber-500 text-white">
+          <Badge 
+            variant="destructive" 
+            className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs font-bold shadow-lg"
+          >
             {scannedBarcodes.length}
           </Badge>
         )}

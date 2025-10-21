@@ -12,6 +12,16 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatVietnamTime } from "@/lib/date-utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -41,6 +51,7 @@ export function ScannedBarcodesPanel() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [manualCode, setManualCode] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
   const debouncedSearch = useDebounce(manualCode, 300);
 
   // Fetch product suggestions based on manual input
@@ -108,11 +119,12 @@ export function ScannedBarcodesPanel() {
   };
 
   const handleClearAll = () => {
-    if (scannedBarcodes.length > 0) {
-      if (confirm(`Bạn có chắc muốn xóa tất cả ${scannedBarcodes.length} barcode?`)) {
-        clearScannedBarcodes();
-      }
-    }
+    setShowClearDialog(true);
+  };
+
+  const confirmClearAll = () => {
+    clearScannedBarcodes();
+    setShowClearDialog(false);
   };
 
   // ============================================================================
@@ -369,6 +381,27 @@ export function ScannedBarcodesPanel() {
           </ScrollArea>
         </CardContent>
       )}
+
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa tất cả</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa tất cả {scannedBarcodes.length} barcode đã quét?
+              Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmClearAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Xóa tất cả
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
