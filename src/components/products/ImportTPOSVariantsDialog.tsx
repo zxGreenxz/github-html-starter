@@ -96,8 +96,10 @@ export function ImportTPOSVariantsDialog({
       // Debug: Log first row column names
       console.log("📋 Column names detected:", Object.keys(jsonData[0]));
       console.log("📋 First row sample:", jsonData[0]);
+      console.log("📊 Total rows to process:", jsonData.length);
 
       let updatedCount = 0;
+      let insertedCount = 0;
       let skippedCount = 0;
 
       for (let i = 0; i < jsonData.length; i++) {
@@ -130,8 +132,39 @@ export function ImportTPOSVariantsDialog({
           .maybeSingle();
 
         if (!existingProduct) {
-          console.warn(`⚠️ Bỏ qua ${productCode}: Không tìm thấy trong DB`);
-          skippedCount++;
+          // INSERT sản phẩm mới
+          const productName = row["Tên sản phẩm"]?.toString().trim();
+          
+          if (!productName) {
+            console.warn(`⚠️ Bỏ qua ${productCode}: Thiếu tên sản phẩm`);
+            skippedCount++;
+            setProgress(((i + 1) / jsonData.length) * 100);
+            continue;
+          }
+
+          const insertData = {
+            product_code: productCode,
+            product_name: productName,
+            productid_bienthe: parseInt(variantId.toString()),
+            stock_quantity: stockQuantity !== undefined && stockQuantity !== null 
+              ? parseInt(stockQuantity.toString() || "0") 
+              : 0,
+            category: "Quần Áo",
+            unit: "Cái",
+          };
+
+          const { error: insertError } = await supabase
+            .from("products")
+            .insert(insertData);
+
+          if (!insertError) {
+            console.log(`✨ Tạo mới ${productCode}: ${productName}`);
+            insertedCount++;
+          } else {
+            console.error(`❌ Lỗi tạo mới ${productCode}:`, insertError);
+            skippedCount++;
+          }
+
           setProgress(((i + 1) / jsonData.length) * 100);
           continue;
         }
@@ -155,7 +188,7 @@ export function ImportTPOSVariantsDialog({
 
       toast({
         title: "Import thành công",
-        description: `✅ Cập nhật ${updatedCount} sản phẩm${skippedCount > 0 ? `\n⚠️ Bỏ qua ${skippedCount} dòng (thiếu dữ liệu hoặc không tồn tại trong DB)` : ''}`,
+        description: `✨ Tạo mới: ${insertedCount} sản phẩm\n✅ Cập nhật: ${updatedCount} sản phẩm${skippedCount > 0 ? `\n⚠️ Bỏ qua: ${skippedCount} dòng (thiếu dữ liệu)` : ''}`,
         duration: 5000,
       });
 
