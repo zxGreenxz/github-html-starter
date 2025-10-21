@@ -1,6 +1,7 @@
 /**
  * Format variant for display in ProductList
  * Handles both old format "A, B, C" and new format "(A B) (C D)"
+ * Removes parentheses and displays values separated by spaces
  */
 export function formatVariantForDisplay(
   variant: string | null | undefined
@@ -9,13 +10,15 @@ export function formatVariantForDisplay(
   
   const trimmed = variant.trim();
   
-  // ✅ Already in new format (contains parentheses)
+  // ✅ New format with parentheses "(A B) (C D)" → Remove parentheses → "A B C D"
   if (trimmed.includes('(') && trimmed.includes(')')) {
-    return trimmed;
+    return trimmed
+      .replace(/[()]/g, '') // Remove all parentheses
+      .replace(/\s+/g, ' ') // Normalize whitespace (multiple spaces → single space)
+      .trim();
   }
   
-  // ⚠️ Old format (comma-separated) → Convert to grouped format
-  // "Đen, Trắng, S, M, L" → "(Đen Trắng S M L)"
+  // ⚠️ Old format (comma-separated) → "A, B, C" → "A B C"
   const values = trimmed
     .split(',')
     .map(v => v.trim())
@@ -23,7 +26,6 @@ export function formatVariantForDisplay(
   
   if (values.length === 0) return '';
   
-  // Simple grouping: wrap all values in one group
-  // Note: We can't perfectly reconstruct attribute groups from flat text
-  return `(${values.join(' ')})`;
+  // Join with spaces, no parentheses
+  return values.join(' ');
 }
