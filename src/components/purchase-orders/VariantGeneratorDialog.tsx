@@ -5,9 +5,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Search, Check, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkles, Search, X, Edit2, Trash2, Plus } from "lucide-react";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 import { cn } from "@/lib/utils";
+
+interface AttributeLine {
+  attributeId: number;
+  attributeName: string;
+  values: string[];
+}
 
 interface VariantGeneratorDialogProps {
   open: boolean;
@@ -20,132 +27,192 @@ interface VariantGeneratorDialogProps {
   onVariantsGenerated: (variantText: string) => void;
 }
 
+const ATTRIBUTES = [
+  { id: 1, name: "Size Chữ", key: "sizeText" as const },
+  { id: 3, name: "Màu", key: "color" as const },
+  { id: 4, name: "Size Số", key: "sizeNumber" as const }
+];
+
 export function VariantGeneratorDialog({
   open,
   onOpenChange,
   currentItem,
   onVariantsGenerated
 }: VariantGeneratorDialogProps) {
-  const [selectedSizeText, setSelectedSizeText] = useState<string[]>([]);
-  const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [selectedSizeNumber, setSelectedSizeNumber] = useState<string[]>([]);
-  const [sizeTextFilter, setSizeTextFilter] = useState("");
-  const [colorFilter, setColorFilter] = useState("");
-  const [sizeNumberFilter, setSizeNumberFilter] = useState("");
+  const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
+  const [selectedAttributeId, setSelectedAttributeId] = useState<number | null>(null);
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [valueFilter, setValueFilter] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-
-  // Auto-fill checkboxes from parent product variant string
+  // Parse variant string to attribute lines when dialog opens
   useEffect(() => {
     if (open && currentItem.variant) {
-      // Parse variant string: "M, ĐỎ, ĐEN, TRẮNG, XÁM, 31"
       const variantArray = currentItem.variant
         .split(',')
         .map(v => v.trim())
         .filter(v => v.length > 0);
       
-      const newSizeText: string[] = [];
-      const newColors: string[] = [];
-      const newSizeNumber: string[] = [];
+      const lines: AttributeLine[] = [];
       
-      variantArray.forEach(variant => {
-        // Check if it's a text size (S, M, L, XL, etc.)
-        const sizeTextMatch = TPOS_ATTRIBUTES.sizeText.find(
-          item => item.Name.toUpperCase() === variant.toUpperCase()
-        );
-        if (sizeTextMatch) {
-          newSizeText.push(sizeTextMatch.Name);
-          return;
-        }
+      ATTRIBUTES.forEach(attr => {
+        const values: string[] = [];
         
-        // Check if it's a color
-        const colorMatch = TPOS_ATTRIBUTES.color.find(
-          item => item.Name.toUpperCase() === variant.toUpperCase()
-        );
-        if (colorMatch) {
-          newColors.push(colorMatch.Name);
-          return;
-        }
+        variantArray.forEach(variant => {
+          const match = TPOS_ATTRIBUTES[attr.key].find(
+            item => item.Name.toUpperCase() === variant.toUpperCase()
+          );
+          if (match) {
+            values.push(match.Name);
+          }
+        });
         
-        // Check if it's a number size
-        const sizeNumberMatch = TPOS_ATTRIBUTES.sizeNumber.find(
-          item => item.Name === variant
-        );
-        if (sizeNumberMatch) {
-          newSizeNumber.push(sizeNumberMatch.Name);
-          return;
+        if (values.length > 0) {
+          lines.push({
+            attributeId: attr.id,
+            attributeName: attr.name,
+            values
+          });
         }
       });
       
-      setSelectedSizeText(newSizeText);
-      setSelectedColors(newColors);
-      setSelectedSizeNumber(newSizeNumber);
+      setAttributeLines(lines);
     }
   }, [open, currentItem.variant]);
 
-  const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
-    if (type === 'sizeText') {
-      const newSelection = selectedSizeText.includes(value)
-        ? selectedSizeText.filter(v => v !== value)
-        : [...selectedSizeText, value];
-      setSelectedSizeText(newSelection);
-    } else if (type === 'color') {
-      const newSelection = selectedColors.includes(value)
-        ? selectedColors.filter(v => v !== value)
-        : [...selectedColors, value];
-      setSelectedColors(newSelection);
+  // Get available attributes (not yet selected)
+  const availableAttributes = ATTRIBUTES.filter(
+    attr => !attributeLines.some(line => line.attributeId === attr.id) || 
+           (editingIndex !== null && attributeLines[editingIndex]?.attributeId === attr.id)
+  );
+
+  // Get available values for selected attribute
+  const getAvailableValues = () => {
+    if (!selectedAttributeId) return [];
+    
+    const attr = ATTRIBUTES.find(a => a.id === selectedAttributeId);
+    if (!attr) return [];
+    
+    return TPOS_ATTRIBUTES[attr.key].filter(item =>
+      item.Name.toLowerCase().includes(valueFilter.toLowerCase())
+    );
+  };
+
+  const toggleValue = (value: string) => {
+    setSelectedValues(prev =>
+      prev.includes(value)
+        ? prev.filter(v => v !== value)
+        : [...prev, value]
+    );
+  };
+
+  const handleSave = (addNew: boolean = false) => {
+    if (!selectedAttributeId || selectedValues.length === 0) return;
+    
+    const attr = ATTRIBUTES.find(a => a.id === selectedAttributeId);
+    if (!attr) return;
+
+    const newLine: AttributeLine = {
+      attributeId: selectedAttributeId,
+      attributeName: attr.name,
+      values: [...selectedValues]
+    };
+
+    if (editingIndex !== null) {
+      // Update existing line
+      const updated = [...attributeLines];
+      updated[editingIndex] = newLine;
+      setAttributeLines(updated);
+      setEditingIndex(null);
     } else {
-      const newSelection = selectedSizeNumber.includes(value)
-        ? selectedSizeNumber.filter(v => v !== value)
-        : [...selectedSizeNumber, value];
-      setSelectedSizeNumber(newSelection);
+      // Add new line
+      setAttributeLines(prev => [...prev, newLine]);
     }
+
+    // Reset form
+    setSelectedAttributeId(null);
+    setSelectedValues([]);
+    setValueFilter("");
+
+    // If "Save and Add New", keep dialog ready for next attribute
+    if (addNew && availableAttributes.length > 1) {
+      // Auto-focus next attribute if available
+    }
+  };
+
+  const handleEdit = (index: number) => {
+    const line = attributeLines[index];
+    setEditingIndex(index);
+    setSelectedAttributeId(line.attributeId);
+    setSelectedValues([...line.values]);
+    setValueFilter("");
+  };
+
+  const handleDelete = (index: number) => {
+    setAttributeLines(prev => prev.filter((_, i) => i !== index));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+      setSelectedAttributeId(null);
+      setSelectedValues([]);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingIndex(null);
+    setSelectedAttributeId(null);
+    setSelectedValues([]);
+    setValueFilter("");
   };
 
   const handleConfirm = () => {
-    // Combine all selected variants into a comma-separated string
-    const allVariants = [...selectedSizeText, ...selectedColors, ...selectedSizeNumber];
-    if (allVariants.length > 0) {
-      const variantText = allVariants.join(', ');
-      onVariantsGenerated(variantText);
-      onOpenChange(false);
-      // Reset selections and filters
-      setSelectedSizeText([]);
-      setSelectedColors([]);
-      setSelectedSizeNumber([]);
-      setSizeTextFilter("");
-      setColorFilter("");
-      setSizeNumberFilter("");
-    }
-  };
-
-
-  const handleCancel = () => {
+    // Convert attribute lines to variant string
+    const allValues = attributeLines.flatMap(line => line.values);
+    const variantText = allValues.join(', ');
+    
+    onVariantsGenerated(variantText);
     onOpenChange(false);
-    // Reset selections and filters
-    setSelectedSizeText([]);
-    setSelectedColors([]);
-    setSelectedSizeNumber([]);
-    setSizeTextFilter("");
-    setColorFilter("");
-    setSizeNumberFilter("");
+    
+    // Reset state
+    setAttributeLines([]);
+    setSelectedAttributeId(null);
+    setSelectedValues([]);
+    setEditingIndex(null);
+    setValueFilter("");
   };
 
-  // Filter functions
-  const filteredSizeText = TPOS_ATTRIBUTES.sizeText.filter(item =>
-    item.Name.toLowerCase().includes(sizeTextFilter.toLowerCase())
-  );
-  
-  const filteredColors = TPOS_ATTRIBUTES.color.filter(item =>
-    item.Name.toLowerCase().includes(colorFilter.toLowerCase())
-  );
-  
-  const filteredSizeNumber = TPOS_ATTRIBUTES.sizeNumber.filter(item =>
-    item.Name.toLowerCase().includes(sizeNumberFilter.toLowerCase())
-  );
+  const handleClose = () => {
+    onOpenChange(false);
+    // Reset state
+    setAttributeLines([]);
+    setSelectedAttributeId(null);
+    setSelectedValues([]);
+    setEditingIndex(null);
+    setValueFilter("");
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!open) return;
+      
+      if (e.key === 'F7') {
+        e.preventDefault();
+        handleSave(false);
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        handleSave(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, selectedAttributeId, selectedValues, editingIndex]);
+
+  const filteredValues = getAvailableValues();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" />
@@ -154,7 +221,7 @@ export function VariantGeneratorDialog({
         </DialogHeader>
 
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          {/* Product Info - Compact */}
+          {/* Product Info */}
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Mã SP:</span>
@@ -168,211 +235,183 @@ export function VariantGeneratorDialog({
             </div>
           </div>
 
-          {/* Selection Columns - Now with 4 columns including Selected Variants */}
-          <div className="grid grid-cols-4 gap-4 flex-1 overflow-hidden">
-            {/* Size Text */}
-            <div className="space-y-2 flex flex-col h-full">
-              <Label>Size Chữ ({selectedSizeText.length})</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm size chữ..."
-                  value={sizeTextFilter}
-                  onChange={(e) => setSizeTextFilter(e.target.value)}
-                  className="h-9 pl-9"
-                />
+          {/* Add/Edit Attribute Section */}
+          <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Attribute Selection */}
+              <div className="space-y-2">
+                <Label>Thuộc tính</Label>
+                <Select
+                  value={selectedAttributeId?.toString() || ""}
+                  onValueChange={(value) => {
+                    setSelectedAttributeId(Number(value));
+                    setSelectedValues([]);
+                    setValueFilter("");
+                  }}
+                  disabled={editingIndex !== null}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn thuộc tính..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableAttributes.map(attr => (
+                      <SelectItem key={attr.id} value={attr.id.toString()}>
+                        {attr.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <ScrollArea className="flex-1 rounded-md border p-3 bg-muted/30 max-h-[400px]">
-                <div className="space-y-1">
-                  {filteredSizeText.map((item) => (
-                    <div 
+
+              {/* Values Selection */}
+              <div className="space-y-2">
+                <Label>Giá trị thuộc tính</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={selectedAttributeId ? "Tìm giá trị..." : "Chọn thuộc tính trước"}
+                    value={valueFilter}
+                    onChange={(e) => setValueFilter(e.target.value)}
+                    disabled={!selectedAttributeId}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Values Tags */}
+            {selectedValues.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-3 bg-background rounded-md border">
+                {selectedValues.map(value => (
+                  <Badge
+                    key={value}
+                    variant="secondary"
+                    className="gap-1 pr-1"
+                  >
+                    {value}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => toggleValue(value)}
+                    />
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Available Values Grid */}
+            {selectedAttributeId && (
+              <ScrollArea className="h-32 rounded-md border p-3 bg-background">
+                <div className="grid grid-cols-6 gap-2">
+                  {filteredValues.map((item) => (
+                    <Button
                       key={item.Id}
-                      onClick={() => toggleSelection('sizeText', item.Name)}
-                      className={cn(
-                        "flex items-center space-x-3 py-3 px-2 rounded cursor-pointer transition-all",
-                        "hover:bg-accent/50 active:bg-accent",
-                        selectedSizeText.includes(item.Name) && "bg-primary/10 border border-primary/20"
-                      )}
+                      size="sm"
+                      variant={selectedValues.includes(item.Name) ? "default" : "outline"}
+                      onClick={() => toggleValue(item.Name)}
+                      className="h-8 text-xs"
                     >
-                      <div className={cn(
-                        "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                        selectedSizeText.includes(item.Name) 
-                          ? "bg-primary border-primary" 
-                          : "border-muted-foreground/30"
-                      )}>
-                        {selectedSizeText.includes(item.Name) && (
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        )}
-                      </div>
-                      <span className="flex-1 font-normal select-none">
-                        {item.Name}
-                      </span>
-                    </div>
+                      {item.Name}
+                    </Button>
                   ))}
                 </div>
               </ScrollArea>
-            </div>
+            )}
 
-            {/* Color */}
-            <div className="space-y-2 flex flex-col h-full">
-              <Label>Màu Sắc ({selectedColors.length})</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm màu sắc..."
-                  value={colorFilter}
-                  onChange={(e) => setColorFilter(e.target.value)}
-                  className="h-9 pl-9"
-                />
-              </div>
-              <ScrollArea className="flex-1 rounded-md border p-3 bg-muted/30 max-h-[400px]">
-                <div className="space-y-1">
-                  {filteredColors.map((item) => (
-                    <div 
-                      key={item.Id}
-                      onClick={() => toggleSelection('color', item.Name)}
-                      className={cn(
-                        "flex items-center space-x-3 py-3 px-2 rounded cursor-pointer transition-all",
-                        "hover:bg-accent/50 active:bg-accent",
-                        selectedColors.includes(item.Name) && "bg-primary/10 border border-primary/20"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                        selectedColors.includes(item.Name) 
-                          ? "bg-primary border-primary" 
-                          : "border-muted-foreground/30"
-                      )}>
-                        {selectedColors.includes(item.Name) && (
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        )}
-                      </div>
-                      <span className="flex-1 font-normal select-none">
-                        {item.Name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Size Number */}
-            <div className="space-y-2 flex flex-col h-full">
-              <Label>Size Số ({selectedSizeNumber.length})</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm size số..."
-                  value={sizeNumberFilter}
-                  onChange={(e) => setSizeNumberFilter(e.target.value)}
-                  className="h-9 pl-9"
-                />
-              </div>
-              <ScrollArea className="flex-1 rounded-md border p-3 bg-muted/30 max-h-[400px]">
-                <div className="space-y-1">
-                  {filteredSizeNumber.map((item) => (
-                    <div 
-                      key={item.Id}
-                      onClick={() => toggleSelection('sizeNumber', item.Name)}
-                      className={cn(
-                        "flex items-center space-x-3 py-3 px-2 rounded cursor-pointer transition-all",
-                        "hover:bg-accent/50 active:bg-accent",
-                        selectedSizeNumber.includes(item.Name) && "bg-primary/10 border border-primary/20"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                        selectedSizeNumber.includes(item.Name) 
-                          ? "bg-primary border-primary" 
-                          : "border-muted-foreground/30"
-                      )}>
-                        {selectedSizeNumber.includes(item.Name) && (
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        )}
-                      </div>
-                      <span className="flex-1 font-normal select-none">
-                        {item.Name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Selected Variants Column */}
-            <div className="space-y-2 flex flex-col h-full">
-              <Label>
-                Đã Chọn
-                <span className="ml-2 text-muted-foreground">
-                  ({selectedSizeText.length + selectedColors.length + selectedSizeNumber.length})
-                </span>
-              </Label>
-              <ScrollArea className="flex-1 rounded-md border p-3 bg-primary/5 max-h-[400px]">
-                <div className="space-y-2">
-                  {selectedSizeText.length === 0 && 
-                   selectedColors.length === 0 && 
-                   selectedSizeNumber.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground text-sm italic">
-                        Chưa chọn biến thể nào
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {selectedSizeText.map((size) => (
-                        <div 
-                          key={`st-${size}`}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
-                        >
-                          <span className="text-sm font-medium flex-1">{size}</span>
-                          <X 
-                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
-                            onClick={() => toggleSelection('sizeText', size)}
-                          />
-                        </div>
-                      ))}
-                      
-                      {selectedColors.map((color) => (
-                        <div 
-                          key={`c-${color}`}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
-                        >
-                          <span className="text-sm font-medium flex-1">{color}</span>
-                          <X 
-                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
-                            onClick={() => toggleSelection('color', color)}
-                          />
-                        </div>
-                      ))}
-                      
-                      {selectedSizeNumber.map((size) => (
-                        <div 
-                          key={`sn-${size}`}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border hover:border-primary/50 transition-colors"
-                        >
-                          <span className="text-sm font-medium flex-1">{size}</span>
-                          <X 
-                            className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" 
-                            onClick={() => toggleSelection('sizeNumber', size)}
-                          />
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </ScrollArea>
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleSave(false)}
+                disabled={!selectedAttributeId || selectedValues.length === 0}
+                className="flex-1"
+              >
+                {editingIndex !== null ? "Cập nhật" : "Lưu (F7)"}
+              </Button>
+              <Button
+                onClick={() => handleSave(true)}
+                disabled={!selectedAttributeId || selectedValues.length === 0 || editingIndex !== null}
+                variant="secondary"
+                className="flex-1"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Lưu và Thêm Mới (F8)
+              </Button>
+              {(selectedAttributeId || editingIndex !== null) && (
+                <Button
+                  onClick={handleCancel}
+                  variant="outline"
+                >
+                  Hủy
+                </Button>
+              )}
             </div>
           </div>
 
+          {/* Attribute Lines List */}
+          <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
+            <Label>Thuộc tính đã chọn ({attributeLines.length})</Label>
+            <ScrollArea className="flex-1 rounded-md border p-3">
+              {attributeLines.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground text-sm italic">
+                    Chưa có thuộc tính nào
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {attributeLines.map((line, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "p-3 rounded-lg border bg-background transition-all",
+                        editingIndex === index && "border-primary bg-primary/5"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 space-y-2">
+                          <div className="font-medium text-sm">{line.attributeName}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {line.values.map(value => (
+                              <Badge key={value} variant="outline">
+                                {value}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(index)}
+                            disabled={editingIndex !== null && editingIndex !== index}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 hover:text-destructive"
+                            onClick={() => handleDelete(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleClose}>
             Hủy
           </Button>
           <Button 
             onClick={handleConfirm} 
-            disabled={selectedSizeText.length === 0 && selectedColors.length === 0 && selectedSizeNumber.length === 0}
+            disabled={attributeLines.length === 0}
             className="gap-2"
           >
             <Sparkles className="h-4 w-4" />
