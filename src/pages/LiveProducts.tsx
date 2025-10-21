@@ -476,17 +476,6 @@ export default function LiveProducts() {
           return;
         }
 
-        // Add to BarcodeScannerContext for display in FacebookComments
-        addScannedBarcode({
-          code: scannedProduct.product_code,
-          timestamp: new Date().toISOString(),
-          productInfo: {
-            id: scannedProduct.id,
-            name: scannedProduct.product_name,
-            image_url: getProductImageUrl(scannedProduct.product_images, scannedProduct.tpos_image_url),
-            product_code: scannedProduct.product_code
-          }
-        });
         let productsToAdd = [];
 
         // 2. Kiểm tra xem tên sản phẩm có dấu "-" không
@@ -517,6 +506,20 @@ export default function LiveProducts() {
         if (productsToAdd.length === 0) {
           toast.error("Không tìm thấy sản phẩm hoặc biến thể nào");
           return;
+        }
+
+        // Add ALL variants to BarcodeScannerContext for display in FacebookComments
+        for (const product of productsToAdd) {
+          addScannedBarcode({
+            code: product.product_code,
+            timestamp: new Date().toISOString(),
+            productInfo: {
+              id: product.id,
+              name: product.product_name,
+              image_url: getProductImageUrl(product.product_images, product.tpos_image_url),
+              product_code: product.product_code
+            }
+          });
         }
 
         // 4. Kiểm tra tất cả biến thể đã có trong live_products chưa
