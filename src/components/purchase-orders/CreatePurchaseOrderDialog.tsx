@@ -284,27 +284,44 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
-      // ALWAYS validate required fields for creating order (both new and from draft)
-      if (!formData.supplier_name.trim()) {
-        throw new Error("Vui lòng nhập tên nhà cung cấp");
+      // ============= VALIDATION TRIỆT ĐỂ =============
+      
+      // 1. Validate Nhà cung cấp
+      if (!formData.supplier_name?.trim()) {
+        throw new Error("❌ Vui lòng nhập tên nhà cung cấp");
       }
 
-      // Filter items that have product_name to validate
-      const itemsWithName = items.filter(item => item.product_name?.trim());
-      
-      if (itemsWithName.length === 0) {
-        throw new Error("Vui lòng thêm ít nhất một sản phẩm");
+      // 2. Validate có ít nhất 1 sản phẩm
+      if (items.length === 0) {
+        throw new Error("❌ Vui lòng thêm ít nhất một sản phẩm");
       }
 
-      // Validate required fields for all items with product_name
-      const invalidItems = itemsWithName.filter(item => 
-        !item.product_code?.trim() || 
-        !item.product_images || 
-        item.product_images.length === 0
-      );
+      // 3. Validate từng sản phẩm phải có đầy đủ thông tin
+      const validationErrors: string[] = [];
       
-      if (invalidItems.length > 0) {
-        throw new Error(`⚠️ Vui lòng điền đầy đủ Mã SP và Hình ảnh SP cho ${invalidItems.length} sản phẩm`);
+      items.forEach((item, index) => {
+        const itemNumber = index + 1;
+        
+        // Kiểm tra Tên sản phẩm
+        if (!item.product_name?.trim()) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu Tên sản phẩm`);
+        }
+        
+        // Kiểm tra Mã sản phẩm
+        if (!item.product_code?.trim()) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu Mã sản phẩm`);
+        }
+        
+        // Kiểm tra Hình ảnh sản phẩm
+        if (!item.product_images || item.product_images.length === 0) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu Hình ảnh sản phẩm`);
+        }
+      });
+
+      // Hiển thị tất cả lỗi nếu có
+      if (validationErrors.length > 0) {
+        const errorMessage = "❌ Vui lòng điền đầy đủ thông tin:\n\n" + validationErrors.join("\n");
+        throw new Error(errorMessage);
       }
 
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
