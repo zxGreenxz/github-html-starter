@@ -316,6 +316,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (!item.product_images || item.product_images.length === 0) {
           validationErrors.push(`Dòng ${itemNumber}: Thiếu Hình ảnh sản phẩm`);
         }
+        
+        // Kiểm tra Giá mua
+        if (!item.purchase_price || Number(item.purchase_price) <= 0) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá mua`);
+        }
+        
+        // Kiểm tra Giá bán
+        if (!item.selling_price || Number(item.selling_price) <= 0) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
+        }
       });
 
       // Hiển thị tất cả lỗi nếu có
