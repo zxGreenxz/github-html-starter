@@ -30,7 +30,6 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { detectSupplierFromProductName } from "@/lib/supplier-detector";
 import { Badge } from "@/components/ui/badge";
 import { detectVariantsFromText } from "@/lib/variant-detector";
-import { generateProductName, generateVariantCode } from "@/lib/variant-code-generator";
 import { formatVariant } from "@/lib/variant-utils";
 import { Store } from "lucide-react";
 import { useProductVariants } from "@/hooks/use-product-variants";

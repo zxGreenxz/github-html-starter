@@ -1,18 +1,21 @@
 import * as XLSX from "xlsx";
 import { TPOS_CONFIG, getTPOSHeaders, getActiveTPOSToken, cleanBase64, randomDelay } from "./tpos-config";
 import { 
-  COLORS, 
-  TEXT_SIZES, 
-  NUMBER_SIZES, 
   getVariantType,
   TPOS_ATTRIBUTE_IDS,
   TPOS_COLOR_MAP,
   TPOS_SIZE_TEXT_MAP,
   TPOS_SIZE_NUMBER_MAP
-} from "./variant-attributes";
+} from "./tpos-variant-attributes-compat";
+import { TPOS_ATTRIBUTES } from "./tpos-attributes";
 import { detectVariantsFromText, getSimpleDetection } from "./variant-detector";
 import { supabase } from "@/integrations/supabase/client";
 import { getVariantName } from "@/lib/variant-utils";
+
+// Extract variant lists from TPOS_ATTRIBUTES
+const COLORS = TPOS_ATTRIBUTES.color.map(c => c.Name);
+const TEXT_SIZES = TPOS_ATTRIBUTES.sizeText.map(s => s.Name);
+const NUMBER_SIZES = TPOS_ATTRIBUTES.sizeNumber.map(s => s.Name);
 
 // =====================================================
 // CACHE MANAGEMENT

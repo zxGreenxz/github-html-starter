@@ -13,7 +13,7 @@ import { CreatePurchaseOrderDialog } from "@/components/purchase-orders/CreatePu
 import { PurchaseOrderStats } from "@/components/purchase-orders/PurchaseOrderStats";
 import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
-import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-attributes";
+import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-compat-exports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BulkTPOSUploadDialog } from "@/components/purchase-orders/BulkTPOSUploadDialog";
 import type { TPOSProductItem } from "@/lib/tpos-api";

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getActiveTPOSToken, getTPOSHeaders, generateRandomId } from "@/lib/tpos-config";
-import { TPOS_ATTRIBUTES, TPOS_ATTRIBUTE_IDS } from "@/lib/variant-attributes";
+import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
+import { TPOS_ATTRIBUTE_IDS } from "@/lib/tpos-variant-attributes-compat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

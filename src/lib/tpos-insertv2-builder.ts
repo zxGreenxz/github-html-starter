@@ -185,7 +185,11 @@ export function buildAttributeLines(variants: TPOSProductItem[]): InsertV2Attrib
       if (tposColor) {
         const fullAttr = TPOS_ATTRIBUTES.color.find(c => c.Id === tposColor.Id);
         if (fullAttr) {
-          colorValues.push(fullAttr);
+          colorValues.push({
+            ...fullAttr,
+            AttributeId: TPOS_ATTRIBUTE_IDS.COLOR,
+            AttributeName: "Màu"
+          });
         }
       }
     });
@@ -207,7 +211,11 @@ export function buildAttributeLines(variants: TPOSProductItem[]): InsertV2Attrib
       if (tposSize) {
         const fullAttr = TPOS_ATTRIBUTES.sizeText.find(s => s.Id === tposSize.Id);
         if (fullAttr) {
-          sizeTextValues.push(fullAttr);
+          sizeTextValues.push({
+            ...fullAttr,
+            AttributeId: TPOS_ATTRIBUTE_IDS.SIZE_TEXT,
+            AttributeName: "Size Chữ"
+          });
         }
       }
     });
@@ -229,7 +237,11 @@ export function buildAttributeLines(variants: TPOSProductItem[]): InsertV2Attrib
       if (tposSize) {
         const fullAttr = TPOS_ATTRIBUTES.sizeNumber.find(s => s.Id === tposSize.Id);
         if (fullAttr) {
-          sizeNumberValues.push(fullAttr);
+          sizeNumberValues.push({
+            ...fullAttr,
+            AttributeId: TPOS_ATTRIBUTE_IDS.SIZE_NUMBER,
+            AttributeName: "Size Số"
+          });
         }
       }
     });

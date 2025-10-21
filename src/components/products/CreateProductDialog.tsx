@@ -9,7 +9,6 @@ import { generateProductCode } from "@/lib/product-code-generator";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { detectVariantsFromText } from "@/lib/variant-detector";
-import { generateProductName, generateVariantCode } from "@/lib/variant-code-generator";
 
 interface CreateProductDialogProps {
   open: boolean;
@@ -44,34 +43,12 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
     e.preventDefault();
     setIsSubmitting(true);
 
-    let finalProductCode = formData.product_code;
-    let finalProductName = formData.product_name;
-    
-    // If there's a variant, apply the new logic to generate code and name
-    if (formData.variant.trim()) {
-      const baseProductCode = formData.product_code;
-      const baseProductName = formData.product_name;
-      const variantText = formData.variant.trim();
-      
-      // Parse variant text to extract parts
-      const detectionResult = detectVariantsFromText(variantText);
-      const sizeNumber = detectionResult.sizeNumber.length > 0 ? detectionResult.sizeNumber[0].value : undefined;
-      const color = detectionResult.colors.length > 0 ? detectionResult.colors[0].value : undefined;
-      const sizeText = detectionResult.sizeText.length > 0 ? detectionResult.sizeText[0].value : undefined;
-      
-      // Generate variant code and full product code
-      const combo = {
-        text: variantText,
-        parts: { sizeNumber, color, sizeText }
-      };
-      
-      const usedCodes = new Set<string>();
-      const codeCollisionCount = new Map<string, number>();
-      const codeInfo = generateVariantCode(combo, baseProductCode, usedCodes, codeCollisionCount);
-      
-      finalProductCode = codeInfo.fullCode;
-      finalProductName = generateProductName(baseProductName, combo.parts);
-    }
+    // Use product code and name as-is
+    // Variants are handled by the VariantGeneratorDialog when needed
+    const finalProductCode = formData.product_code;
+    const finalProductName = formData.variant.trim() 
+      ? `${formData.product_name} (${formData.variant})` 
+      : formData.product_name;
 
     const { error } = await supabase.from("products").insert({
       product_code: finalProductCode,

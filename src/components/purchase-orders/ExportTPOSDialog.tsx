@@ -12,9 +12,9 @@ import { createTPOSVariants } from "@/lib/tpos-variant-creator";
 import { formatVND } from "@/lib/currency-utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getVariantType, generateColorCode } from "@/lib/variant-attributes";
+import { getVariantType } from "@/lib/tpos-variant-attributes-compat";
 import { detectVariantsFromText } from "@/lib/variant-detector";
-import { generateAllVariants } from "@/lib/variant-code-generator";
+import { generateAllVariants } from "@/lib/variant-generator-adapter";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -490,12 +490,14 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           }
         }
         
-        // Find matching generated variant
-        const matchedVariant = generatedVariants.find(gv => 
-          gv.sizeText === sizeText &&
-          gv.color === color &&
-          gv.sizeNumber === sizeNumber
-        );
+        // Find matching generated variant by comparing variant text
+        const normalizeVariant = (v: string) => v.split(',').map(s => s.trim()).sort().join(',');
+        const targetVariant = normalizeVariant(variantName);
+        
+        const matchedVariant = generatedVariants.find(gv => {
+          const gvNormalized = normalizeVariant(gv.variantText);
+          return gvNormalized === targetVariant;
+        });
         
         if (!matchedVariant) {
           console.error(`    ❌ Could not match variant: ${variantName} (size: ${sizeText}, color: ${color}, num: ${sizeNumber})`);

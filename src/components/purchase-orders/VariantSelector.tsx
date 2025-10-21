@@ -5,7 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { X } from "lucide-react";
-import { COLORS, TEXT_SIZES, NUMBER_SIZES } from "@/lib/variant-attributes";
+import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
+
+// Extract variant lists from TPOS_ATTRIBUTES
+const COLORS = TPOS_ATTRIBUTES.color.map(c => c.Name);
+const TEXT_SIZES = TPOS_ATTRIBUTES.sizeText.map(s => s.Name);
+const NUMBER_SIZES = TPOS_ATTRIBUTES.sizeNumber.map(s => s.Name);
 
 interface VariantSelectorProps {
   value: string;
