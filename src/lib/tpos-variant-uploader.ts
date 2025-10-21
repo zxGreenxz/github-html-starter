@@ -311,6 +311,27 @@ async function fetchAndSaveVariantsFromTPOS(
 
     onProgress?.(`✅ Đã lưu ${variants.length} variants vào kho thành công`);
     
+    // Also update purchase_order_items with tpos_product_id for each variant
+    const variantCodesToUpdate = variantProducts.map(vp => vp.product_code);
+    
+    if (variantCodesToUpdate.length > 0) {
+      console.log(`[TPOS Variant Uploader] Updating purchase_order_items for ${variantCodesToUpdate.length} variant codes`);
+      
+      const { error: poUpdateError } = await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_product_id: tposProductId,
+          updated_at: new Date().toISOString()
+        })
+        .in('product_code', variantCodesToUpdate);
+      
+      if (poUpdateError) {
+        console.error("[TPOS Variant Uploader] Failed to update purchase_order_items:", poUpdateError);
+      } else {
+        console.log(`[TPOS Variant Uploader] ✅ Updated purchase_order_items for variants`);
+      }
+    }
+    
     // Return the variant products for adding to purchase order (prices in VND format for UI)
     const resultVariants = variantProducts.map(vp => ({
       product_code: vp.product_code,
