@@ -1,6 +1,6 @@
 // TPOS Variant Uploader - Upload product with variants to TPOS and save returned variants to database
 import { supabase } from "@/integrations/supabase/client";
-import { getAttributeLinesFromProduct } from "./variant-metadata-helper";
+import { parseVariantStringToAttributeLines } from "./variant-generator-adapter";
 import { generateVariants, type TPOSAttributeLine, type ProductData as VariantProductData } from "./variant-generator";
 import { updateTPOSProductWithVariants } from "./tpos-variant-update";
 
@@ -29,8 +29,7 @@ export async function uploadToTPOSAndCreateVariants(
   productName: string,
   variantText: string,
   productData: ProductData,
-  onProgress?: (message: string) => void,
-  variantMetadata?: TPOSAttributeLine[] | null
+  onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
   console.log('🚀 START uploadToTPOSAndCreateVariants:', { productCode, productName, variantText });
   try {
@@ -72,8 +71,8 @@ export async function uploadToTPOSAndCreateVariants(
       const tposProductId = checkData.value[0].Id;
       onProgress?.("🔄 Cập nhật variants trên TPOS...");
       
-      // ✅ Prioritize variant_metadata over variant text
-      const attributeLines = getAttributeLinesFromProduct(variantMetadata, variantText);
+      // Parse variant text and generate variants
+      const attributeLines = parseVariantStringToAttributeLines(variantText);
       const tempProduct: VariantProductData = {
         Id: tposProductId,
         Name: productName,
@@ -93,7 +92,7 @@ export async function uploadToTPOSAndCreateVariants(
     } else {
       // Product doesn't exist - create new with variants
       onProgress?.("🆕 Tạo sản phẩm mới trên TPOS...");
-      const variants = await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress, variantMetadata);
+      const variants = await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress);
       return variants;
     }
   } catch (error: any) {
@@ -108,11 +107,10 @@ async function createNewProductOnTPOS(
   variantText: string,
   productData: ProductData,
   headers: any,
-  onProgress?: (message: string) => void,
-  variantMetadata?: TPOSAttributeLine[] | null
+  onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
-  // ✅ Prioritize variant_metadata over variant text
-  const attributeLines = getAttributeLinesFromProduct(variantMetadata, variantText);
+  // Parse variant text to attribute lines using new generator
+  const attributeLines = parseVariantStringToAttributeLines(variantText);
 
   // Generate variants using new generator
   const tempProduct: VariantProductData = {
@@ -211,57 +209,6 @@ async function createNewProductOnTPOS(
   onProgress?.(`✅ Tạo TPOS thành công - ID: ${data.Id}`);
 
   if (data.Id) {
-    // Call SuggestionsVariant to get processed variants
-    try {
-      onProgress?.("📥 Đang lấy dữ liệu variants từ TPOS...");
-      const suggestionsPayload = {
-        model: {
-          Id: data.Id,
-          Name: data.Name,
-          DefaultCode: data.DefaultCode,
-          ListPrice: data.ListPrice,
-          ProductVariants: data.ProductVariants || [],
-          AttributeLines: attributeLines
-        }
-      };
-
-      const suggestionsResponse = await fetch(
-        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(suggestionsPayload)
-        }
-      );
-
-      if (suggestionsResponse.ok) {
-        const suggestionsData = await suggestionsResponse.json();
-        
-        // Save TPOS response to database
-        const tposResponse = {
-          previewVariants: suggestionsData.value,
-          timestamp: new Date().toISOString(),
-          attributeLines: attributeLines
-        };
-        
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({
-            variant_tpos_response: tposResponse as any
-          })
-          .eq('product_code', productCode)
-          .eq('base_product_code', productCode);
-          
-        if (updateError) {
-          console.error('Failed to save TPOS response:', updateError);
-        } else {
-          console.log('✅ Saved TPOS SuggestionsVariant response');
-        }
-      }
-    } catch (error) {
-      console.error('Error calling SuggestionsVariant:', error);
-    }
-    
     console.log(`🔍 Calling fetchAndSaveVariantsFromTPOS with ID: ${data.Id}`);
     const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
     console.log(`✅ fetchAndSaveVariantsFromTPOS returned ${variantProducts.length} variants`);

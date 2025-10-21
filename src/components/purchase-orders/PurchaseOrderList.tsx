@@ -1,4 +1,3 @@
-import { VariantMetadataDisplay } from "./VariantMetadataDisplay";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Pencil, Search, Filter, Calendar, Trash2, Check, Upload } from "lucide-react";
+import { Pencil, Search, Filter, Calendar, Trash2, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import React, { useState } from "react";
 import { format } from "date-fns";
@@ -20,7 +19,6 @@ import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
 import { EditPurchaseOrderItemDialog } from "./EditPurchaseOrderItemDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
-import { uploadToTPOSFromSavedResponse } from "@/lib/tpos-variant-upload-from-saved";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -31,7 +29,6 @@ interface PurchaseOrderItem {
   product_code: string;
   product_name: string;
   variant: string | null;
-  variant_metadata?: any;
   purchase_price: number;
   selling_price: number;
   product_images: string[] | null;
@@ -231,36 +228,6 @@ export function PurchaseOrderList({
     enabled: allProductCodes.length > 0
   });
 
-  // Query TPOS response data for upload functionality
-  const { data: tposResponseData } = useQuery({
-    queryKey: ['tpos-response-data', allProductCodes],
-    queryFn: async () => {
-      if (allProductCodes.length === 0) return {};
-      
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('product_code, base_product_code, variant_tpos_response')
-        .in('product_code', allProductCodes)
-        .not('variant_tpos_response', 'is', null);
-      
-      if (error) {
-        console.error('Error fetching TPOS response data:', error);
-        return {};
-      }
-      
-      // Only include parent products (where product_code equals base_product_code)
-      const dataMap: Record<string, boolean> = {};
-      products?.forEach(p => {
-        if (p.product_code === p.base_product_code) {
-          dataMap[p.product_code] = !!p.variant_tpos_response;
-        }
-      });
-      
-      return dataMap;
-    },
-    enabled: allProductCodes.length > 0
-  });
-
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
     // Prioritize showing "Giao thiếu hàng" if received with shortage
     if (status === "received" && hasShortage) {
@@ -371,26 +338,6 @@ export function PurchaseOrderList({
   const confirmDeleteItem = () => {
     if (itemToDelete && itemToDelete.id) {
       deleteItemMutation.mutate(itemToDelete.id);
-    }
-  };
-
-  const handleQuickUpload = async (productCode: string) => {
-    try {
-      await uploadToTPOSFromSavedResponse(
-        productCode,
-        (msg) => console.log(msg)
-      );
-      toast({
-        title: "Thành công",
-        description: "Upload lên TPOS thành công!",
-      });
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-    } catch (error: any) {
-      toast({
-        title: "Lỗi",
-        description: error.message,
-        variant: "destructive",
-      });
     }
   };
 
@@ -664,13 +611,9 @@ export function PurchaseOrderList({
                   <TableCell className="border-r">
                     {productCode}
                   </TableCell>
-                  <TableCell className="border-r">
-                    {flatItem.item?.variant_metadata ? (
-                      <VariantMetadataDisplay metadata={flatItem.item.variant_metadata} />
-                    ) : (
-                      <span className="text-sm">{variant}</span>
-                    )}
-                  </TableCell>
+                    <TableCell className="border-r">
+                      {variant}
+                    </TableCell>
                   <TableCell className="border-r text-center">
                     <div className="font-medium">
                       {flatItem.item?.quantity || 0}
@@ -765,18 +708,6 @@ export function PurchaseOrderList({
                   {/* Item-level actions - each item has its own buttons */}
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {/* Upload TPOS button - show if variant_tpos_response exists */}
-                      {tposResponseData?.[productCode] && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleQuickUpload(productCode)}
-                          title="Upload lên TPOS"
-                        >
-                          <Upload className="w-4 h-4 text-green-600" />
-                        </Button>
-                      )}
-                      
                       {/* Only show edit button if no tpos_product_id */}
                       {!flatItem.item?.tpos_product_id && (
                         <Button

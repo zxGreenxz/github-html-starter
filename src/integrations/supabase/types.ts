@@ -946,8 +946,6 @@ export type Database = {
           unit: string | null
           updated_at: string
           variant: string | null
-          variant_metadata: Json | null
-          variant_tpos_response: Json | null
         }
         Insert: {
           barcode?: string | null
@@ -969,8 +967,6 @@ export type Database = {
           unit?: string | null
           updated_at?: string
           variant?: string | null
-          variant_metadata?: Json | null
-          variant_tpos_response?: Json | null
         }
         Update: {
           barcode?: string | null
@@ -992,8 +988,6 @@ export type Database = {
           unit?: string | null
           updated_at?: string
           variant?: string | null
-          variant_metadata?: Json | null
-          variant_tpos_response?: Json | null
         }
         Relationships: []
       }
@@ -1505,8 +1499,6 @@ export type Database = {
           unit: string | null
           updated_at: string
           variant: string | null
-          variant_metadata: Json | null
-          variant_tpos_response: Json | null
         }[]
       }
       unaccent: {

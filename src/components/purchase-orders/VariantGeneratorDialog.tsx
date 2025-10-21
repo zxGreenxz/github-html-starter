@@ -49,7 +49,7 @@ interface VariantGeneratorDialogProps {
     price_images?: string[];
   };
   // New behavior: Generate full variant products (for CreatePurchaseOrderDialog)
-  onVariantsGenerated?: (variants: GeneratedVariantForForm[], attributeLines: TPOSAttributeLine[]) => void;
+  onVariantsGenerated?: (variants: GeneratedVariantForForm[]) => void;
   // Old behavior: Just generate variant text (for EditPurchaseOrderDialog)
   onVariantTextGenerated?: (variantText: string) => void;
 }
@@ -265,7 +265,7 @@ export function VariantGeneratorDialog({
 
       console.log('✅ Generated variants:', variantsForForm);
 
-      onVariantsGenerated(variantsForForm, tposAttributeLines);
+      onVariantsGenerated(variantsForForm);
     }
 
     onOpenChange(false);

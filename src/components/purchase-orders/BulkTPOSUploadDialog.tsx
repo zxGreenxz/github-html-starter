@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
-import { getAttributeLinesFromProduct } from "@/lib/variant-metadata-helper";
 
 interface BulkTPOSUploadDialogProps {
   open: boolean;
@@ -142,31 +141,6 @@ export function BulkTPOSUploadDialog({
       console.error('Failed to load image:', error);
       return null;
     }
-  };
-
-  // Convert TPOSAttributeLine to local AttributeLine format
-  const convertToLocalAttributeLines = (tposLines: any[]): AttributeLine[] => {
-    return tposLines.map(line => ({
-      Attribute: {
-        Id: line.Attribute.Id,
-        Name: line.Attribute.Name,
-        Code: line.Attribute.Code,
-        Sequence: line.Attribute.Sequence ?? null,
-        CreateVariant: line.Attribute.CreateVariant ?? true,
-      },
-      Values: line.Values.map((v: any) => ({
-        Id: v.Id,
-        Name: v.Name,
-        Code: v.Code,
-        Sequence: v.Sequence ?? null,
-        AttributeId: line.Attribute.Id,
-        AttributeName: line.Attribute.Name,
-        PriceExtra: v.PriceExtra ?? null,
-        NameGet: v.NameGet || `${line.Attribute.Name}: ${v.Name}`,
-        DateCreated: v.DateCreated ?? null,
-      })),
-      AttributeId: line.Attribute.Id,
-    }));
   };
 
   const parseVariantString = (variantStr: string): AttributeLine[] => {
@@ -505,14 +479,8 @@ export function BulkTPOSUploadDialog({
           throw new Error(`Sản phẩm đã tồn tại: ${checkData.value[0].Name}`);
         }
         
-        // STEP 2: Get AttributeLines - prioritize metadata
-        const tposAttributeLines = getAttributeLinesFromProduct(
-          item.variant_metadata,
-          item.variant
-        );
-        
-        // Convert to local AttributeLine format
-        const attributeLines = convertToLocalAttributeLines(tposAttributeLines);
+        // STEP 2: Parse variant string to AttributeLines
+        const attributeLines = parseVariantString(item.variant || "");
         
         // STEP 3: Generate variants
         const variants = generateVariants(name, item.selling_price || 0, attributeLines);
