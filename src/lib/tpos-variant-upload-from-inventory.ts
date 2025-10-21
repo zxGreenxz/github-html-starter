@@ -1,7 +1,11 @@
 /**
  * TPOS Variant Upload from Inventory
- * Implements 3-step upload process: Preview → Save → Verify
- * Uses existing variants from products table
+ * Implements 5-step upload process (giống HTML reference):
+ * Step 1: Fetch existing product data
+ * Step 2: Generate variants locally (Cartesian product)
+ * Step 3: Preview (POST 1 lần với ProductVariants + AttributeLines)
+ * Step 4: Save (UpdateV2)
+ * Step 5: Verify (GET)
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -243,6 +247,109 @@ async function loadImageAsBase64(imageUrl: string): Promise<string | null> {
   }
 }
 
+/**
+ * Generate unique SKU code (giống HTML reference)
+ * @param baseCode - Base product code (e.g., "NTEST")
+ * @param attrs - Array of attribute values
+ * @param existingCodes - Set of existing codes to avoid duplicates
+ * @returns Generated SKU code (e.g., "NTEST37ST")
+ */
+function generateSKU(
+  baseCode: string,
+  attrs: any[],
+  existingCodes: Set<string>
+): string {
+  let code = baseCode;
+  
+  // Duyệt theo thứ tự tự nhiên (KHÔNG SORT)
+  for (const attr of attrs) {
+    const attrCode = attr.Code || attr.Name;
+    if (/^\d+$/.test(attrCode)) {
+      // Số giữ nguyên (e.g., "37" -> "37")
+      code += attrCode;
+    } else {
+      // Chữ lấy ký tự đầu uppercase (e.g., "TRẮNG KEM" -> "T", "S" -> "S")
+      code += attrCode.charAt(0).toUpperCase();
+    }
+  }
+  
+  // Handle duplicates bằng cách thêm "1", "11", "111"...
+  let finalCode = code;
+  let counter = 0;
+  
+  while (existingCodes.has(finalCode)) {
+    counter++;
+    finalCode = code + '1'.repeat(counter);
+  }
+  
+  existingCodes.add(finalCode);
+  return finalCode;
+}
+
+/**
+ * Generate all variant combinations (giống HTML reference)
+ * Tạo Cartesian product của tất cả attribute values
+ * @param baseProduct - Base product from inventory
+ * @param attributeLines - Attribute lines từ variant text
+ * @returns Array of TPOS variant objects
+ */
+function generateVariantCombinations(
+  baseProduct: any,
+  attributeLines: AttributeLine[]
+): TPOSVariant[] {
+  if (attributeLines.length === 0) return [];
+  
+  const combinations: any[][] = [];
+  
+  // Tạo Cartesian product
+  function generate(index: number, current: any[]) {
+    if (index === attributeLines.length) {
+      combinations.push([...current]);
+      return;
+    }
+    
+    const line = attributeLines[index];
+    for (const value of line.Values) {
+      generate(index + 1, [
+        ...current,
+        {
+          AttributeId: line.Attribute.Id,
+          AttributeName: line.Attribute.Name,
+          Id: value.Id,
+          Name: value.Name,
+          Code: value.Code,
+          Sequence: value.Sequence,
+          PriceExtra: value.PriceExtra || null
+        }
+      ]);
+    }
+  }
+  
+  generate(0, []);
+  
+  // Generate SKU codes
+  const existingCodes = new Set<string>();
+  const baseCode = baseProduct.product_code;
+  
+  return combinations.map(attrs => {
+    // ✅ KHÔNG SORT - giữ nguyên thứ tự từ attributeLines
+    // Thứ tự trong () sẽ theo đúng thứ tự attribute lines
+    const variantName = `${baseProduct.product_name} (${attrs.map(a => a.Name).join(', ')})`;
+    
+    // Tạo mã SKU theo thứ tự tự nhiên
+    const variantCode = generateSKU(baseCode, attrs, existingCodes);
+    
+    return {
+      Id: 0,
+      Name: variantName,
+      DefaultCode: variantCode,
+      AttributeValues: attrs,
+      Active: true,
+      PriceVariant: baseProduct.selling_price || 0
+    };
+  });
+}
+
 // ==================== MAIN UPLOAD FUNCTION ====================
 
 export interface UploadFromInventoryResult {
@@ -254,10 +361,9 @@ export interface UploadFromInventoryResult {
 }
 
 /**
- * Upload product with variants from inventory using 3-step process
- * Step 1: Preview (SuggestionsVariant)
- * Step 2: Save (UpdateV2)
- * Step 3: Verify (GET)
+ * Upload product with variants from inventory (giống HTML reference)
+ * Flow: Load base product → Parse variant text → Generate variants locally → 
+ *       Preview (1 POST) → Save → Verify
  */
 export async function uploadTPOSFromInventoryVariants(
   baseProductCode: string,
@@ -412,7 +518,7 @@ async function createNewProductWithVariants(
 
     onProgress?.(`✅ Đã tạo base product (ID: ${tposProductId})`);
 
-    // ====== BƯỚC 2: UpdateV2 - THÊM VARIANTS (3-STEP NHƯ HTML) ======
+    // ====== BƯỚC 2: UpdateV2 - THÊM VARIANTS (5-STEP: Generate → Preview → Save → Verify) ======
     onProgress?.('🔄 [2/2] Đang thêm variants bằng UpdateV2...');
     
     return await updateExistingProductVariants(
@@ -451,53 +557,42 @@ async function updateExistingProductVariants(
     const existingData = await fetchResponse.json();
     const cleanData = removeODataMetadata(existingData);
 
-    // STEP 2: Preview variants (SuggestionsVariant) - POST TUẦN TỰ 3 LẦN
-    onProgress?.('🔍 [1/3] Đang tạo preview variants (3 bước)...');
+    // STEP 2: Generate variants locally (giống HTML reference)
+    onProgress?.('🔨 Đang generate variants local...');
+    const generatedVariants = generateVariantCombinations(baseProduct, attributeLines);
+    onProgress?.(`✅ Đã generate ${generatedVariants.length} variants`);
+
+    // STEP 3: Preview variants - POST 1 LẦN với đầy đủ data (giống HTML)
+    onProgress?.('🔍 [1/3] Đang gửi preview request...');
     
-    let currentAttributeLines: AttributeLine[] = [];
-    let finalPreviewData: any;
-
-    for (let i = 0; i < attributeLines.length; i++) {
-      currentAttributeLines.push(attributeLines[i]);
-      
-      onProgress?.(
-        `🔍 [Preview ${i+1}/${attributeLines.length}] ${attributeLines[i].Attribute.Name} (${attributeLines[i].Values.length} values)...`
-      );
-      
-      const previewPayload = {
-        model: {
-          ...cleanData,
-          AttributeLines: currentAttributeLines,
-          ProductVariants: []
-        }
-      };
-
-      const previewResponse = await fetch(
-        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(previewPayload)
-        }
-      );
-
-      if (!previewResponse.ok) {
-        const errorData = await previewResponse.json();
-        throw new Error(
-          `Preview step ${i+1} failed: ${errorData.error?.message || previewResponse.status}`
-        );
+    const previewPayload = {
+      model: {
+        ...cleanData,
+        ProductVariants: generatedVariants,  // ✅ Gửi KÈM variants đã generate
+        AttributeLines: attributeLines       // ✅ Gửi attribute lines
       }
+    };
 
-      finalPreviewData = await previewResponse.json();
-      onProgress?.(
-        `✅ Preview ${i+1}: ${finalPreviewData.value?.length || 0} variants`
+    const previewResponse = await fetch(
+      'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(previewPayload)
+      }
+    );
+
+    if (!previewResponse.ok) {
+      const errorData = await previewResponse.json();
+      throw new Error(
+        `Preview failed: ${errorData.error?.message || previewResponse.status}`
       );
     }
 
-    const previewData = finalPreviewData;
-    onProgress?.(`✅ Hoàn tất preview: ${previewData.value?.length || 0} variants tổng cộng`);
+    const previewData = await previewResponse.json();
+    onProgress?.(`✅ Preview: ${previewData.value?.length || 0} variants`);
 
-    // STEP 3: Save to database (UpdateV2)
+    // STEP 4: Save to database (UpdateV2)
     onProgress?.('💾 [2/3] Đang lưu vào TPOS database...');
     
     const savePayload = {
@@ -523,7 +618,7 @@ async function updateExistingProductVariants(
 
     onProgress?.('✅ Đã lưu thành công');
 
-    // STEP 4: Verify (GET)
+    // STEP 5: Verify (GET)
     onProgress?.('🔍 [3/3] Đang xác minh dữ liệu...');
     
     const verifyUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
