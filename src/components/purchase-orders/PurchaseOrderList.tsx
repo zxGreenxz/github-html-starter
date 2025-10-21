@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Pencil, Search, Filter, Calendar, Trash2, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import React, { useState } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -177,50 +177,6 @@ export function PurchaseOrderList({
       isFirstItem: index === 0
     }));
   }) || [];
-
-  // Get all product codes from filtered orders
-  const allProductCodes = React.useMemo(() => {
-    return filteredOrders.flatMap(order => 
-      order.items?.map(item => item.product_code) || []
-    );
-  }, [filteredOrders]);
-
-  // Query variant info: count and total stock of child products
-  const { data: variantInfo } = useQuery({
-    queryKey: ['variant-stock-info', allProductCodes],
-    queryFn: async () => {
-      if (allProductCodes.length === 0) return {};
-      
-      const { data: childProducts, error } = await supabase
-        .from('products')
-        .select('base_product_code, stock_quantity')
-        .in('base_product_code', allProductCodes)
-        .not('base_product_code', 'is', null);
-      
-      if (error) {
-        console.error('Error fetching variant info:', error);
-        return {};
-      }
-      
-      // Calculate total stock for each parent product
-      const info: Record<string, number> = {};
-      
-      allProductCodes.forEach(code => {
-        const variants = childProducts?.filter(p => p.base_product_code === code) || [];
-        
-        if (variants.length > 0) {
-          // Sum stock_quantity of all child products
-          info[code] = variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
-        } else {
-          // No child products -> standalone product
-          info[code] = 1;
-        }
-      });
-      
-      return info;
-    },
-    enabled: allProductCodes.length > 0
-  });
 
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
     // Prioritize showing "Giao thiếu hàng" if received with shortage
@@ -555,9 +511,7 @@ export function PurchaseOrderList({
                       {variant}
                     </TableCell>
                     <TableCell className="border-r text-center">
-                      <div className="font-medium">
-                        {variantInfo?.[productCode] ?? '-'}
-                      </div>
+                      {flatItem.item?.quantity || 0}
                     </TableCell>
                   <TableCell className="border-r text-right overflow-visible">
                     <div className="flex flex-col items-end gap-1">
