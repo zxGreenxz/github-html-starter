@@ -532,13 +532,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
       if (variantsError) throw variantsError;
 
-      // ✅ 3. Xóa parent khỏi form và thêm variants vào
-      setItems(prev => {
-        const newItems = [...prev];
-        newItems.splice(index, 1);
-        newItems.splice(index, 0, ...variants.map(v => ({ ...v, notes: '' })));
-        return newItems;
-      });
+      // ✅ 3. Giữ nguyên parent trong form, KHÔNG thêm variants vào form
+      // Variants đã được thêm vào kho ở bước 2
 
       // ✅ 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -546,7 +541,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
       toast({
         title: "✅ Đã tạo biến thể",
-        description: `Đã tạo ${variants.length} biến thể và lưu vào kho`,
+        description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
       });
 
     } catch (error: any) {

@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { TPOSProductItem } from "@/lib/tpos-api";
 import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
-import { VariantConflictDialog, type VariantConflict, type ResolvedUpdate } from "./VariantConflictDialog";
 
 interface BulkTPOSUploadDialogProps {
   open: boolean;
@@ -89,13 +88,6 @@ export function BulkTPOSUploadDialog({
   const [progress, setProgress] = useState<UploadProgress[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
-  // Conflict resolution state
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
-  const [currentConflicts, setCurrentConflicts] = useState<VariantConflict[]>([]);
-  const [currentVariantsData, setCurrentVariantsData] = useState<any[]>([]);
-  const [currentItem, setCurrentItem] = useState<TPOSProductItem | null>(null);
-  const [currentTPOSProductId, setCurrentTPOSProductId] = useState<number | null>(null);
   
   const totalProducts = items.length;
   
@@ -352,197 +344,6 @@ export function BulkTPOSUploadDialog({
         }))
       };
     });
-  };
-
-  // Check conflicts with existing products
-  const checkVariantConflicts = async (variantsFromTPOS: any[]): Promise<VariantConflict[]> => {
-    try {
-      const variantCodes = variantsFromTPOS.map(v => v.DefaultCode).filter(Boolean);
-      
-      if (variantCodes.length === 0) return [];
-      
-      // Query existing products
-      const { data: existingProducts } = await supabase
-        .from('products')
-        .select('*')
-        .in('product_code', variantCodes);
-      
-      if (!existingProducts || existingProducts.length === 0) {
-        return [];
-      }
-      
-      const conflicts: VariantConflict[] = [];
-      const existingMap = new Map(
-        existingProducts.map(p => [p.product_code, p])
-      );
-      
-      for (const newVariant of variantsFromTPOS) {
-        const code = newVariant.DefaultCode;
-        if (!code) continue;
-        
-        const existing = existingMap.get(code);
-        
-        if (existing) {
-          const diffFields: string[] = [];
-          
-          // Compare fields
-          const fieldsToCompare = [
-            { field: 'selling_price', tposField: 'PriceVariant' },
-            { field: 'purchase_price', tposField: 'PurchasePrice' },
-            { field: 'barcode', tposField: 'Barcode' },
-            { field: 'stock_quantity', tposField: 'QtyAvailable' },
-            { field: 'product_name', tposField: 'Name' }
-          ];
-          
-          for (const { field, tposField } of fieldsToCompare) {
-            const oldValue = existing[field];
-            const newValue = newVariant[tposField];
-            
-            if (oldValue !== newValue) {
-              diffFields.push(field);
-            }
-          }
-          
-          if (diffFields.length > 0) {
-            conflicts.push({
-              product_code: code,
-              variant_name: extractVariantName(newVariant),
-              old_data: {
-                selling_price: existing.selling_price,
-                purchase_price: existing.purchase_price,
-                barcode: existing.barcode,
-                stock_quantity: existing.stock_quantity,
-                product_name: existing.product_name
-              },
-              new_data: {
-                selling_price: newVariant.PriceVariant,
-                purchase_price: newVariant.PurchasePrice,
-                barcode: newVariant.Barcode,
-                stock_quantity: newVariant.QtyAvailable,
-                product_name: newVariant.Name
-              },
-              diff_fields: diffFields
-            });
-          }
-        }
-      }
-      
-      return conflicts;
-    } catch (error) {
-      console.error('Error checking conflicts:', error);
-      return [];
-    }
-  };
-
-  // Extract variant name from TPOS variant object
-  const extractVariantName = (variant: any): string => {
-    if (!variant.AttributeValues || variant.AttributeValues.length === 0) {
-      return "-";
-    }
-    return variant.AttributeValues.map((av: any) => av.Name).join(", ");
-  };
-
-  // Handle conflict resolution
-  const handleResolveConflicts = async (resolvedUpdates: ResolvedUpdate[]) => {
-    if (!currentVariantsData || !currentItem || currentTPOSProductId === null) {
-      return;
-    }
-
-    try {
-      // Batch update variants with error handling
-      const result = await batchUpdateVariantsWithCheck(
-        currentVariantsData,
-        resolvedUpdates,
-        currentItem,
-        currentTPOSProductId
-      );
-      
-      // Mark as success
-      setProgress(prev => prev.map((p) => 
-        p.itemId === currentItem.id 
-          ? { ...p, status: 'success', error: result.missing.length > 0 ? `Thiếu ${result.missing.length} variants` : undefined } 
-          : p
-      ));
-      
-      // Toast thông báo
-      if (result.missing.length > 0) {
-        toast({
-          variant: "default",
-          title: `⚠️ Đã cập nhật ${result.updated} variants`,
-          description: `Thiếu ${result.missing.length} biến thể:\n${result.missing.slice(0, 3).join('\n')}${result.missing.length > 3 ? `\n...và ${result.missing.length - 3} biến thể khác` : ''}`,
-          duration: 8000
-        });
-      } else {
-        toast({
-          title: "✅ Đã cập nhật variants",
-          description: `Đã cập nhật ${result.updated} variants vào kho`
-        });
-      }
-    } catch (error: any) {
-      // Error already handled in batchUpdateVariants
-      console.error('Error resolving conflicts:', error);
-    }
-    
-    // Reset conflict state
-    setCurrentConflicts([]);
-    setCurrentVariantsData([]);
-    setCurrentItem(null);
-    setCurrentTPOSProductId(null);
-  };
-
-  // Update productid_bienthe for resolved variants with missing check
-  const batchUpdateVariantsWithCheck = async (
-    variantsFromTPOS: any[],
-    resolvedUpdates: ResolvedUpdate[],
-    baseItem: TPOSProductItem,
-    tposProductId: number
-  ): Promise<{ updated: number; missing: string[] }> => {
-    try {
-      const variantIdMap = variantsFromTPOS.reduce((acc, variant) => {
-        acc[variant.DefaultCode] = {
-          id: variant.Id,
-          name: variant.Name
-        };
-        return acc;
-      }, {} as Record<string, { id: number; name: string }>);
-
-      // Update resolved variants
-      let updatedCount = 0;
-      for (const update of resolvedUpdates) {
-        const tposCode = update.product_code;
-        const variantInfo = variantIdMap[tposCode];
-        
-        if (!variantInfo) continue;
-
-        const { error } = await supabase
-          .from('products')
-          .update({ productid_bienthe: variantInfo.id })
-          .eq('product_code', tposCode);
-
-        if (error) throw error;
-        updatedCount++;
-      }
-
-      // Check for unresolved (missing) variants
-      const resolvedTPOSCodes = new Set(resolvedUpdates.map(u => u.product_code));
-      const allTPOSCodes = Object.keys(variantIdMap);
-      const missingCodes = allTPOSCodes.filter(code => !resolvedTPOSCodes.has(code));
-
-      console.log(`✅ Đã cập nhật productid_bienthe cho ${updatedCount} sản phẩm con (resolved)`);
-
-      return {
-        updated: updatedCount,
-        missing: missingCodes.map(code => `${code} (${variantIdMap[code].name})`)
-      };
-
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "❌ Lỗi cập nhật resolved variants",
-        description: error.message
-      });
-      throw error;
-    }
   };
 
   // Update productid_bienthe only for existing products
@@ -832,47 +633,24 @@ export function BulkTPOSUploadDialog({
         const productData = await fetchResponse.json();
         const variantsFromTPOS = productData.ProductVariants || [];
         
-        // STEP 9: Check for conflicts
-        const conflicts = await checkVariantConflicts(variantsFromTPOS);
-        
-        if (conflicts.length > 0) {
-          // Show conflict dialog - pause upload
-          setCurrentConflicts(conflicts);
-          setCurrentVariantsData(variantsFromTPOS);
-          setCurrentItem(item);
-          setCurrentTPOSProductId(tposProductId);
-          setShowConflictDialog(true);
-          
-          // Mark as pending conflict resolution
-          setProgress(prev => prev.map((p) => 
-            p.itemId === item.id 
-              ? { ...p, status: 'uploading', error: `Chờ xử lý ${conflicts.length} conflicts...` } 
-              : p
-          ));
-          
-          // IMPORTANT: Don't increment success count yet
-          // Wait for user to resolve conflicts
-          return; // Exit early, will continue after conflict resolution
-        } else {
-          // No conflicts - update variant IDs only
-          const result = await updateVariantTPOSIds(variantsFromTPOS, item, tposProductId);
+        // STEP 9: Update variant IDs (no conflict checking)
+        const result = await updateVariantTPOSIds(variantsFromTPOS, item, tposProductId);
 
-          successCount++;
-          setProgress(prev => prev.map((p) => 
-            p.itemId === item.id 
-              ? { ...p, status: 'success', error: result.missing.length > 0 ? `Thiếu ${result.missing.length} variants` : undefined } 
-              : p
-          ));
+        successCount++;
+        setProgress(prev => prev.map((p) => 
+          p.itemId === item.id 
+            ? { ...p, status: 'success', error: result.missing.length > 0 ? `Thiếu ${result.missing.length} variants` : undefined } 
+            : p
+        ));
 
-          // Toast thông báo nếu có variants thiếu
-          if (result.missing.length > 0) {
-            toast({
-              variant: "default",
-              title: `⚠️ ${item.product_code} - Thiếu biến thể`,
-              description: `Đã cập nhật ${result.updated} biến thể. Thiếu ${result.missing.length}:\n${result.missing.slice(0, 3).join('\n')}${result.missing.length > 3 ? `\n...và ${result.missing.length - 3} biến thể khác` : ''}`,
-              duration: 8000
-            });
-          }
+        // Toast thông báo nếu có variants thiếu
+        if (result.missing.length > 0) {
+          toast({
+            variant: "default",
+            title: `⚠️ ${item.product_code} - Thiếu biến thể`,
+            description: `Đã cập nhật ${result.updated} biến thể. Thiếu ${result.missing.length}:\n${result.missing.slice(0, 3).join('\n')}${result.missing.length > 3 ? `\n...và ${result.missing.length - 3} biến thể khác` : ''}`,
+            duration: 8000
+          });
         }
       } catch (error) {
         errorCount++;
@@ -939,14 +717,6 @@ export function BulkTPOSUploadDialog({
   const progressPercentage = selectedIds.size > 0 ? (currentIndex / selectedIds.size) * 100 : 0;
   
   return (
-    <>
-      <VariantConflictDialog
-        open={showConflictDialog}
-        onOpenChange={setShowConflictDialog}
-        conflicts={currentConflicts}
-        onResolve={handleResolveConflicts}
-      />
-      
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
@@ -1062,6 +832,5 @@ export function BulkTPOSUploadDialog({
         </div>
       </DialogContent>
     </Dialog>
-    </>
   );
 }
