@@ -211,6 +211,57 @@ async function createNewProductOnTPOS(
   onProgress?.(`✅ Tạo TPOS thành công - ID: ${data.Id}`);
 
   if (data.Id) {
+    // Call SuggestionsVariant to get processed variants
+    try {
+      onProgress?.("📥 Đang lấy dữ liệu variants từ TPOS...");
+      const suggestionsPayload = {
+        model: {
+          Id: data.Id,
+          Name: data.Name,
+          DefaultCode: data.DefaultCode,
+          ListPrice: data.ListPrice,
+          ProductVariants: data.ProductVariants || [],
+          AttributeLines: attributeLines
+        }
+      };
+
+      const suggestionsResponse = await fetch(
+        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(suggestionsPayload)
+        }
+      );
+
+      if (suggestionsResponse.ok) {
+        const suggestionsData = await suggestionsResponse.json();
+        
+        // Save TPOS response to database
+        const tposResponse = {
+          previewVariants: suggestionsData.value,
+          timestamp: new Date().toISOString(),
+          attributeLines: attributeLines
+        };
+        
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({
+            variant_tpos_response: tposResponse as any
+          })
+          .eq('product_code', productCode)
+          .eq('base_product_code', productCode);
+          
+        if (updateError) {
+          console.error('Failed to save TPOS response:', updateError);
+        } else {
+          console.log('✅ Saved TPOS SuggestionsVariant response');
+        }
+      }
+    } catch (error) {
+      console.error('Error calling SuggestionsVariant:', error);
+    }
+    
     console.log(`🔍 Calling fetchAndSaveVariantsFromTPOS with ID: ${data.Id}`);
     const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
     console.log(`✅ fetchAndSaveVariantsFromTPOS returned ${variantProducts.length} variants`);
