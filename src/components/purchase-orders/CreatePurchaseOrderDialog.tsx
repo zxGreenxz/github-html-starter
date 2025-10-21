@@ -23,6 +23,12 @@ import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 
+interface AttributeLine {
+  attributeId: number;
+  attributeName: string;
+  values: string[];
+}
+
 interface PurchaseOrderItem {
   quantity: number;
   notes: string;
@@ -469,31 +475,52 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     setIsSelectProductOpen(true);
   };
 
+  /**
+   * Format variant text by attribute groups
+   * Input: attributeLines = [
+   *   { attributeName: "Màu", values: ["Đen", "Trắng"] },
+   *   { attributeName: "Size Số", values: ["S", "M", "L"] }
+   * ]
+   * Output: "(Đen Trắng) (S M L)"
+   */
+  const formatVariantTextByGroups = (attributeLines: AttributeLine[]): string => {
+    return attributeLines
+      .map(line => `(${line.values.join(' ')})`)
+      .join(' ');
+  };
+
   const handleVariantsGenerated = async (
     index: number,
-    variants: Array<{
-      product_code: string;
-      product_name: string;
-      variant: string;
-      quantity: number;
-      purchase_price: number | string;
-      selling_price: number | string;
-      product_images: string[];
-      price_images: string[];
-      _tempTotalPrice: number;
-    }>
+    data: {
+      variants: Array<{
+        product_code: string;
+        product_name: string;
+        variant: string;
+        quantity: number;
+        purchase_price: number | string;
+        selling_price: number | string;
+        product_images: string[];
+        price_images: string[];
+        _tempTotalPrice: number;
+      }>;
+      attributeLines: AttributeLine[];
+    }
   ) => {
-    console.log('🎯 handleVariantsGenerated:', { index, variants });
+    console.log('🎯 handleVariantsGenerated:', { index, data });
 
+    const { variants, attributeLines } = data;
     const parentItem = items[index];
 
     try {
+      // ✅ Format variant text by groups
+      const variantText = formatVariantTextByGroups(attributeLines);
+      
       // ✅ 1. Insert parent product vào kho
       const parentProductData = {
         product_code: parentItem.product_code.trim().toUpperCase(),
         product_name: parentItem.product_name.trim().toUpperCase(),
         base_product_code: parentItem.product_code.trim().toUpperCase(),
-        variant: variants.map(v => v.variant).join(', '),
+        variant: variantText,
         purchase_price: Number(parentItem.purchase_price || 0) * 1000,
         selling_price: Number(parentItem.selling_price || 0) * 1000,
         supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
@@ -532,8 +559,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
       if (variantsError) throw variantsError;
 
-      // ✅ 3. Giữ nguyên parent trong form, KHÔNG thêm variants vào form
-      // Variants đã được thêm vào kho ở bước 2
+      // ✅ 3. Update parent item's variant field in form with formatted text
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        variant: variantText
+      };
+      setItems(newItems);
 
       // ✅ 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -1013,8 +1045,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             product_images: items[variantGeneratorIndex].product_images,
             price_images: items[variantGeneratorIndex].price_images
           }}
-          onVariantsGenerated={(variants) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants);
+          onVariantsGenerated={(data) => {
+            handleVariantsGenerated(variantGeneratorIndex, data);
             setIsVariantDialogOpen(false);
             setVariantGeneratorIndex(null);
           }}
