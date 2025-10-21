@@ -19,6 +19,7 @@ import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
 import { EditPurchaseOrderItemDialog } from "./EditPurchaseOrderItemDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
+import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -611,9 +612,9 @@ export function PurchaseOrderList({
                   <TableCell className="border-r">
                     {productCode}
                   </TableCell>
-                    <TableCell className="border-r">
-                      {variant}
-                    </TableCell>
+                  <TableCell className="border-r">
+                    {formatVariantForDisplay(variant)}
+                  </TableCell>
                   <TableCell className="border-r text-center">
                     <div className="font-medium">
                       {flatItem.item?.quantity || 0}
