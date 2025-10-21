@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
@@ -655,22 +656,32 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   };
 
+  // Helper function to check if item has all required fields for variant generation
+  const canGenerateVariant = (item: PurchaseOrderItem): { valid: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    
+    if (!item._tempProductName?.trim()) missing.push("Tên SP");
+    if (!item._tempProductCode?.trim()) missing.push("Mã SP");
+    if (!item._tempProductImages || item._tempProductImages.length === 0) missing.push("Hình ảnh SP");
+    if (!item._tempUnitPrice || Number(item._tempUnitPrice) <= 0) missing.push("Giá mua");
+    if (!item._tempSellingPrice || Number(item._tempSellingPrice) <= 0) missing.push("Giá bán");
+    
+    return {
+      valid: missing.length === 0,
+      missing
+    };
+  };
+
   const openVariantGenerator = async (index: number) => {
     const item = items[index];
     
     // Validation: Check all required fields
-    const missingFields = [];
+    const validation = canGenerateVariant(item);
     
-    if (!item._tempProductName.trim()) missingFields.push("Tên sản phẩm");
-    if (!item._tempProductCode.trim()) missingFields.push("Mã sản phẩm");
-    if (!item._tempUnitPrice || Number(item._tempUnitPrice) <= 0) missingFields.push("Giá mua");
-    if (!item._tempSellingPrice || Number(item._tempSellingPrice) <= 0) missingFields.push("Giá bán");
-    if (!item._tempProductImages || item._tempProductImages.length === 0) missingFields.push("Hình ảnh sản phẩm");
-    
-    if (missingFields.length > 0) {
+    if (!validation.valid) {
       toast({
-        title: "Thiếu thông tin",
-        description: `Vui lòng điền: ${missingFields.join(", ")}`,
+        title: "⚠️ Thiếu thông tin",
+        description: `Vui lòng điền đầy đủ: ${validation.missing.join(", ")}`,
         variant: "destructive"
       });
       return;
@@ -1015,15 +1026,39 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                               }}
                               className="flex-1"
                             />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0"
-                              onClick={() => openVariantGenerator(index)}
-                              title="Tạo biến thể tự động"
-                            >
-                              <Sparkles className="h-4 w-4" />
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div>
+                                    {canGenerateVariant(item).valid ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        onClick={() => openVariantGenerator(index)}
+                                        title="Tạo biến thể tự động"
+                                      >
+                                        <Sparkles className="h-4 w-4" />
+                                      </Button>
+                                    ) : (
+                                      <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
+                                        <Sparkles className="h-4 w-4" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                {!canGenerateVariant(item).valid && (
+                                  <TooltipContent side="top" className="max-w-[250px]">
+                                    <p className="font-semibold mb-1">Thiếu thông tin:</p>
+                                    <ul className="list-disc list-inside text-sm">
+                                      {canGenerateVariant(item).missing.map((field, i) => (
+                                        <li key={i}>{field}</li>
+                                      ))}
+                                    </ul>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
 
                           {/* Collapsible danh sách biến thể */}

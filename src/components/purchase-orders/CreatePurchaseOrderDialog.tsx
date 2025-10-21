@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
@@ -892,32 +893,30 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
+  // Helper function to check if item has all required fields for variant generation
+  const canGenerateVariant = (item: PurchaseOrderItem): { valid: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    
+    if (!item.product_name?.trim()) missing.push("Tên SP");
+    if (!item.product_code?.trim()) missing.push("Mã SP");
+    if (!item.product_images || item.product_images.length === 0) missing.push("Hình ảnh SP");
+    if (!item.purchase_price || Number(item.purchase_price) <= 0) missing.push("Giá mua");
+    if (!item.selling_price || Number(item.selling_price) <= 0) missing.push("Giá bán");
+    
+    return {
+      valid: missing.length === 0,
+      missing
+    };
+  };
+
   const openVariantGenerator = (index: number) => {
     const item = items[index];
+    const validation = canGenerateVariant(item);
     
-    // Validation: Require product name, code, and images
-    if (!item.product_name?.trim()) {
+    if (!validation.valid) {
       toast({
         title: "⚠️ Thiếu thông tin",
-        description: "Vui lòng nhập Tên sản phẩm trước khi tạo biến thể",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!item.product_code?.trim()) {
-      toast({
-        title: "⚠️ Thiếu thông tin",
-        description: "Vui lòng nhập Mã sản phẩm trước khi tạo biến thể",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!item.product_images || item.product_images.length === 0) {
-      toast({
-        title: "⚠️ Thiếu thông tin",
-        description: "Vui lòng upload Hình ảnh sản phẩm trước khi tạo biến thể",
+        description: `Vui lòng điền đầy đủ: ${validation.missing.join(", ")}`,
         variant: "destructive"
       });
       return;
@@ -1151,30 +1150,39 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   }}
                   className="flex-1"
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-8 w-8 shrink-0",
-                    (!item.product_name?.trim() || !item.product_code?.trim() || !item.product_images || item.product_images.length === 0)
-                      ? "opacity-40 cursor-not-allowed"
-                      : ""
-                  )}
-                  onClick={() => openVariantGenerator(index)}
-                  disabled={
-                    !item.product_name?.trim() || 
-                    !item.product_code?.trim() || 
-                    !item.product_images || 
-                    item.product_images.length === 0
-                  }
-                  title={
-                    (!item.product_name?.trim() || !item.product_code?.trim() || !item.product_images || item.product_images.length === 0)
-                      ? "Vui lòng nhập Tên SP, Mã SP và upload Hình ảnh trước"
-                      : "Tạo biến thể tự động"
-                  }
-                >
-                  <Sparkles className="h-4 w-4" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        {canGenerateVariant(item).valid ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => openVariantGenerator(index)}
+                            title="Tạo biến thể tự động"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
+                            <Sparkles className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    {!canGenerateVariant(item).valid && (
+                      <TooltipContent side="top" className="max-w-[250px]">
+                        <p className="font-semibold mb-1">Thiếu thông tin:</p>
+                        <ul className="list-disc list-inside text-sm">
+                          {canGenerateVariant(item).missing.map((field, i) => (
+                            <li key={i}>{field}</li>
+                          ))}
+                        </ul>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </TableCell>
                       <TableCell className="text-center">
