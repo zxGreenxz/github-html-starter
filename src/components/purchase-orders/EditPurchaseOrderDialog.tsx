@@ -1233,7 +1233,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             product_name: items[variantGeneratorIndex]._tempProductName,
             variant: parentProductVariant
           }}
-          onVariantsGenerated={(variantText) => {
+          onVariantTextGenerated={(variantText) => {
             handleVariantsGenerated(variantGeneratorIndex, variantText);
             setVariantGeneratorIndex(null);
           }}

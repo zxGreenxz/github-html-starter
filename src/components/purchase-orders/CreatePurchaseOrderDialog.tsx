@@ -469,22 +469,94 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     setIsSelectProductOpen(true);
   };
 
-  const handleVariantsGenerated = async (index: number, variantText: string) => {
-    console.log('🎯 handleVariantsGenerated called:', { index, variantText });
-    
-    setItems(prev => {
-      const newItems = [...prev];
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-      };
-      return newItems;
-    });
+  const handleVariantsGenerated = async (
+    index: number,
+    variants: Array<{
+      product_code: string;
+      product_name: string;
+      variant: string;
+      quantity: number;
+      purchase_price: number | string;
+      selling_price: number | string;
+      product_images: string[];
+      price_images: string[];
+      _tempTotalPrice: number;
+    }>
+  ) => {
+    console.log('🎯 handleVariantsGenerated:', { index, variants });
 
-    toast({
-      title: "✅ Đã thêm biến thể",
-      description: `Biến thể: ${variantText}`,
-    });
+    const parentItem = items[index];
+
+    try {
+      // ✅ 1. Insert parent product vào kho
+      const parentProductData = {
+        product_code: parentItem.product_code.trim().toUpperCase(),
+        product_name: parentItem.product_name.trim().toUpperCase(),
+        base_product_code: parentItem.product_code.trim().toUpperCase(),
+        variant: variants.map(v => v.variant).join(', '),
+        purchase_price: Number(parentItem.purchase_price || 0) * 1000,
+        selling_price: Number(parentItem.selling_price || 0) * 1000,
+        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
+        product_images: parentItem.product_images || [],
+        price_images: parentItem.price_images || [],
+        stock_quantity: 0,
+        unit: 'Cái'
+      };
+
+      const { error: parentError } = await supabase
+        .from("products")
+        .insert(parentProductData);
+
+      if (parentError && parentError.code !== '23505') {
+        throw parentError;
+      }
+
+      // ✅ 2. Insert variant products vào kho
+      const variantProductsData = variants.map(v => ({
+        product_code: v.product_code,
+        product_name: v.product_name,
+        base_product_code: parentItem.product_code.trim().toUpperCase(),
+        variant: v.variant.toUpperCase(),
+        purchase_price: Number(v.purchase_price || 0) * 1000,
+        selling_price: Number(v.selling_price || 0) * 1000,
+        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
+        product_images: v.product_images || [],
+        price_images: v.price_images || [],
+        stock_quantity: 0,
+        unit: 'Cái'
+      }));
+
+      const { error: variantsError } = await supabase
+        .from("products")
+        .insert(variantProductsData);
+
+      if (variantsError) throw variantsError;
+
+      // ✅ 3. Xóa parent khỏi form và thêm variants vào
+      setItems(prev => {
+        const newItems = [...prev];
+        newItems.splice(index, 1);
+        newItems.splice(index, 0, ...variants.map(v => ({ ...v, notes: '' })));
+        return newItems;
+      });
+
+      // ✅ 4. Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products-select"] });
+
+      toast({
+        title: "✅ Đã tạo biến thể",
+        description: `Đã tạo ${variants.length} biến thể và lưu vào kho`,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error creating variants:', error);
+      toast({
+        title: "Lỗi tạo biến thể",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const openVariantGenerator = (index: number) => {
@@ -938,10 +1010,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
           onOpenChange={setIsVariantDialogOpen}
           currentItem={{
             product_code: items[variantGeneratorIndex].product_code,
-            product_name: items[variantGeneratorIndex].product_name
+            product_name: items[variantGeneratorIndex].product_name,
+            variant: items[variantGeneratorIndex].variant,
+            quantity: items[variantGeneratorIndex].quantity,
+            purchase_price: items[variantGeneratorIndex].purchase_price,
+            selling_price: items[variantGeneratorIndex].selling_price,
+            product_images: items[variantGeneratorIndex].product_images,
+            price_images: items[variantGeneratorIndex].price_images
           }}
-          onVariantsGenerated={(variantText) => {
-            handleVariantsGenerated(variantGeneratorIndex, variantText);
+          onVariantsGenerated={(variants) => {
+            handleVariantsGenerated(variantGeneratorIndex, variants);
+            setIsVariantDialogOpen(false);
             setVariantGeneratorIndex(null);
           }}
         />

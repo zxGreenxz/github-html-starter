@@ -9,11 +9,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sparkles, Search, X, Edit2, Trash2, Plus } from "lucide-react";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import {
+  generateVariants,
+  TPOSAttributeLine,
+  ProductData,
+  TPOSAttributeValue
+} from "@/lib/variant-generator";
 
 interface AttributeLine {
   attributeId: number;
   attributeName: string;
   values: string[];
+}
+
+interface GeneratedVariantForForm {
+  product_code: string;
+  product_name: string;
+  variant: string;
+  quantity: number;
+  purchase_price: number | string;
+  selling_price: number | string;
+  product_images: string[];
+  price_images: string[];
+  _tempTotalPrice: number;
 }
 
 interface VariantGeneratorDialogProps {
@@ -23,8 +42,16 @@ interface VariantGeneratorDialogProps {
     product_code: string;
     product_name: string;
     variant?: string;
+    quantity?: number;
+    purchase_price?: number | string;
+    selling_price?: number | string;
+    product_images?: string[];
+    price_images?: string[];
   };
-  onVariantsGenerated: (variantText: string) => void;
+  // New behavior: Generate full variant products (for CreatePurchaseOrderDialog)
+  onVariantsGenerated?: (variants: GeneratedVariantForForm[]) => void;
+  // Old behavior: Just generate variant text (for EditPurchaseOrderDialog)
+  onVariantTextGenerated?: (variantText: string) => void;
 }
 
 const ATTRIBUTES = [
@@ -37,8 +64,10 @@ export function VariantGeneratorDialog({
   open,
   onOpenChange,
   currentItem,
-  onVariantsGenerated
+  onVariantsGenerated,
+  onVariantTextGenerated
 }: VariantGeneratorDialogProps) {
+  const { toast } = useToast();
   const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
   const [selectedAttributeId, setSelectedAttributeId] = useState<number | null>(null);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
@@ -165,19 +194,88 @@ export function VariantGeneratorDialog({
   };
 
   const handleConfirm = () => {
-    // Convert attribute lines to variant string
-    const allValues = attributeLines.flatMap(line => line.values);
-    const variantText = allValues.join(', ');
-    
-    onVariantsGenerated(variantText);
+    if (attributeLines.length === 0) {
+      toast({
+        title: "⚠️ Chưa có thuộc tính",
+        description: "Vui lòng thêm ít nhất 1 thuộc tính",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check which callback to use
+    if (onVariantTextGenerated) {
+      // Old behavior: Just generate variant text
+      const allValues = attributeLines.flatMap(line => line.values);
+      const variantText = allValues.join(', ');
+      onVariantTextGenerated(variantText);
+    } else if (onVariantsGenerated) {
+      // New behavior: Generate full variant products using variant-generator.ts
+      // ✅ STEP 1: Sort attributeLines theo attributeId (1 → 3 → 4)
+      const sortedAttributeLines = [...attributeLines].sort((a, b) => a.attributeId - b.attributeId);
+
+      // ✅ STEP 2: Convert AttributeLine[] → TPOSAttributeLine[]
+      const tposAttributeLines: TPOSAttributeLine[] = sortedAttributeLines.map(line => {
+        const attribute = ATTRIBUTES.find(a => a.id === line.attributeId);
+        if (!attribute) return null;
+
+        const values: TPOSAttributeValue[] = line.values
+          .map(valueName => {
+            const value = TPOS_ATTRIBUTES[attribute.key].find(v => v.Name === valueName);
+            return value ? {
+              ...value,
+              AttributeId: line.attributeId,
+              AttributeName: line.attributeName
+            } : null;
+          })
+          .filter(Boolean) as TPOSAttributeValue[];
+
+        return {
+          Attribute: {
+            Id: line.attributeId,
+            Name: line.attributeName
+          },
+          Values: values
+        };
+      }).filter(Boolean) as TPOSAttributeLine[];
+
+      // ✅ STEP 3: Prepare ProductData
+      const productData: ProductData = {
+        Id: 0,
+        Name: currentItem.product_name.trim().toUpperCase(),
+        DefaultCode: currentItem.product_code.trim().toUpperCase(),
+        ListPrice: Number(currentItem.selling_price || 0) * 1000
+      };
+
+      // ✅ STEP 4: Generate variants - 100% từ variant-generator.ts
+      const generatedVariants = generateVariants(productData, tposAttributeLines);
+
+      // ✅ STEP 5: Convert GeneratedVariant[] → GeneratedVariantForForm[]
+      const variantsForForm: GeneratedVariantForForm[] = generatedVariants.map(v => ({
+        product_code: v.DefaultCode,
+        product_name: v.Name,
+        variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+        quantity: currentItem.quantity || 1,
+        purchase_price: currentItem.purchase_price || 0,
+        selling_price: currentItem.selling_price || 0,
+        product_images: [...(currentItem.product_images || [])],
+        price_images: [...(currentItem.price_images || [])],
+        _tempTotalPrice: Number(currentItem.purchase_price || 0) * (currentItem.quantity || 1)
+      }));
+
+      console.log('✅ Generated variants:', variantsForForm);
+
+      onVariantsGenerated(variantsForForm);
+    }
+
     onOpenChange(false);
-    
+
     // Reset state
     setAttributeLines([]);
     setSelectedAttributeId(null);
     setSelectedValues([]);
-    setEditingIndex(null);
     setValueFilter("");
+    setEditingIndex(null);
   };
 
   const handleClose = () => {
