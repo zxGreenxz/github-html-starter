@@ -327,8 +327,8 @@ async function createNewProductWithVariants(
       imageBase64 = await loadImageAsBase64(baseProduct.product_images[0]);
     }
 
-    // Build payload for InsertV2
-    const payload = {
+    // ====== BƯỚC 1: InsertV2 - TẠO BASE PRODUCT (KHÔNG CÓ VARIANTS) ======
+    const basePayload = {
       Id: 0,
       Name: baseProduct.product_name,
       Type: "product",
@@ -336,7 +336,7 @@ async function createNewProductWithVariants(
       PurchasePrice: baseProduct.purchase_price || 0,
       DefaultCode: baseProduct.product_code,
       Image: imageBase64,
-      AttributeLines: attributeLines,
+      // ❌ KHÔNG GỬI AttributeLines ở đây
       Active: true,
       SaleOK: true,
       PurchaseOK: true,
@@ -350,14 +350,14 @@ async function createNewProductWithVariants(
       AvailableInPOS: true,
     };
 
-    onProgress?.('📤 Đang upload sản phẩm lên TPOS...');
+    onProgress?.('📤 [1/2] Đang tạo base product trên TPOS...');
 
-    // Call InsertV2 API
-    const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants($expand=AttributeValues)';
+    // Call InsertV2 API (WITHOUT variants)
+    const createUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2';
     const response = await fetch(createUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload)
+      body: JSON.stringify(basePayload)
     });
 
     if (!response.ok) {
@@ -372,16 +372,18 @@ async function createNewProductWithVariants(
       throw new Error('Không lấy được TPOS Product ID');
     }
 
-    onProgress?.(`✅ Đã tạo sản phẩm trên TPOS (ID: ${tposProductId})`);
+    onProgress?.(`✅ Đã tạo base product (ID: ${tposProductId})`);
 
-    // Update database
-    await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, tposResponse.ProductVariants || []);
-
-    return {
-      success: true,
+    // ====== BƯỚC 2: UpdateV2 - THÊM VARIANTS (3-STEP NHƯ HTML) ======
+    onProgress?.('🔄 [2/2] Đang thêm variants bằng UpdateV2...');
+    
+    return await updateExistingProductVariants(
       tposProductId,
-      variantsUploaded: tposResponse.ProductVariants?.length || 0
-    };
+      baseProduct,
+      attributeLines,
+      headers,
+      onProgress
+    );
 
   } catch (error: any) {
     throw new Error(`Lỗi tạo sản phẩm mới: ${error.message}`);
