@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Download } from "lucide-react";
+import { Package, Download, RefreshCw } from "lucide-react";
 import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { ProductList } from "@/components/products/ProductList";
 import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
+import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -30,6 +31,7 @@ export default function Products() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImportVariantsDialogOpen, setIsImportVariantsDialogOpen] = useState(false);
+  const [isSyncTPOSDialogOpen, setIsSyncTPOSDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -231,6 +233,15 @@ export default function Products() {
                     >
                       Import Biến Thể
                     </Button>
+                    <Button
+                      onClick={() => setIsSyncTPOSDialogOpen(true)}
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Đồng bộ TPOS
+                    </Button>
                     {debouncedSearch.length >= 2 && (
                       <Button
                         onClick={handleImportFromTPOS}
@@ -304,6 +315,12 @@ export default function Products() {
         <ImportTPOSVariantsDialog
           open={isImportVariantsDialogOpen}
           onOpenChange={setIsImportVariantsDialogOpen}
+          onSuccess={refetch}
+        />
+        
+        <SyncTPOSDialog
+          open={isSyncTPOSDialogOpen}
+          onOpenChange={setIsSyncTPOSDialogOpen}
           onSuccess={refetch}
         />
       </div>
