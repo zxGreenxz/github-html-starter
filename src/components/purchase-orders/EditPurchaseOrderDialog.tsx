@@ -225,7 +225,78 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   }, [existingItems, open]);
 
-  // Expand parent products into their children
+  // Fetch variants from TPOS API
+  const fetchVariantsFromTPOS = async (productCode: string, parentImages: string[]) => {
+    try {
+      // Get product's tpos_product_id from database
+      const { data: productData, error: productError } = await supabase
+        .from("products")
+        .select("tpos_product_id, product_images, price_images")
+        .eq("product_code", productCode)
+        .maybeSingle();
+      
+      if (productError || !productData?.tpos_product_id) {
+        console.error("No tpos_product_id found for:", productCode);
+        return null;
+      }
+      
+      // Get TPOS bearer token
+      const { data: tokenData } = await supabase
+        .from('tpos_credentials')
+        .select('bearer_token')
+        .eq('token_type', 'tpos')
+        .not('bearer_token', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (!tokenData?.bearer_token) {
+        console.error("No TPOS token found");
+        return null;
+      }
+      
+      // Fetch from TPOS API
+      const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productData.tpos_product_id})?$expand=ProductVariants($expand=AttributeValues)`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.bearer_token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error("Failed to fetch from TPOS:", response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      const variants = data.ProductVariants || [];
+      
+      // Use parent images (from database or provided)
+      const imagesToUse = productData.product_images?.length > 0 
+        ? productData.product_images 
+        : parentImages;
+      const priceImagesToUse = productData.price_images || [];
+      
+      return variants.map((variant: any) => ({
+        product_code: variant.DefaultCode || productCode,
+        product_name: variant.Name || variant.NameGet,
+        variant: variant.AttributeValues?.map((attr: any) => attr.Name).join(', ') || '',
+        selling_price: variant.PriceVariant || 0,
+        purchase_price: variant.PurchasePrice || 0,
+        stock_quantity: variant.QtyAvailable || 0,
+        product_images: imagesToUse,
+        price_images: priceImagesToUse,
+        tpos_product_id: variant.Id
+      }));
+    } catch (error) {
+      console.error("Error fetching variants from TPOS:", error);
+      return null;
+    }
+  };
+
+  // Expand parent products by fetching variants from TPOS API
   useEffect(() => {
     const expandParentProducts = async () => {
       if (!existingItems || existingItems.length === 0 || !open) return;
@@ -233,129 +304,39 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       const expandedItems: PurchaseOrderItem[] = [];
       
       for (const item of existingItems) {
-        // Check if this product_code is a parent product
-        const { data: productData, error: productError } = await supabase
-          .from("products")
-          .select("product_code, base_product_code")
-          .eq("product_code", item.product_code)
-          .maybeSingle();
+        // Try to fetch variants from TPOS API
+        const tposVariants = await fetchVariantsFromTPOS(
+          item.product_code, 
+          item.product_images || []
+        );
         
-        if (productError) {
-          console.error("Error checking parent product:", productError);
-          expandedItems.push({
-            id: item.id,
-            product_code: item.product_code,
-            product_name: item.product_name,
-            variant: item.variant || "",
-            purchase_price: item.purchase_price,
-            selling_price: item.selling_price,
-            product_images: item.product_images || [],
-            price_images: item.price_images || [],
-            quantity: item.quantity || 1,
-            notes: item.notes || "",
-            position: item.position,
-            _tempProductName: item.product_name,
-            _tempProductCode: item.product_code,
-            _tempVariant: item.variant || "",
-            _tempUnitPrice: Number(item.purchase_price) / 1000,
-            _tempSellingPrice: Number(item.selling_price) / 1000,
-            _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-            _tempProductImages: item.product_images || [],
-            _tempPriceImages: item.price_images || [],
+        if (tposVariants && tposVariants.length > 0) {
+          // Successfully fetched variants from TPOS
+          tposVariants.forEach((variant: any, variantIndex: number) => {
+            expandedItems.push({
+              id: variantIndex === 0 ? item.id : undefined, // Keep original ID for first variant
+              product_code: variant.product_code,
+              product_name: variant.product_name,
+              variant: variant.variant,
+              purchase_price: variant.purchase_price,
+              selling_price: variant.selling_price,
+              product_images: variant.product_images,
+              price_images: variant.price_images,
+              quantity: variant.stock_quantity, // Use QtyAvailable from TPOS
+              notes: variantIndex === 0 ? item.notes : "",
+              position: item.position,
+              _tempProductName: variant.product_name,
+              _tempProductCode: variant.product_code,
+              _tempVariant: variant.variant,
+              _tempUnitPrice: variant.purchase_price / 1000,
+              _tempSellingPrice: variant.selling_price / 1000,
+              _tempTotalPrice: (variant.stock_quantity * variant.purchase_price) / 1000,
+              _tempProductImages: variant.product_images,
+              _tempPriceImages: variant.price_images,
+            });
           });
-          continue;
-        }
-        
-        // If product is parent (product_code == base_product_code)
-        const isParent = productData && 
-                         productData.product_code === productData.base_product_code;
-        
-        if (isParent) {
-          // Fetch all child variants
-          const { data: childProducts, error: childError } = await supabase
-            .from("products")
-            .select("*")
-            .eq("base_product_code", item.product_code)
-            .neq("product_code", item.product_code)
-            .order("created_at", { ascending: true });
-          
-          if (childError) {
-            console.error("Error fetching child products:", childError);
-            expandedItems.push({
-              id: item.id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variant: item.variant || "",
-              purchase_price: item.purchase_price,
-              selling_price: item.selling_price,
-              product_images: item.product_images || [],
-              price_images: item.price_images || [],
-              quantity: item.quantity || 1,
-              notes: item.notes || "",
-              position: item.position,
-              _tempProductName: item.product_name,
-              _tempProductCode: item.product_code,
-              _tempVariant: item.variant || "",
-              _tempUnitPrice: Number(item.purchase_price) / 1000,
-              _tempSellingPrice: Number(item.selling_price) / 1000,
-              _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-              _tempProductImages: item.product_images || [],
-              _tempPriceImages: item.price_images || [],
-            });
-            continue;
-          }
-          
-          if (childProducts && childProducts.length > 0) {
-            // Add all children instead of parent
-            childProducts.forEach((child, childIndex) => {
-              expandedItems.push({
-                id: childIndex === 0 ? item.id : undefined, // Keep original ID for first child
-                product_code: child.product_code,
-                product_name: child.product_name,
-                variant: child.variant || "",
-                purchase_price: child.purchase_price || item.purchase_price,
-                selling_price: child.selling_price || item.selling_price,
-                product_images: child.product_images || [],
-                price_images: child.price_images || item.price_images || [],
-                quantity: item.quantity, // Keep original quantity from order
-                notes: childIndex === 0 ? item.notes : "",
-                position: item.position,
-                _tempProductName: child.product_name,
-                _tempProductCode: child.product_code,
-                _tempVariant: child.variant || "",
-                _tempUnitPrice: (child.purchase_price || item.purchase_price) / 1000,
-                _tempSellingPrice: (child.selling_price || item.selling_price) / 1000,
-                _tempTotalPrice: (item.quantity * (child.purchase_price || item.purchase_price)) / 1000,
-                _tempProductImages: child.product_images || [],
-                _tempPriceImages: child.price_images || item.price_images || [],
-              });
-            });
-          } else {
-            // Parent has no children, keep as is
-            expandedItems.push({
-              id: item.id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variant: item.variant || "",
-              purchase_price: item.purchase_price,
-              selling_price: item.selling_price,
-              product_images: item.product_images || [],
-              price_images: item.price_images || [],
-              quantity: item.quantity || 1,
-              notes: item.notes || "",
-              position: item.position,
-              _tempProductName: item.product_name,
-              _tempProductCode: item.product_code,
-              _tempVariant: item.variant || "",
-              _tempUnitPrice: Number(item.purchase_price) / 1000,
-              _tempSellingPrice: Number(item.selling_price) / 1000,
-              _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-              _tempProductImages: item.product_images || [],
-              _tempPriceImages: item.price_images || [],
-            });
-          }
         } else {
-          // Not a parent, add as is
+          // Failed to fetch from TPOS or no variants, keep original item
           expandedItems.push({
             id: item.id,
             product_code: item.product_code,
