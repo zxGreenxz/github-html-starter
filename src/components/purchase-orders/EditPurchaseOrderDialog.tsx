@@ -26,7 +26,6 @@ import { useDebounce } from "@/hooks/use-debounce";
 
 interface PurchaseOrderItem {
   id?: string;
-  purchase_order_id?: string;
   quantity: number;
   notes: string;
   position?: number;
@@ -39,8 +38,6 @@ interface PurchaseOrderItem {
   selling_price: number;
   product_images?: string[];
   price_images?: string[];
-  tpos_product_id?: number;
-  receiving_status?: string;
   
   // Temporary UI fields
   _tempProductName: string;
@@ -51,14 +48,6 @@ interface PurchaseOrderItem {
   _tempTotalPrice: number;
   _tempProductImages: string[];
   _tempPriceImages: string[];
-  
-  // TPOS data storage
-  _fullTPOSData?: any;      // ✅ FULL variant data from TPOS
-  _parentTPOSData?: any;    // ✅ FULL parent product data from TPOS
-  _parentProductCode?: string; // ✅ Track which parent this came from
-  _tempQuantity?: number;   // ✅ Temporary quantity field for editing
-  _isExpanded?: boolean;
-  _isNew?: boolean;
 }
 
 interface PurchaseOrder {
@@ -127,9 +116,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
-  // Cache for TPOS FULL product data to avoid redundant API calls
-  const [tposVariantsCache, setTposVariantsCache] = useState<Record<string, any>>({});
-  const [isUpdatingTPOS, setIsUpdatingTPOS] = useState(false);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -192,165 +178,172 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   }, [order, open]);
 
   // Load items when existingItems change
-  // ❌ REMOVED: No longer loading from DB first - expandParentProducts handles everything
-
-  // Fetch FULL product data from TPOS (similar to TPOS Manager)
-  const fetchFullProductForEdit = async (productCode: string) => {
-    try {
-      // Check cache first
-      if (tposVariantsCache[productCode]) {
-        console.log("✅ Using cached TPOS data for:", productCode);
-        return tposVariantsCache[productCode];
-      }
-      
-      console.log("🔄 Fetching FULL product from TPOS for:", productCode);
-      
-      // Step 1: Get tpos_product_id from database
-      const { data: productData, error: productError } = await supabase
-        .from("products")
-        .select("tpos_product_id, product_images, price_images")
-        .eq("product_code", productCode)
-        .maybeSingle();
-      
-      if (productError || !productData?.tpos_product_id) {
-        console.error("❌ No tpos_product_id found for:", productCode);
-        return null;
-      }
-      
-      // Step 2: Get TPOS bearer token
-      const { data: tokenData } = await supabase
-        .from('tpos_credentials')
-        .select('bearer_token')
-        .eq('token_type', 'tpos')
-        .not('bearer_token', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (!tokenData?.bearer_token) {
-        console.error("❌ No TPOS token found");
-        return null;
-      }
-      
-      // Step 3: Fetch FULL product with ALL expands (same as TPOS Manager)
-      const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productData.tpos_product_id})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${tokenData.bearer_token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error("❌ TPOS API failed:", response.status);
-        return null;
-      }
-      
-      const fullProductData = await response.json();
-      console.log("✅ Fetched FULL product:", fullProductData.Name, "with", fullProductData.ProductVariants?.length, "variants");
-      
-      // Deep clone to create editable copy
-      const editableData = JSON.parse(JSON.stringify(fullProductData));
-      
-      // Cache the FULL product data (NOT just variants)
-      setTposVariantsCache(prev => ({
-        ...prev,
-        [productCode]: editableData
-      }));
-      
-      return editableData;
-    } catch (error) {
-      console.error("❌ Error fetching FULL product from TPOS:", error);
-      return null;
+  useEffect(() => {
+    if (existingItems && existingItems.length > 0) {
+      setItems(existingItems.map(item => ({
+        id: item.id,
+        product_code: item.product_code,
+        product_name: item.product_name,
+        variant: item.variant || "",
+        purchase_price: item.purchase_price,
+        selling_price: item.selling_price,
+        product_images: item.product_images || [],
+        price_images: item.price_images || [],
+        quantity: item.quantity || 1,
+        notes: item.notes || "",
+        position: item.position,
+        _tempProductName: item.product_name,
+        _tempProductCode: item.product_code,
+        _tempVariant: item.variant || "",
+        _tempUnitPrice: Number(item.purchase_price) / 1000,
+        _tempSellingPrice: Number(item.selling_price) / 1000,
+        _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
+        _tempProductImages: item.product_images || [],
+        _tempPriceImages: item.price_images || [],
+      })));
+    } else if (open && existingItems) {
+      // If no existing items, add one empty row
+      setItems([{
+        product_code: "",
+        product_name: "",
+        variant: "",
+        purchase_price: 0,
+        selling_price: 0,
+        product_images: [],
+        price_images: [],
+        quantity: 1,
+        notes: "",
+        _tempProductName: "",
+        _tempProductCode: "",
+        _tempVariant: "",
+        _tempUnitPrice: "",
+        _tempSellingPrice: "",
+        _tempTotalPrice: 0,
+        _tempProductImages: [],
+        _tempPriceImages: [],
+      }]);
     }
-  };
+  }, [existingItems, open]);
 
-  // ✅ ALWAYS fetch from TPOS if tpos_product_id exists
+  // Expand parent products into their children
   useEffect(() => {
     const expandParentProducts = async () => {
-      if (!open) return;
+      if (!existingItems || existingItems.length === 0 || !open) return;
       
-      // Handle empty purchase order
-      if (!existingItems || existingItems.length === 0) {
-        setItems([{
-          id: crypto.randomUUID(),
-          product_code: "",
-          product_name: "",
-          variant: "",
-          purchase_price: 0,
-          selling_price: 0,
-          product_images: [],
-          price_images: [],
-          quantity: 1,
-          notes: "",
-          _tempProductName: "",
-          _tempProductCode: "",
-          _tempVariant: "",
-          _tempUnitPrice: 0,
-          _tempSellingPrice: 0,
-          _tempTotalPrice: 0,
-          _tempQuantity: 1,
-          _tempProductImages: [],
-          _tempPriceImages: [],
-          _isNew: true,
-        }]);
-        return;
-      }
-      
-      console.log("🔍 Fetching ALL products from TPOS...");
       const expandedItems: PurchaseOrderItem[] = [];
       
       for (const item of existingItems) {
-        // ✅ ALWAYS fetch from TPOS if tpos_product_id exists
-        if (item.tpos_product_id) {
-          console.log("🔄 Fetching from TPOS:", item.product_code);
+        // Check if this product_code is a parent product
+        const { data: productData, error: productError } = await supabase
+          .from("products")
+          .select("product_code, base_product_code")
+          .eq("product_code", item.product_code)
+          .maybeSingle();
+        
+        if (productError) {
+          console.error("Error checking parent product:", productError);
+          expandedItems.push({
+            id: item.id,
+            product_code: item.product_code,
+            product_name: item.product_name,
+            variant: item.variant || "",
+            purchase_price: item.purchase_price,
+            selling_price: item.selling_price,
+            product_images: item.product_images || [],
+            price_images: item.price_images || [],
+            quantity: item.quantity || 1,
+            notes: item.notes || "",
+            position: item.position,
+            _tempProductName: item.product_name,
+            _tempProductCode: item.product_code,
+            _tempVariant: item.variant || "",
+            _tempUnitPrice: Number(item.purchase_price) / 1000,
+            _tempSellingPrice: Number(item.selling_price) / 1000,
+            _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
+            _tempProductImages: item.product_images || [],
+            _tempPriceImages: item.price_images || [],
+          });
+          continue;
+        }
+        
+        // If product is parent (product_code == base_product_code)
+        const isParent = productData && 
+                         productData.product_code === productData.base_product_code;
+        
+        if (isParent) {
+          // Fetch all child variants
+          const { data: childProducts, error: childError } = await supabase
+            .from("products")
+            .select("*")
+            .eq("base_product_code", item.product_code)
+            .neq("product_code", item.product_code)
+            .order("created_at", { ascending: true });
           
-          // Fetch FULL product data
-          const fullProductData = await fetchFullProductForEdit(item.product_code);
+          if (childError) {
+            console.error("Error fetching child products:", childError);
+            expandedItems.push({
+              id: item.id,
+              product_code: item.product_code,
+              product_name: item.product_name,
+              variant: item.variant || "",
+              purchase_price: item.purchase_price,
+              selling_price: item.selling_price,
+              product_images: item.product_images || [],
+              price_images: item.price_images || [],
+              quantity: item.quantity || 1,
+              notes: item.notes || "",
+              position: item.position,
+              _tempProductName: item.product_name,
+              _tempProductCode: item.product_code,
+              _tempVariant: item.variant || "",
+              _tempUnitPrice: Number(item.purchase_price) / 1000,
+              _tempSellingPrice: Number(item.selling_price) / 1000,
+              _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
+              _tempProductImages: item.product_images || [],
+              _tempPriceImages: item.price_images || [],
+            });
+            continue;
+          }
           
-          if (fullProductData?.ProductVariants && fullProductData.ProductVariants.length > 0) {
-            console.log(`✅ Found ${fullProductData.ProductVariants.length} variants for ${item.product_code}`);
-            
-            // Create items from variants
-            fullProductData.ProductVariants.forEach((variant: any) => {
-              const variantAttributes = variant.AttributeValues?.map((attr: any) => attr.Name).join(', ') || '';
-              
+          if (childProducts && childProducts.length > 0) {
+            // Add all children instead of parent
+            childProducts.forEach((child, childIndex) => {
               expandedItems.push({
-                id: crypto.randomUUID(),
-                purchase_order_id: item.purchase_order_id,
-                product_code: variant.DefaultCode || item.product_code,
-                product_name: variant.Name || variant.NameGet || item.product_name,
-                variant: variantAttributes,
-                quantity: variant.QtyAvailable || 0,
-                purchase_price: variant.PriceVariant || 0,
-                selling_price: variant.ListPrice || 0,
-                product_images: item.product_images || [],
-                price_images: item.price_images || [],
-                tpos_product_id: variant.Id,
-                receiving_status: 'pending',
-                notes: "",
-                _isExpanded: true,
-                _parentProductCode: item.product_code,
-                _tempQuantity: variant.QtyAvailable || 0,
-                _tempProductName: variant.Name || variant.NameGet || item.product_name,
-                _tempProductCode: variant.DefaultCode || item.product_code,
-                _tempVariant: variantAttributes,
-                _tempUnitPrice: (variant.PriceVariant || 0) / 1000,
-                _tempSellingPrice: (variant.ListPrice || 0) / 1000,
-                _tempTotalPrice: ((variant.QtyAvailable || 0) * (variant.PriceVariant || 0)) / 1000,
-                _tempProductImages: item.product_images || [],
-                _tempPriceImages: item.price_images || [],
-                _fullTPOSData: variant,
-                _parentTPOSData: fullProductData
+                id: childIndex === 0 ? item.id : undefined, // Keep original ID for first child
+                product_code: child.product_code,
+                product_name: child.product_name,
+                variant: child.variant || "",
+                purchase_price: child.purchase_price || item.purchase_price,
+                selling_price: child.selling_price || item.selling_price,
+                product_images: child.product_images || [],
+                price_images: child.price_images || item.price_images || [],
+                quantity: item.quantity, // Keep original quantity from order
+                notes: childIndex === 0 ? item.notes : "",
+                position: item.position,
+                _tempProductName: child.product_name,
+                _tempProductCode: child.product_code,
+                _tempVariant: child.variant || "",
+                _tempUnitPrice: (child.purchase_price || item.purchase_price) / 1000,
+                _tempSellingPrice: (child.selling_price || item.selling_price) / 1000,
+                _tempTotalPrice: (item.quantity * (child.purchase_price || item.purchase_price)) / 1000,
+                _tempProductImages: child.product_images || [],
+                _tempPriceImages: child.price_images || item.price_images || [],
               });
             });
           } else {
-            console.log("⚠️ No variants found, keeping original item");
+            // Parent has no children, keep as is
             expandedItems.push({
-              ...item,
-              _tempQuantity: item.quantity,
+              id: item.id,
+              product_code: item.product_code,
+              product_name: item.product_name,
+              variant: item.variant || "",
+              purchase_price: item.purchase_price,
+              selling_price: item.selling_price,
+              product_images: item.product_images || [],
+              price_images: item.price_images || [],
+              quantity: item.quantity || 1,
+              notes: item.notes || "",
+              position: item.position,
               _tempProductName: item.product_name,
               _tempProductCode: item.product_code,
               _tempVariant: item.variant || "",
@@ -362,11 +355,19 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             });
           }
         } else {
-          // ⚠️ No tpos_product_id - use DB data as fallback
-          console.log("⚠️ No TPOS ID for:", item.product_code, "- using DB data");
+          // Not a parent, add as is
           expandedItems.push({
-            ...item,
-            _tempQuantity: item.quantity,
+            id: item.id,
+            product_code: item.product_code,
+            product_name: item.product_name,
+            variant: item.variant || "",
+            purchase_price: item.purchase_price,
+            selling_price: item.selling_price,
+            product_images: item.product_images || [],
+            price_images: item.price_images || [],
+            quantity: item.quantity || 1,
+            notes: item.notes || "",
+            position: item.position,
             _tempProductName: item.product_name,
             _tempProductCode: item.product_code,
             _tempVariant: item.variant || "",
@@ -379,8 +380,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       }
       
-      setItems(expandedItems);
-      console.log("✅ Loaded", expandedItems.length, "items from TPOS");
+      if (expandedItems.length > 0) {
+        setItems(expandedItems);
+      }
     };
     
     expandParentProducts();
@@ -415,8 +417,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       _tempProductImages: [],
       _tempPriceImages: [],
     }]);
-    // Clear cache when closing modal without saving
-    setTposVariantsCache({});
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
@@ -890,9 +890,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       return order.id;
     },
     onSuccess: () => {
-      // Clear TPOS variants cache after successful update
-      setTposVariantsCache({});
-      
       // Invalidate queries to refetch fresh data from database
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
@@ -917,147 +914,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   const handleSubmit = () => {
     updateOrderMutation.mutate();
-  };
-
-  const handleUpdateToTPOS = async () => {
-    if (!items || items.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Không có dữ liệu",
-        description: "Vui lòng thêm sản phẩm trước"
-      });
-      return;
-    }
-    
-    // Group items by parent product
-    const productGroups = new Map<string, PurchaseOrderItem[]>();
-    
-    items.forEach(item => {
-      if (item._parentTPOSData) {
-        const parentCode = item._parentProductCode || item.product_code;
-        if (!productGroups.has(parentCode)) {
-          productGroups.set(parentCode, []);
-        }
-        productGroups.get(parentCode)!.push(item);
-      }
-    });
-    
-    if (productGroups.size === 0) {
-      toast({
-        variant: "destructive",
-        title: "Không có dữ liệu TPOS",
-        description: "Các sản phẩm này chưa có thông tin từ TPOS"
-      });
-      return;
-    }
-    
-    setIsUpdatingTPOS(true);
-    
-    try {
-      // Get TPOS token
-      const { data: tokenData } = await supabase
-        .from('tpos_credentials')
-        .select('bearer_token')
-        .eq('token_type', 'tpos')
-        .not('bearer_token', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (!tokenData?.bearer_token) {
-        throw new Error("Không tìm thấy TPOS token");
-      }
-      
-      let successCount = 0;
-      let errorCount = 0;
-      
-      // Update each product group
-      for (const [parentCode, variantItems] of productGroups.entries()) {
-        try {
-          // Get parent data from first item
-          const parentData = variantItems[0]._parentTPOSData;
-          
-          if (!parentData) continue;
-          
-          // Update variants with new values
-          const updatedVariants = parentData.ProductVariants.map((variant: any) => {
-            // Find matching item in our list
-            const matchingItem = variantItems.find(item => 
-              item._fullTPOSData?.Id === variant.Id
-            );
-            
-            if (matchingItem) {
-              // ✅ Update fields from user input
-              return {
-                ...variant,
-                QtyAvailable: matchingItem._tempQuantity, // ✅ Số lượng
-                PriceVariant: Number(matchingItem._tempUnitPrice) * 1000, // ✅ Giá mua (convert to VND)
-                ListPrice: Number(matchingItem._tempSellingPrice) * 1000, // ✅ Giá bán (convert to VND)
-                StandardPrice: Number(matchingItem._tempSellingPrice) * 1000, // Also update StandardPrice
-              };
-            }
-            
-            return variant; // Keep unchanged
-          });
-          
-          // Build payload (FULL product data)
-          const payload = {
-            ...parentData,
-            ProductVariants: updatedVariants
-          };
-          
-          console.log("📤 Updating product:", parentCode, payload);
-          
-          // POST to TPOS
-          const response = await fetch(
-            "https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2",
-            {
-              method: "POST",
-              headers: {
-                'Authorization': `Bearer ${tokenData.bearer_token}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(payload)
-            }
-          );
-          
-          if (response.ok) {
-            successCount++;
-            console.log("✅ Updated:", parentCode);
-          } else {
-            const error = await response.json();
-            console.error("❌ Failed to update:", parentCode, error);
-            errorCount++;
-          }
-        } catch (error) {
-          console.error("❌ Error updating:", parentCode, error);
-          errorCount++;
-        }
-      }
-      
-      // Show result
-      if (successCount > 0) {
-        toast({
-          title: "🎉 Cập nhật thành công!",
-          description: `Đã cập nhật ${successCount} sản phẩm lên TPOS${errorCount > 0 ? ` (${errorCount} thất bại)` : ''}`
-        });
-        
-        // Clear cache to force refetch next time
-        setTposVariantsCache({});
-      } else {
-        throw new Error("Không có sản phẩm nào được cập nhật");
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "❌ Lỗi cập nhật TPOS",
-        description: error instanceof Error ? error.message : "Không thể cập nhật lên TPOS"
-      });
-      console.error("Update error:", error);
-    } finally {
-      setIsUpdatingTPOS(false);
-    }
   };
 
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
@@ -1215,16 +1071,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       <TableCell>
                         <Input
                           type="number"
-                          min="0"
-                          value={item._tempQuantity !== undefined ? item._tempQuantity : item.quantity}
-                          onChange={(e) => {
-                            const newItems = [...items];
-                            const newQty = parseInt(e.target.value) || 0;
-                            newItems[index]._tempQuantity = newQty;
-                            newItems[index].quantity = newQty;
-                            newItems[index]._tempTotalPrice = newQty * Number(newItems[index]._tempUnitPrice || 0);
-                            setItems(newItems);
-                          }}
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 text-center w-[80px]"
                         />
                       </TableCell>
@@ -1392,13 +1241,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Hủy
-            </Button>
-            <Button
-              onClick={handleUpdateToTPOS}
-              disabled={isUpdatingTPOS || items.length === 0}
-              variant="secondary"
-            >
-              {isUpdatingTPOS ? "⏳ Đang cập nhật..." : "📤 Cập nhật lên TPOS"}
             </Button>
             <Button 
               onClick={handleSubmit}
