@@ -614,11 +614,11 @@ export function PurchaseOrderList({
                     <TableCell className="border-r">
                       {variant}
                     </TableCell>
-                    <TableCell className="border-r text-center">
-                      <div className="font-medium">
-                        {variantInfo?.[productCode] ?? '-'}
-                      </div>
-                    </TableCell>
+                  <TableCell className="border-r text-center">
+                    <div className="font-medium">
+                      {flatItem.item?.quantity || 0}
+                    </div>
+                  </TableCell>
                   <TableCell className="border-r text-right overflow-visible">
                     <div className="flex flex-col items-end gap-1">
                       {priceImages && priceImages.length > 0 ? (
