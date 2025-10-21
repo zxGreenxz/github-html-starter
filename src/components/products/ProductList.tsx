@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
 import { toast } from "sonner";
+import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -327,7 +328,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                     </div>
                     {product.variant && (
                       <div className="text-xs text-muted-foreground">
-                        {product.variant}
+                        {formatVariantForDisplay(product.variant)}
                       </div>
                     )}
                     {product.base_product_code && (
@@ -573,7 +574,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{product.variant || "-"}</TableCell>
+                <TableCell className="text-muted-foreground">{formatVariantForDisplay(product.variant) || "-"}</TableCell>
                 <TableCell className="text-muted-foreground text-xs">{product.base_product_code || "-"}</TableCell>
                 <TableCell>{formatVND(product.selling_price)}</TableCell>
                 <TableCell>{formatVND(product.purchase_price)}</TableCell>
