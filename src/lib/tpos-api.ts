@@ -470,7 +470,6 @@ export interface TPOSProductItem {
   base_product_code: string | null;
   product_name: string;
   variant: string | null;
-  variant_metadata?: any | null; // TPOSAttributeLine[] - exact TPOS format for uploads
   quantity: number;
   unit_price: number;
   selling_price: number;

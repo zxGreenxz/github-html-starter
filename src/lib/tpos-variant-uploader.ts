@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { parseVariantStringToAttributeLines } from "./variant-generator-adapter";
 import { generateVariants, type TPOSAttributeLine, type ProductData as VariantProductData } from "./variant-generator";
 import { updateTPOSProductWithVariants } from "./tpos-variant-update";
-import { getAttributeLinesFromProduct, saveVariantMetadata } from "./variant-metadata-helper";
 
 export interface ProductData {
   selling_price: number;
@@ -30,8 +29,7 @@ export async function uploadToTPOSAndCreateVariants(
   productName: string,
   variantText: string,
   productData: ProductData,
-  onProgress?: (message: string) => void,
-  variantMetadata?: TPOSAttributeLine[] | null
+  onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
   console.log('🚀 START uploadToTPOSAndCreateVariants:', { productCode, productName, variantText });
   try {
@@ -73,8 +71,8 @@ export async function uploadToTPOSAndCreateVariants(
       const tposProductId = checkData.value[0].Id;
       onProgress?.("🔄 Cập nhật variants trên TPOS...");
       
-      // Get attribute lines from metadata or parse from text
-      const attributeLines = getAttributeLinesFromProduct(variantMetadata, variantText);
+      // Parse variant text and generate variants
+      const attributeLines = parseVariantStringToAttributeLines(variantText);
       const tempProduct: VariantProductData = {
         Id: tposProductId,
         Name: productName,
@@ -94,7 +92,7 @@ export async function uploadToTPOSAndCreateVariants(
     } else {
       // Product doesn't exist - create new with variants
       onProgress?.("🆕 Tạo sản phẩm mới trên TPOS...");
-      const variants = await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress, variantMetadata);
+      const variants = await createNewProductOnTPOS(productCode, productName, variantText, productData, headers, onProgress);
       return variants;
     }
   } catch (error: any) {
@@ -109,11 +107,10 @@ async function createNewProductOnTPOS(
   variantText: string,
   productData: ProductData,
   headers: any,
-  onProgress?: (message: string) => void,
-  variantMetadata?: TPOSAttributeLine[] | null
+  onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
-  // Get attribute lines from metadata or parse from text
-  const attributeLines = getAttributeLinesFromProduct(variantMetadata, variantText);
+  // Parse variant text to attribute lines using new generator
+  const attributeLines = parseVariantStringToAttributeLines(variantText);
 
   // Generate variants using new generator
   const tempProduct: VariantProductData = {
@@ -212,14 +209,6 @@ async function createNewProductOnTPOS(
   onProgress?.(`✅ Tạo TPOS thành công - ID: ${data.Id}`);
 
   if (data.Id) {
-    // Save attributeLines metadata for future accurate uploads
-    try {
-      await saveVariantMetadata(productCode, attributeLines);
-      console.log('✅ Saved variant metadata for future uploads');
-    } catch (metadataError) {
-      console.error('⚠️ Failed to save variant metadata (non-critical):', metadataError);
-    }
-    
     console.log(`🔍 Calling fetchAndSaveVariantsFromTPOS with ID: ${data.Id}`);
     const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
     console.log(`✅ fetchAndSaveVariantsFromTPOS returned ${variantProducts.length} variants`);

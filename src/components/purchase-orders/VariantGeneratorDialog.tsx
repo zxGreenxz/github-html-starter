@@ -16,7 +16,6 @@ import {
   ProductData,
   TPOSAttributeValue
 } from "@/lib/variant-generator";
-import { saveVariantMetadata } from "@/lib/variant-metadata-helper";
 
 interface AttributeLine {
   attributeId: number;
@@ -194,7 +193,7 @@ export function VariantGeneratorDialog({
     setValueFilter("");
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (attributeLines.length === 0) {
       toast({
         title: "⚠️ Chưa có thuộc tính",
@@ -265,27 +264,6 @@ export function VariantGeneratorDialog({
       }));
 
       console.log('✅ Generated variants:', variantsForForm);
-
-      // ✅ STEP 6: Save variant metadata for future accurate uploads (only if product exists in DB)
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data: existingProduct } = await supabase
-        .from('products')
-        .select('product_code')
-        .eq('product_code', currentItem.product_code.trim().toUpperCase())
-        .eq('base_product_code', currentItem.product_code.trim().toUpperCase())
-        .single();
-      
-      if (existingProduct) {
-        saveVariantMetadata(currentItem.product_code.trim().toUpperCase(), tposAttributeLines)
-          .then(() => {
-            console.log('✅ Saved variant metadata for', currentItem.product_code);
-          })
-          .catch((error) => {
-            console.error('⚠️ Failed to save variant metadata (non-critical):', error);
-          });
-      } else {
-        console.log('ℹ️ Product not in DB yet, metadata will be saved during TPOS upload');
-      }
 
       onVariantsGenerated(variantsForForm);
     }
