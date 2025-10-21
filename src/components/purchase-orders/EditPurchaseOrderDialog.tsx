@@ -90,6 +90,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [shippingFee, setShippingFee] = useState<number>(0);
   const [showShippingFee, setShowShippingFee] = useState(false);
+  const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
+  const [variantsMap, setVariantsMap] = useState<Record<string, any[]>>({});
+  const [parentProductVariant, setParentProductVariant] = useState<string>("");
   const [items, setItems] = useState<PurchaseOrderItem[]>([
     { 
       product_code: "",
@@ -225,169 +228,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   }, [existingItems, open]);
 
-  // Expand parent products into their children
-  useEffect(() => {
-    const expandParentProducts = async () => {
-      if (!existingItems || existingItems.length === 0 || !open) return;
-      
-      const expandedItems: PurchaseOrderItem[] = [];
-      
-      for (const item of existingItems) {
-        // Check if this product_code is a parent product
-        const { data: productData, error: productError } = await supabase
-          .from("products")
-          .select("product_code, base_product_code")
-          .eq("product_code", item.product_code)
-          .maybeSingle();
-        
-        if (productError) {
-          console.error("Error checking parent product:", productError);
-          expandedItems.push({
-            id: item.id,
-            product_code: item.product_code,
-            product_name: item.product_name,
-            variant: item.variant || "",
-            purchase_price: item.purchase_price,
-            selling_price: item.selling_price,
-            product_images: item.product_images || [],
-            price_images: item.price_images || [],
-            quantity: item.quantity || 1,
-            notes: item.notes || "",
-            position: item.position,
-            _tempProductName: item.product_name,
-            _tempProductCode: item.product_code,
-            _tempVariant: item.variant || "",
-            _tempUnitPrice: Number(item.purchase_price) / 1000,
-            _tempSellingPrice: Number(item.selling_price) / 1000,
-            _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-            _tempProductImages: item.product_images || [],
-            _tempPriceImages: item.price_images || [],
-          });
-          continue;
-        }
-        
-        // If product is parent (product_code == base_product_code)
-        const isParent = productData && 
-                         productData.product_code === productData.base_product_code;
-        
-        if (isParent) {
-          // Fetch all child variants
-          const { data: childProducts, error: childError } = await supabase
-            .from("products")
-            .select("*")
-            .eq("base_product_code", item.product_code)
-            .neq("product_code", item.product_code)
-            .order("created_at", { ascending: true });
-          
-          if (childError) {
-            console.error("Error fetching child products:", childError);
-            expandedItems.push({
-              id: item.id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variant: item.variant || "",
-              purchase_price: item.purchase_price,
-              selling_price: item.selling_price,
-              product_images: item.product_images || [],
-              price_images: item.price_images || [],
-              quantity: item.quantity || 1,
-              notes: item.notes || "",
-              position: item.position,
-              _tempProductName: item.product_name,
-              _tempProductCode: item.product_code,
-              _tempVariant: item.variant || "",
-              _tempUnitPrice: Number(item.purchase_price) / 1000,
-              _tempSellingPrice: Number(item.selling_price) / 1000,
-              _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-              _tempProductImages: item.product_images || [],
-              _tempPriceImages: item.price_images || [],
-            });
-            continue;
-          }
-          
-          if (childProducts && childProducts.length > 0) {
-            // Add all children instead of parent
-            childProducts.forEach((child, childIndex) => {
-              expandedItems.push({
-                id: childIndex === 0 ? item.id : undefined, // Keep original ID for first child
-                product_code: child.product_code,
-                product_name: child.product_name,
-                variant: child.variant || "",
-                purchase_price: child.purchase_price || item.purchase_price,
-                selling_price: child.selling_price || item.selling_price,
-                product_images: child.product_images || [],
-                price_images: child.price_images || item.price_images || [],
-                quantity: item.quantity, // Keep original quantity from order
-                notes: childIndex === 0 ? item.notes : "",
-                position: item.position,
-                _tempProductName: child.product_name,
-                _tempProductCode: child.product_code,
-                _tempVariant: child.variant || "",
-                _tempUnitPrice: (child.purchase_price || item.purchase_price) / 1000,
-                _tempSellingPrice: (child.selling_price || item.selling_price) / 1000,
-                _tempTotalPrice: (item.quantity * (child.purchase_price || item.purchase_price)) / 1000,
-                _tempProductImages: child.product_images || [],
-                _tempPriceImages: child.price_images || item.price_images || [],
-              });
-            });
-          } else {
-            // Parent has no children, keep as is
-            expandedItems.push({
-              id: item.id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variant: item.variant || "",
-              purchase_price: item.purchase_price,
-              selling_price: item.selling_price,
-              product_images: item.product_images || [],
-              price_images: item.price_images || [],
-              quantity: item.quantity || 1,
-              notes: item.notes || "",
-              position: item.position,
-              _tempProductName: item.product_name,
-              _tempProductCode: item.product_code,
-              _tempVariant: item.variant || "",
-              _tempUnitPrice: Number(item.purchase_price) / 1000,
-              _tempSellingPrice: Number(item.selling_price) / 1000,
-              _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-              _tempProductImages: item.product_images || [],
-              _tempPriceImages: item.price_images || [],
-            });
-          }
-        } else {
-          // Not a parent, add as is
-          expandedItems.push({
-            id: item.id,
-            product_code: item.product_code,
-            product_name: item.product_name,
-            variant: item.variant || "",
-            purchase_price: item.purchase_price,
-            selling_price: item.selling_price,
-            product_images: item.product_images || [],
-            price_images: item.price_images || [],
-            quantity: item.quantity || 1,
-            notes: item.notes || "",
-            position: item.position,
-            _tempProductName: item.product_name,
-            _tempProductCode: item.product_code,
-            _tempVariant: item.variant || "",
-            _tempUnitPrice: Number(item.purchase_price) / 1000,
-            _tempSellingPrice: Number(item.selling_price) / 1000,
-            _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-            _tempProductImages: item.product_images || [],
-            _tempPriceImages: item.price_images || [],
-          });
-        }
-      }
-      
-      if (expandedItems.length > 0) {
-        setItems(expandedItems);
-      }
-    };
-    
-    expandParentProducts();
-  }, [existingItems, open]);
-
   const resetForm = () => {
     setSupplierName("");
     setOrderDate(new Date().toISOString());
@@ -431,6 +271,45 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     
     setItems(newItems);
   };
+
+  const toggleExpandVariants = (index: number, open: boolean) => {
+    setExpandedVariants(prev => ({
+      ...prev,
+      [index]: open
+    }));
+  };
+
+  // Load variants when product codes change
+  useEffect(() => {
+    const loadVariantsForItems = async () => {
+      const productCodes = items
+        .map(item => item._tempProductCode)
+        .filter(code => code && code.trim().length > 0);
+      
+      if (productCodes.length === 0) return;
+      
+      const uniqueCodes = Array.from(new Set(productCodes));
+      const newVariantsMap: Record<string, any[]> = {};
+      
+      for (const code of uniqueCodes) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_code, product_name, variant")
+          .eq("base_product_code", code)
+          .not("variant", "is", null)
+          .neq("variant", "")
+          .neq("product_code", code);
+        
+        if (!error && data) {
+          newVariantsMap[code] = data;
+        }
+      }
+      
+      setVariantsMap(newVariantsMap);
+    };
+    
+    loadVariantsForItems();
+  }, [items.map(i => i._tempProductCode).join(',')]);
 
   const addItem = () => {
     setItems([...items, {
@@ -804,6 +683,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       .eq("product_code", item._tempProductCode)
       .single();
     
+    if (!error && data?.variant) {
+      setParentProductVariant(data.variant);
+    } else {
+      setParentProductVariant("");
+    }
+    
     setVariantGeneratorIndex(index);
     setIsVariantDialogOpen(true);
   };
@@ -1035,12 +920,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableHead className="w-16">STT</TableHead>
                     <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
                     <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
-                    <TableHead className="w-[80px]">SL</TableHead>
+                    <TableHead className="w-[60px]">SL</TableHead>
                     <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
                     <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
                     <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh Giá mua</TableHead>
+                    <TableHead className="w-[150px]">Biến thể</TableHead>
                     <TableHead className="w-16">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1074,7 +960,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center w-[80px]"
+                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center"
                         />
                       </TableCell>
                       <TableCell>
@@ -1114,6 +1000,76 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           itemIndex={index}
                         />
                       </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          {/* Input chính + nút Sparkles */}
+                          <div className="flex items-center gap-1">
+                            <VariantDropdownSelector
+                              baseProductCode={item._tempProductCode}
+                              value={item._tempVariant}
+                              onChange={(value) => updateItem(index, "_tempVariant", value)}
+                              onVariantSelect={(data) => {
+                                updateItem(index, "_tempProductCode", data.productCode);
+                                updateItem(index, "_tempProductName", data.productName);
+                                updateItem(index, "_tempVariant", data.variant);
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => openVariantGenerator(index)}
+                              title="Tạo biến thể tự động"
+                            >
+                              <Sparkles className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Collapsible danh sách biến thể */}
+                          {variantsMap[item._tempProductCode] && variantsMap[item._tempProductCode].length > 0 && (
+                            <Collapsible 
+                              open={expandedVariants[index]} 
+                              onOpenChange={(open) => toggleExpandVariants(index, open)}
+                            >
+                              <CollapsibleTrigger asChild>
+                                <div className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors">
+                                  <ChevronDown className={cn(
+                                    "w-3 h-3 transition-transform",
+                                    expandedVariants[index] ? "" : "-rotate-90"
+                                  )} />
+                                  <span>
+                                    {variantsMap[item._tempProductCode].length} biến thể
+                                  </span>
+                                </div>
+                              </CollapsibleTrigger>
+                              
+                              <CollapsibleContent>
+                                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto border rounded p-2 bg-muted/30">
+                                  {variantsMap[item._tempProductCode].map((variant: any) => (
+                                    <div
+                                      key={variant.id}
+                                      onClick={() => {
+                                        updateItem(index, "_tempProductCode", variant.product_code);
+                                        updateItem(index, "_tempProductName", variant.product_name);
+                                        updateItem(index, "_tempVariant", variant.variant);
+                                      }}
+                                      className={cn(
+                                        "flex items-center justify-between p-2 rounded cursor-pointer transition-colors text-xs",
+                                        "hover:bg-accent",
+                                        variant.variant === item._tempVariant && "bg-primary/10 border border-primary/20"
+                                      )}
+                                    >
+                                      <span className="font-medium">{variant.variant}</span>
+                                      <span className="text-muted-foreground">{variant.product_code}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Button 
@@ -1133,6 +1089,15 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                             title="Sao chép dòng"
                           >
                             <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            onClick={() => removeItem(index)} 
+                            size="sm" 
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                            title="Xóa dòng"
+                          >
+                            <X className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1266,7 +1231,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           currentItem={{
             product_code: items[variantGeneratorIndex]._tempProductCode,
             product_name: items[variantGeneratorIndex]._tempProductName,
-            variant: items[variantGeneratorIndex]._tempVariant || ""
+            variant: parentProductVariant
           }}
           onVariantsGenerated={(variantText) => {
             handleVariantsGenerated(variantGeneratorIndex, variantText);
