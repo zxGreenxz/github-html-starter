@@ -132,7 +132,7 @@ export function UnifiedImageUpload({
     if (isSingle) {
       const url = await uploadImage(limitedFiles[0]);
       if (url) {
-        onChange(url);
+        onChange([url]);
         toast.success("Đã tải ảnh lên");
       }
     } else {
@@ -222,7 +222,7 @@ export function UnifiedImageUpload({
 
   const removeImage = (index: number) => {
     if (isSingle) {
-      onChange('');
+      onChange([]);
     } else {
       const newImages = images.filter((_, i) => i !== index);
       onChange(newImages);
