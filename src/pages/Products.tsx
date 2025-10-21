@@ -66,11 +66,11 @@ export default function Products() {
   // Apply product type filter on client side
   const products = productsRaw.filter(product => {
     if (productTypeFilter === "parent") {
-      // Sản phẩm cha: product_code === base_product_code
-      return product.product_code === product.base_product_code;
+      // Sản phẩm: tpos_product_id không null (đã có trên TPOS)
+      return product.tpos_product_id !== null;
     } else if (productTypeFilter === "variant") {
-      // Biến thể: product_code !== base_product_code
-      return product.base_product_code && product.product_code !== product.base_product_code;
+      // Biến thể: tpos_product_id là null (chưa có trên TPOS)
+      return product.tpos_product_id === null;
     }
     // "all": return everything
     return true;
