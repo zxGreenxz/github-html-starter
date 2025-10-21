@@ -51,9 +51,10 @@ interface PurchaseOrderItem {
 interface CreatePurchaseOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialData?: any | null;
 }
 
-export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchaseOrderDialogProps) {
+export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: CreatePurchaseOrderDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -103,6 +104,39 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     500
   );
 
+  // Load initial data when dialog opens with draft
+  useEffect(() => {
+    if (open && initialData) {
+      setFormData({
+        supplier_name: initialData.supplier_name || "",
+        order_date: initialData.order_date || new Date().toISOString(),
+        notes: initialData.notes || "",
+        invoice_images: initialData.invoice_images || [],
+        invoice_amount: initialData.invoice_amount || 0,
+        discount_amount: (initialData.discount_amount || 0) / 1000,
+        shipping_fee: (initialData.shipping_fee || 0) / 1000
+      });
+
+      if (initialData.items && initialData.items.length > 0) {
+        const loadedItems = initialData.items.map((item: any) => ({
+          quantity: item.quantity || 1,
+          notes: item.notes || "",
+          product_code: item.product_code || "",
+          product_name: item.product_name || "",
+          variant: item.variant || "",
+          purchase_price: (item.purchase_price || 0) / 1000,
+          selling_price: (item.selling_price || 0) / 1000,
+          product_images: item.product_images || [],
+          price_images: item.price_images || [],
+          _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
+        }));
+        setItems(loadedItems);
+      }
+      
+      setShowShippingFee((initialData.shipping_fee || 0) > 0);
+    }
+  }, [open, initialData]);
+
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
@@ -125,6 +159,128 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     });
   }, [debouncedProductNames, manualProductCodes]);
 
+
+  const saveDraftMutation = useMutation({
+    mutationFn: async () => {
+      const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
+      const discountAmount = formData.discount_amount * 1000;
+      const shippingFee = formData.shipping_fee * 1000;
+      const finalAmount = totalAmount - discountAmount + shippingFee;
+
+      // If editing existing draft, update it
+      if (initialData?.id) {
+        const { data: order, error: orderError } = await supabase
+          .from("purchase_orders")
+          .update({
+            supplier_name: formData.supplier_name.trim().toUpperCase() || null,
+            order_date: formData.order_date,
+            total_amount: totalAmount,
+            final_amount: finalAmount,
+            discount_amount: discountAmount,
+            shipping_fee: shippingFee,
+            invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
+            notes: formData.notes.trim().toUpperCase() || null,
+            status: 'draft'
+          })
+          .eq("id", initialData.id)
+          .select()
+          .single();
+
+        if (orderError) throw orderError;
+
+        // Delete existing items and re-insert
+        await supabase
+          .from("purchase_order_items")
+          .delete()
+          .eq("purchase_order_id", initialData.id);
+
+        if (items.some(item => item.product_name.trim())) {
+          const orderItems = items
+            .filter(item => item.product_name.trim())
+            .map((item, index) => ({
+              purchase_order_id: order.id,
+              quantity: item.quantity,
+              position: index + 1,
+              notes: item.notes.trim().toUpperCase() || null,
+              product_code: item.product_code.trim().toUpperCase() || null,
+              product_name: item.product_name.trim().toUpperCase(),
+              variant: item.variant?.trim().toUpperCase() || null,
+              purchase_price: Number(item.purchase_price || 0) * 1000,
+              selling_price: Number(item.selling_price || 0) * 1000,
+              product_images: Array.isArray(item.product_images) ? item.product_images : [],
+              price_images: Array.isArray(item.price_images) ? item.price_images : []
+            }));
+
+          const { error: itemsError } = await supabase
+            .from("purchase_order_items")
+            .insert(orderItems);
+
+          if (itemsError) throw itemsError;
+        }
+
+        return order;
+      }
+
+      // Create new draft
+      const { data: order, error: orderError } = await supabase
+        .from("purchase_orders")
+        .insert({
+          supplier_name: formData.supplier_name.trim().toUpperCase() || null,
+          order_date: formData.order_date,
+          total_amount: totalAmount,
+          final_amount: finalAmount,
+          discount_amount: discountAmount,
+          shipping_fee: shippingFee,
+          invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
+          notes: formData.notes.trim().toUpperCase() || null,
+          status: 'draft'
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create items if any
+      if (items.some(item => item.product_name.trim())) {
+        const orderItems = items
+          .filter(item => item.product_name.trim())
+          .map((item, index) => ({
+            purchase_order_id: order.id,
+            quantity: item.quantity,
+            position: index + 1,
+            notes: item.notes.trim().toUpperCase() || null,
+            product_code: item.product_code.trim().toUpperCase() || null,
+            product_name: item.product_name.trim().toUpperCase(),
+            variant: item.variant?.trim().toUpperCase() || null,
+            purchase_price: Number(item.purchase_price || 0) * 1000,
+            selling_price: Number(item.selling_price || 0) * 1000,
+            product_images: Array.isArray(item.product_images) ? item.product_images : [],
+            price_images: Array.isArray(item.price_images) ? item.price_images : []
+          }));
+
+        const { error: itemsError } = await supabase
+          .from("purchase_order_items")
+          .insert(orderItems);
+
+        if (itemsError) throw itemsError;
+      }
+
+      return order;
+    },
+    onSuccess: () => {
+      toast({ title: "Đã lưu nháp!" });
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Lỗi lưu nháp",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
@@ -149,7 +305,123 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       const shippingFee = formData.shipping_fee * 1000;
       const finalAmount = totalAmount - discountAmount + shippingFee;
 
-      // Step 1: Create purchase_order
+      // If editing draft, update and change status to pending
+      if (initialData?.id && initialData?.status === 'draft') {
+        const { data: order, error: orderError } = await supabase
+          .from("purchase_orders")
+          .update({
+            supplier_name: formData.supplier_name.trim().toUpperCase(),
+            order_date: formData.order_date,
+            total_amount: totalAmount,
+            final_amount: finalAmount,
+            discount_amount: discountAmount,
+            shipping_fee: shippingFee,
+            invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
+            notes: formData.notes.trim().toUpperCase(),
+            status: 'pending'
+          })
+          .eq("id", initialData.id)
+          .select()
+          .single();
+
+        if (orderError) throw orderError;
+
+        // Delete and recreate items
+        await supabase
+          .from("purchase_order_items")
+          .delete()
+          .eq("purchase_order_id", initialData.id);
+
+        const orderItems = items
+          .filter(item => item.product_name.trim())
+          .map((item, index) => ({
+            purchase_order_id: order.id,
+            quantity: item.quantity,
+            position: index + 1,
+            notes: item.notes.trim().toUpperCase() || null,
+            product_code: item.product_code.trim().toUpperCase(),
+            product_name: item.product_name.trim().toUpperCase(),
+            variant: item.variant?.trim().toUpperCase() || null,
+            purchase_price: Number(item.purchase_price || 0) * 1000,
+            selling_price: Number(item.selling_price || 0) * 1000,
+            product_images: Array.isArray(item.product_images) 
+              ? item.product_images 
+              : (item.product_images ? [item.product_images] : []),
+            price_images: Array.isArray(item.price_images) 
+              ? item.price_images 
+              : (item.price_images ? [item.price_images] : [])
+          }));
+
+        const { error: itemsError } = await supabase
+          .from("purchase_order_items")
+          .insert(orderItems);
+
+        if (itemsError) throw itemsError;
+
+        // Create parent products (same logic as before)
+        const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
+
+        for (const item of items.filter(i => i.product_name.trim())) {
+          const productCode = item.product_code.trim().toUpperCase();
+          const variantText = item.variant?.trim().toUpperCase();
+          
+          if (!parentProductsMap.has(productCode)) {
+            parentProductsMap.set(productCode, {
+              variants: new Set(),
+              data: {
+                product_code: productCode,
+                base_product_code: productCode,
+                product_name: item.product_name.trim().toUpperCase(),
+                purchase_price: Number(item.purchase_price || 0) * 1000,
+                selling_price: Number(item.selling_price || 0) * 1000,
+                supplier_name: formData.supplier_name.trim().toUpperCase(),
+                product_images: Array.isArray(item.product_images) 
+                  ? item.product_images 
+                  : (item.product_images ? [item.product_images] : []),
+                price_images: Array.isArray(item.price_images) 
+                  ? item.price_images 
+                  : (item.price_images ? [item.price_images] : []),
+                stock_quantity: 0,
+                unit: 'Cái'
+              }
+            });
+          }
+          
+          if (variantText) {
+            parentProductsMap.get(productCode)!.variants.add(variantText);
+          }
+        }
+
+        const parentProducts: any[] = [];
+        for (const [productCode, { variants, data }] of parentProductsMap) {
+          const { data: existing } = await supabase
+            .from("products")
+            .select("product_code")
+            .eq("product_code", productCode)
+            .maybeSingle();
+          
+          if (!existing) {
+            data.variant = variants.size > 0 ? Array.from(variants).join(', ') : null;
+            parentProducts.push(data);
+          }
+        }
+
+        if (parentProducts.length > 0) {
+          const { error: productsError } = await supabase
+            .from("products")
+            .insert(parentProducts);
+          
+          if (productsError) {
+            console.error("Error creating parent products:", productsError);
+          } else {
+            console.log(`✅ Created ${parentProducts.length} parent products`);
+          }
+        }
+
+        return order;
+      }
+
+      // Step 1: Create purchase_order (new order)
       const { data: order, error: orderError } = await supabase
         .from("purchase_orders")
         .insert({
@@ -1010,16 +1282,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             </div>
           </div>
 
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Hủy
-            </Button>
+          <div className="flex gap-2 justify-between">
             <Button 
-              onClick={() => createOrderMutation.mutate()}
-              disabled={createOrderMutation.isPending}
+              variant="outline"
+              onClick={() => saveDraftMutation.mutate()}
+              disabled={saveDraftMutation.isPending}
             >
-              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+              {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
             </Button>
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Hủy
+              </Button>
+              <Button 
+                onClick={() => createOrderMutation.mutate()}
+                disabled={createOrderMutation.isPending}
+              >
+                {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

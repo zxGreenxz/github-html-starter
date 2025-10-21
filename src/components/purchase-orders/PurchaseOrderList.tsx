@@ -73,6 +73,7 @@ interface PurchaseOrderListProps {
   selectedOrders: string[];
   onToggleSelect: (orderId: string) => void;
   onToggleSelectAll: () => void;
+  onEditDraft?: (order: PurchaseOrder) => void;
 }
 
 export function PurchaseOrderList({
@@ -91,6 +92,7 @@ export function PurchaseOrderList({
   selectedOrders,
   onToggleSelect,
   onToggleSelectAll,
+  onEditDraft,
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -236,6 +238,8 @@ export function PurchaseOrderList({
     }
     
     switch (status) {
+      case "draft":
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Nháp</Badge>;
       case "pending":
         return <Badge variant="secondary">Chờ Hàng</Badge>;
       case "received":
@@ -694,14 +698,25 @@ export function PurchaseOrderList({
                         className="border-r text-center" 
                         rowSpan={flatItem.itemCount}
                       >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditOrder(flatItem)}
-                          title="Chỉnh sửa đơn hàng"
-                        >
-                          <Pencil className="w-4 h-4 text-blue-600" />
-                        </Button>
+                        {flatItem.status === 'draft' ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEditDraft?.(flatItem)}
+                            title="Chỉnh sửa nháp"
+                          >
+                            <Pencil className="w-4 h-4 text-amber-600" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditOrder(flatItem)}
+                            title="Chỉnh sửa đơn hàng"
+                          >
+                            <Pencil className="w-4 h-4 text-blue-600" />
+                          </Button>
+                        )}
                       </TableCell>
                     </>
                   )}

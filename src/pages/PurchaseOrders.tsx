@@ -60,6 +60,7 @@ const PurchaseOrders = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [isUploadTPOSDialogOpen, setIsUploadTPOSDialogOpen] = useState(false);
+  const [draftToEdit, setDraftToEdit] = useState<PurchaseOrder | null>(null);
   const isMobile = useIsMobile();
   
   const queryClient = useQueryClient();
@@ -258,6 +259,22 @@ const PurchaseOrders = () => {
     
     return matchesSearch && matchesStatus;
   }) || [];
+
+  // Separate draft orders from active orders
+  const draftOrders = orders?.filter(order => order.status === 'draft') || [];
+  const activeOrders = filteredOrders.filter(order => order.status !== 'draft');
+
+  const handleEditDraft = (order: PurchaseOrder) => {
+    setDraftToEdit(order);
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleCloseCreateDialog = (open: boolean) => {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      setDraftToEdit(null);
+    }
+  };
 
   const handleExportExcel = () => {
     // Use selected orders if any, otherwise use filtered orders
@@ -558,10 +575,14 @@ const PurchaseOrders = () => {
       />
 
       <Tabs defaultValue="orders" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="orders" className="gap-2">
             <FileText className="w-4 h-4" />
-            Đơn đặt hàng
+            Đơn hàng
+          </TabsTrigger>
+          <TabsTrigger value="drafts" className="gap-2">
+            <FileText className="w-4 h-4" />
+            Nháp ({draftOrders.length})
           </TabsTrigger>
           <TabsTrigger value="products" className="gap-2">
             <Package className="w-4 h-4" />
@@ -641,7 +662,7 @@ const PurchaseOrders = () => {
             </CardHeader>
             <CardContent>
             <PurchaseOrderList
-              filteredOrders={filteredOrders}
+              filteredOrders={activeOrders}
               isLoading={isLoading}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
@@ -657,6 +678,37 @@ const PurchaseOrders = () => {
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
             />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Đơn hàng nháp</CardTitle>
+              <CardDescription>
+                Các đơn đặt hàng đã lưu nháp, chưa hoàn tất
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PurchaseOrderList
+                filteredOrders={draftOrders}
+                isLoading={isLoading}
+                searchTerm=""
+                setSearchTerm={() => {}}
+                statusFilter="all"
+                setStatusFilter={() => {}}
+                dateFrom={undefined}
+                setDateFrom={() => {}}
+                dateTo={undefined}
+                setDateTo={() => {}}
+                quickFilter="all"
+                applyQuickFilter={() => {}}
+                selectedOrders={[]}
+                onToggleSelect={() => {}}
+                onToggleSelectAll={() => {}}
+                onEditDraft={handleEditDraft}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -682,7 +734,8 @@ const PurchaseOrders = () => {
 
       <CreatePurchaseOrderDialog 
         open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
+        onOpenChange={handleCloseCreateDialog}
+        initialData={draftToEdit}
       />
 
       <BulkTPOSUploadDialog
