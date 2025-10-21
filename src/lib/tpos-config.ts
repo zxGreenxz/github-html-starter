@@ -104,6 +104,7 @@ export function getTPOSHeaders(bearerToken: string) {
     "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
     "content-type": "application/json;charset=UTF-8",
     authorization: `Bearer ${bearerToken}`,
+    "x-tpos-lang": "vi",
     origin: "https://tomato.tpos.vn",
     referer: "https://tomato.tpos.vn/",
     "sec-ch-ua": '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
