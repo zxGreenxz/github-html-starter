@@ -293,14 +293,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           })
           .eq("product_code", rootProductCode);
         
-        if (!error) {
-          createdCount++;
-          // Update purchase_order_items
-          await supabase
-            .from('purchase_order_items')
-            .update({ tpos_product_id: tposProductId })
-            .eq('product_code', rootProductCode);
-        }
+        if (!error) createdCount++;
       } else {
         // Insert new
         const { error } = await supabase
@@ -345,14 +338,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           })
           .eq("product_code", rootProductCode);
         
-        if (!error) {
-          createdCount++;
-          // Update purchase_order_items
-          await supabase
-            .from('purchase_order_items')
-            .update({ tpos_product_id: tposProductId })
-            .eq('product_code', rootProductCode);
-        }
+        if (!error) createdCount++;
       } else {
         // Insert new
         const { error } = await supabase
@@ -371,14 +357,7 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
             tpos_product_id: tposProductId
           });
         
-        if (!error) {
-          createdCount++;
-          // Update purchase_order_items
-          await supabase
-            .from('purchase_order_items')
-            .update({ tpos_product_id: tposProductId })
-            .eq('product_code', rootProductCode);
-        }
+        if (!error) createdCount++;
       }
     } else {
       // Multiple variants - create separate products with unique codes
@@ -416,11 +395,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
         if (!error) {
           console.log(`    ✅ Created base product: ${rootProductCode}`);
           createdCount++;
-          // Update purchase_order_items
-          await supabase
-            .from('purchase_order_items')
-            .update({ tpos_product_id: tposProductId })
-            .eq('product_code', rootProductCode);
         } else {
           console.error(`    ❌ Failed to create base product ${rootProductCode}:`, error);
         }
@@ -531,11 +505,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           if (!error) {
             createdCount++;
             console.log(`    ✅ Updated: ${variantProductCode} (${variantName}, added qty: ${quantity})`);
-            // Update purchase_order_items
-            await supabase
-              .from('purchase_order_items')
-              .update({ tpos_product_id: tposProductId })
-              .eq('product_code', variantProductCode);
           } else {
             console.error(`    ❌ Failed to update ${variantProductCode}:`, error);
           }
@@ -560,11 +529,6 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
           if (!error) {
             createdCount++;
             console.log(`    ✅ Created: ${variantProductCode} (${variantName}, qty: ${quantity})`);
-            // Update purchase_order_items
-            await supabase
-              .from('purchase_order_items')
-              .update({ tpos_product_id: tposProductId })
-              .eq('product_code', variantProductCode);
           } else {
             console.error(`    ❌ Failed to create ${variantProductCode}:`, error);
           }

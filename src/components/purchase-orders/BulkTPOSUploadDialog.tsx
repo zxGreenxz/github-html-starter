@@ -803,23 +803,6 @@ export function BulkTPOSUploadDialog({
 
         console.log(`[Upload TPOS] ✅ Saved tpos_product_id=${tposProductId} for parent ${code}`);
         
-        // STEP 7.6: Update purchase_order_items with tpos_product_id
-        console.log(`[Upload TPOS] Updating purchase_order_items for product_code=${code}`);
-        
-        const { error: poItemsError } = await supabase
-          .from('purchase_order_items')
-          .update({ 
-            tpos_product_id: tposProductId,
-            updated_at: new Date().toISOString()
-          })
-          .eq('product_code', code);
-
-        if (poItemsError) {
-          console.error(`[Upload TPOS] Failed to update purchase_order_items:`, poItemsError);
-        } else {
-          console.log(`[Upload TPOS] ✅ Updated purchase_order_items with tpos_product_id=${tposProductId}`);
-        }
-        
         // STEP 8: Fetch variants from TPOS
         const fetchUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
         const fetchResponse = await fetch(fetchUrl, { headers });
