@@ -488,7 +488,36 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   };
 
   const openVariantGenerator = (index: number) => {
-    // No validation - allow opening variant generator anytime
+    const item = items[index];
+    
+    // Validation: Require product name, code, and images
+    if (!item.product_name?.trim()) {
+      toast({
+        title: "⚠️ Thiếu thông tin",
+        description: "Vui lòng nhập Tên sản phẩm trước khi tạo biến thể",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!item.product_code?.trim()) {
+      toast({
+        title: "⚠️ Thiếu thông tin",
+        description: "Vui lòng nhập Mã sản phẩm trước khi tạo biến thể",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!item.product_images || item.product_images.length === 0) {
+      toast({
+        title: "⚠️ Thiếu thông tin",
+        description: "Vui lòng upload Hình ảnh sản phẩm trước khi tạo biến thể",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setVariantGeneratorIndex(index);
     setIsVariantDialogOpen(true);
   };
@@ -720,9 +749,24 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className={cn(
+                    "h-8 w-8 shrink-0",
+                    (!item.product_name?.trim() || !item.product_code?.trim() || !item.product_images || item.product_images.length === 0)
+                      ? "opacity-40 cursor-not-allowed"
+                      : ""
+                  )}
                   onClick={() => openVariantGenerator(index)}
-                  title="Tạo biến thể tự động"
+                  disabled={
+                    !item.product_name?.trim() || 
+                    !item.product_code?.trim() || 
+                    !item.product_images || 
+                    item.product_images.length === 0
+                  }
+                  title={
+                    (!item.product_name?.trim() || !item.product_code?.trim() || !item.product_images || item.product_images.length === 0)
+                      ? "Vui lòng nhập Tên SP, Mã SP và upload Hình ảnh trước"
+                      : "Tạo biến thể tự động"
+                  }
                 >
                   <Sparkles className="h-4 w-4" />
                 </Button>
