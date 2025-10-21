@@ -71,69 +71,92 @@ const ATTRIBUTE_MAP = {
 function parseVariantToAttributeLines(variantStr: string): AttributeLine[] {
   if (!variantStr || variantStr.trim() === '') return [];
 
-  // Remove parentheses and split by space or comma
-  const cleanStr = variantStr.replace(/[()]/g, ' ');
-  const parts = cleanStr
-    .split(/[\s,]+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-    // Keep original case for proper number matching
-
   const attributeLines: AttributeLine[] = [];
 
-  for (const part of parts) {
-    const partUpper = part.toUpperCase();
+  // ✅ STEP 1: Parse groups in parentheses ()
+  const groupPattern = /\(([^)]+)\)/g;
+  const groups: string[] = [];
+  let match;
+  
+  while ((match = groupPattern.exec(variantStr)) !== null) {
+    groups.push(match[1]);
+  }
+
+  // ✅ STEP 2: Fallback to old format if no parentheses found
+  if (groups.length === 0) {
+    const cleanStr = variantStr.replace(/[()]/g, '');
+    const parts = cleanStr
+      .split(/[\s,]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
     
-    // Check each attribute type
-    Object.entries(ATTRIBUTE_MAP).forEach(([attrId, attrInfo]) => {
-      // ✅ STEP 1: Prioritize exact match (Name or Code)
-      let match = attrInfo.values.find(
-        v => v.Name.toUpperCase() === partUpper || 
-             v.Code.toUpperCase() === partUpper
-      );
+    if (parts.length > 0) {
+      groups.push(parts.join(' | '));
+    }
+  }
+
+  // ✅ STEP 3: Process each group
+  for (const group of groups) {
+    // Split by pipe |
+    const values = group
+      .split('|')
+      .map(v => v.trim())
+      .filter(v => v.length > 0);
+
+    // Try to match each value with TPOS attributes
+    for (const value of values) {
+      const valueUpper = value.toUpperCase();
       
-      // ✅ STEP 2: Fallback to includes() only if no exact match
-      if (!match) {
-        match = attrInfo.values.find(
-          v => partUpper.includes(v.Name.toUpperCase())
+      Object.entries(ATTRIBUTE_MAP).forEach(([attrId, attrInfo]) => {
+        // ✅ STEP 1: Prioritize exact match (Name or Code)
+        let matchedValue = attrInfo.values.find(
+          v => v.Name.toUpperCase() === valueUpper || 
+               v.Code.toUpperCase() === valueUpper
         );
-      }
-
-      if (match) {
-        const id = parseInt(attrId);
-        let line = attributeLines.find(l => l.AttributeId === id);
         
-        if (!line) {
-          line = {
-            Attribute: {
-              Id: id,
-              Name: attrInfo.name,
-              Code: attrInfo.code,
-              Sequence: null,
-              CreateVariant: true
-            },
-            Values: [],
-            AttributeId: id
-          };
-          attributeLines.push(line);
+        // ✅ STEP 2: Fallback to includes() only if no exact match
+        if (!matchedValue) {
+          matchedValue = attrInfo.values.find(
+            v => valueUpper.includes(v.Name.toUpperCase())
+          );
         }
 
-        // Avoid duplicates
-        if (!line.Values.find(v => v.Id === match.Id)) {
-          line.Values.push({
-            Id: match.Id,
-            Name: match.Name,
-            Code: match.Code,
-            Sequence: match.Sequence,
-            AttributeId: id,
-            AttributeName: attrInfo.name,
-            PriceExtra: null,
-            NameGet: `${attrInfo.name}: ${match.Name}`,
-            DateCreated: null
-          });
+        if (matchedValue) {
+          const id = parseInt(attrId);
+          let line = attributeLines.find(l => l.AttributeId === id);
+          
+          if (!line) {
+            line = {
+              Attribute: {
+                Id: id,
+                Name: attrInfo.name,
+                Code: attrInfo.code,
+                Sequence: null,
+                CreateVariant: true
+              },
+              Values: [],
+              AttributeId: id
+            };
+            attributeLines.push(line);
+          }
+
+          // Avoid duplicates
+          if (!line.Values.find(v => v.Id === matchedValue.Id)) {
+            line.Values.push({
+              Id: matchedValue.Id,
+              Name: matchedValue.Name,
+              Code: matchedValue.Code,
+              Sequence: matchedValue.Sequence,
+              AttributeId: id,
+              AttributeName: attrInfo.name,
+              PriceExtra: null,
+              NameGet: `${attrInfo.name}: ${matchedValue.Name}`,
+              DateCreated: null
+            });
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   return attributeLines;

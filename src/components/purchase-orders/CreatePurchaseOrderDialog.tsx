@@ -485,7 +485,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
    */
   const formatVariantTextByGroups = (attributeLines: AttributeLine[]): string => {
     return attributeLines
-      .map(line => `(${line.values.join(' ')})`)
+      .map(line => `(${line.values.join(' | ')})`)
       .join(' ');
   };
 

@@ -208,9 +208,10 @@ export function VariantGeneratorDialog({
 
     // Check which callback to use
     if (onVariantTextGenerated) {
-      // Old behavior: Just generate variant text
-      const allValues = attributeLines.flatMap(line => line.values);
-      const variantText = allValues.join(', ');
+      // Old behavior: Just generate variant text with new format (Value1 | Value2) (Value3 | Value4)
+      const variantText = attributeLines
+        .map(line => `(${line.values.join(' | ')})`)
+        .join(' ');
       onVariantTextGenerated(variantText);
     } else if (onVariantsGenerated) {
       // New behavior: Generate full variant products using variant-generator.ts
