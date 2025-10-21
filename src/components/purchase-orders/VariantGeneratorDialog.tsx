@@ -215,11 +215,8 @@ export function VariantGeneratorDialog({
       onVariantTextGenerated(variantText);
     } else if (onVariantsGenerated) {
       // New behavior: Generate full variant products using variant-generator.ts
-      // ✅ STEP 1: Sort attributeLines theo attributeId (1 → 3 → 4)
-      const sortedAttributeLines = [...attributeLines].sort((a, b) => a.attributeId - b.attributeId);
-
-      // ✅ STEP 2: Convert AttributeLine[] → TPOSAttributeLine[]
-      const tposAttributeLines: TPOSAttributeLine[] = sortedAttributeLines.map(line => {
+      // ✅ STEP 1: Convert AttributeLine[] → TPOSAttributeLine[] (giữ nguyên thứ tự người dùng chọn)
+      const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
         const attribute = ATTRIBUTES.find(a => a.id === line.attributeId);
         if (!attribute) return null;
 
@@ -272,7 +269,7 @@ export function VariantGeneratorDialog({
       // ✅ Return both variants and attributeLines for formatting
       onVariantsGenerated({
         variants: variantsForForm,
-        attributeLines: sortedAttributeLines
+        attributeLines: attributeLines
       });
     }
 
