@@ -112,48 +112,32 @@ export function QuickAddOrder({
       return (data || []) as PendingOrder[];
     },
     enabled: !!phaseData?.phase_date,
-    refetchInterval: 5000
+    refetchInterval: 2000 // ✅ Reduced from 5000 to 2000ms as fallback
   });
 
-  // Real-time subscription for instant updates
+  // Real-time subscription for instant updates (optimized)
   useEffect(() => {
     if (!phaseData?.phase_date) return;
+    
+    console.log('⚡ [QUICK ADD REALTIME] Setting up subscription for phase_date:', phaseData.phase_date);
+    
     const channel = supabase
-      .channel('facebook-pending-orders-realtime')
+      .channel('facebook-pending-orders-realtime-quickadd')
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*', // ✅ Listen to ALL events (INSERT, UPDATE, DELETE)
         schema: 'public',
-        table: 'facebook_pending_orders'
+        table: 'facebook_pending_orders',
+        filter: `phase_date=eq.${phaseData.phase_date}` // ✅ Filter at DB level for current phase only
       }, payload => {
-        // Only refetch if the new order is for today's phase
-        if (!payload.new || typeof payload.new !== 'object') return;
-        const createdTime = new Date((payload.new as any).created_time);
-        const phaseDate = new Date(phaseData.phase_date);
-        if (createdTime.getDate() === phaseDate.getDate() && createdTime.getMonth() === phaseDate.getMonth() && createdTime.getFullYear() === phaseDate.getFullYear()) {
-          queryClient.invalidateQueries({
-            queryKey: ['facebook-pending-orders', phaseData.phase_date]
-          });
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'facebook_pending_orders'
-      }, payload => {
-        // Refetch when session_index changes (correction)
-        if (payload.old && payload.new && typeof payload.old === 'object' && typeof payload.new === 'object') {
-          const oldSessionIndex = (payload.old as any).session_index;
-          const newSessionIndex = (payload.new as any).session_index;
-          if (oldSessionIndex !== newSessionIndex) {
-            console.log('🔄 [QUICK ADD] SessionIndex corrected, refetching...');
-            queryClient.invalidateQueries({
-              queryKey: ['facebook-pending-orders', phaseData.phase_date]
-            });
-          }
-        }
+        console.log('⚡ [QUICK ADD REALTIME] Event received:', payload.eventType, payload);
+        queryClient.invalidateQueries({
+          queryKey: ['facebook-pending-orders', phaseData.phase_date]
+        });
       })
       .subscribe();
+      
     return () => {
+      console.log('🔌 [QUICK ADD REALTIME] Unsubscribing from channel');
       supabase.removeChannel(channel);
     };
   }, [phaseData?.phase_date, queryClient]);

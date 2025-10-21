@@ -60,7 +60,8 @@ export function RealtimeProvider() {
       .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pages" }, () => {
         queryClient.invalidateQueries({ queryKey: ["facebook-pages"] });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pending_orders" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pending_orders" }, (payload) => {
+        console.log('📡 [REALTIME PROVIDER] facebook_pending_orders event:', payload.eventType);
         queryClient.invalidateQueries({ queryKey: ["facebook-pending-orders"] });
         queryClient.invalidateQueries({ queryKey: ["tpos-orders"] });
         queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
