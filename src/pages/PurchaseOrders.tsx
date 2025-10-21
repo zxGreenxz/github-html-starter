@@ -682,6 +682,7 @@ const PurchaseOrders = () => {
               selectedOrders={selectedOrders}
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
+              onEditDraft={handleEditDraft}
             />
             </CardContent>
           </Card>
