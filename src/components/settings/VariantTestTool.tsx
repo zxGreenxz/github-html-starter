@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FlaskConical, AlertTriangle } from "lucide-react";
-import { generateAllVariants } from "@/lib/variant-code-generator";
+import { generateAllVariants } from "@/lib/variant-generator-adapter";
 import { TPOS_ATTRIBUTES, DEFAULT_SELECTIONS } from "@/lib/tpos-attributes";
 
 export function VariantTestTool() {

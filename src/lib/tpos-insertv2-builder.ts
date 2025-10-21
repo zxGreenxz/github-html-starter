@@ -6,7 +6,7 @@ import {
   TPOS_SIZE_TEXT_MAP,
   TPOS_SIZE_NUMBER_MAP,
   getVariantType
-} from "./variant-attributes";
+} from "./tpos-variant-attributes-compat";
 import type { TPOSProductItem } from "./tpos-api";
 
 // =====================================================

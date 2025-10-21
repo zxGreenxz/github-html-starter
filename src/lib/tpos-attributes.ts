@@ -1,13 +1,13 @@
-// TPOS Attributes from TPOS system - Shared across components
+// TPOS Attributes from TPOS system - Using new variant generator data structure
 export const TPOS_ATTRIBUTES = {
   sizeText: [
+    { Id: 5, Name: "Free Size", Code: "FS", Sequence: null },
+    { Id: 1, Name: "S", Code: "S", Sequence: null },
+    { Id: 2, Name: "M", Code: "M", Sequence: null },
+    { Id: 3, Name: "L", Code: "L", Sequence: null },
+    { Id: 4, Name: "XL", Code: "XL", Sequence: null },
     { Id: 31, Name: "XXL", Code: "xxl", Sequence: null },
     { Id: 32, Name: "XXXL", Code: "xxxl", Sequence: null },
-    { Id: 5, Name: "Free Size", Code: "FS", Sequence: 0 },
-    { Id: 1, Name: "S", Code: "S", Sequence: 1 },
-    { Id: 2, Name: "M", Code: "M", Sequence: 2 },
-    { Id: 3, Name: "L", Code: "L", Sequence: 3 },
-    { Id: 4, Name: "XL", Code: "XL", Sequence: 4 }
   ],
   color: [
     { Id: 6, Name: "Trắng", Code: "trang", Sequence: null },
@@ -79,9 +79,13 @@ export const TPOS_ATTRIBUTES = {
     { Id: 99, Name: "Cam Lạnh", Code: "camlanh", Sequence: null },
     { Id: 100, Name: "Hồng Đào", Code: "hongdao", Sequence: null },
     { Id: 101, Name: "Hồng Đất", Code: "hongdat", Sequence: null },
-    { Id: 102, Name: "Tím Đậm", Code: "timdam", Sequence: null }
+    { Id: 102, Name: "Tím Đậm", Code: "timdam", Sequence: null },
   ],
   sizeNumber: [
+    { Id: 22, Name: "1", Code: "1", Sequence: null },
+    { Id: 23, Name: "2", Code: "2", Sequence: null },
+    { Id: 24, Name: "3", Code: "3", Sequence: null },
+    { Id: 48, Name: "4", Code: "4", Sequence: null },
     { Id: 80, Name: "27", Code: "27", Sequence: null },
     { Id: 81, Name: "28", Code: "28", Sequence: null },
     { Id: 18, Name: "29", Code: "29", Sequence: null },
@@ -99,10 +103,6 @@ export const TPOS_ATTRIBUTES = {
     { Id: 92, Name: "42", Code: "42", Sequence: null },
     { Id: 93, Name: "43", Code: "43", Sequence: null },
     { Id: 94, Name: "44", Code: "44", Sequence: null },
-    { Id: 22, Name: "1", Code: "1", Sequence: null },
-    { Id: 23, Name: "2", Code: "2", Sequence: null },
-    { Id: 24, Name: "3", Code: "3", Sequence: null },
-    { Id: 48, Name: "4", Code: "4", Sequence: null }
   ]
 };
 

@@ -1,6 +1,8 @@
 // TPOS Variant Uploader - Upload product with variants to TPOS and save returned variants to database
 import { supabase } from "@/integrations/supabase/client";
-import { createTPOSVariants, parseVariantToAttributes, createAttributeLines, generateVariants } from "./tpos-variant-creator";
+import { parseVariantStringToAttributeLines } from "./variant-generator-adapter";
+import { generateVariants, type TPOSAttributeLine, type ProductData as VariantProductData } from "./variant-generator";
+import { updateTPOSProductWithVariants } from "./tpos-variant-update";
 
 export interface ProductData {
   selling_price: number;
@@ -65,14 +67,22 @@ export async function uploadToTPOSAndCreateVariants(
     const checkData = await checkResponse.json();
 
     if (checkData.value && checkData.value.length > 0) {
-      // Product exists - use variant creator to update variants
+      // Product exists - create/update variants using new generator
       const tposProductId = checkData.value[0].Id;
       onProgress?.("🔄 Cập nhật variants trên TPOS...");
       
-      await createTPOSVariants(tposProductId, variantText, (message) => {
-        console.log(`📝 TPOS Variant Creator: ${message}`);
-        onProgress?.(message);
-      });
+      // Parse variant text and generate variants
+      const attributeLines = parseVariantStringToAttributeLines(variantText);
+      const tempProduct: VariantProductData = {
+        Id: tposProductId,
+        Name: productName,
+        DefaultCode: productCode,
+        ListPrice: productData.selling_price
+      };
+      const generatedVariants = generateVariants(tempProduct, attributeLines);
+      
+      // Update product with new variants on TPOS
+      await updateTPOSProductWithVariants(tposProductId, tempProduct, attributeLines, generatedVariants, bearerToken, onProgress);
 
       onProgress?.("✅ Cập nhật TPOS thành công");
       
@@ -99,14 +109,14 @@ async function createNewProductOnTPOS(
   headers: any,
   onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
-  // Parse variant text to attribute lines
-  const selectedAttributes = parseVariantToAttributes(variantText);
-  const attributeLines = createAttributeLines(selectedAttributes);
+  // Parse variant text to attribute lines using new generator
+  const attributeLines = parseVariantStringToAttributeLines(variantText);
 
-  // Generate variants
-  const tempProduct = {
+  // Generate variants using new generator
+  const tempProduct: VariantProductData = {
     Id: 0,
     Name: productName,
+    DefaultCode: productCode,
     ListPrice: productData.selling_price
   };
   

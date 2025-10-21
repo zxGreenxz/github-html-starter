@@ -1,6 +1,6 @@
 // TPOS Variant Creator - Auto create variants on TPOS after product upload
 import { getActiveTPOSToken, getTPOSHeaders, generateRandomId } from "./tpos-config";
-import { TPOS_ATTRIBUTE_IDS, TPOS_ATTRIBUTES, type TPOSAttributeValue as ImportedTPOSAttributeValue } from "./variant-attributes";
+import { TPOS_ATTRIBUTE_IDS, TPOS_ATTRIBUTES, type TPOSAttributeValue as ImportedTPOSAttributeValue } from "./tpos-variant-attributes-compat";
 
 // =====================================================
 // TYPE DEFINITIONS
