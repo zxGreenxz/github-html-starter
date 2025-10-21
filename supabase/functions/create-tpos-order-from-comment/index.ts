@@ -293,13 +293,14 @@ serve(async (req) => {
   let payload: any = null;
 
   try {
-    const { comment, video, commentType } = await req.json();
+    const { comment, video, commentType, usePrediction } = await req.json();
     
     console.log('🚀 [CREATE ORDER] Starting to create TPOS order...');
     console.log('📋 [CREATE ORDER] Comment ID:', comment.id);
     console.log('👤 [CREATE ORDER] Customer:', comment.from.name);
     console.log('📦 [CREATE ORDER] Comment Type:', commentType);
     console.log('💬 [CREATE ORDER] Message:', comment.message);
+    console.log('🔮 [CREATE ORDER] Use Prediction:', usePrediction);
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -318,6 +319,83 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Prediction logic - predict session_index BEFORE calling TPOS
+    let predictedSessionIndex: number | null = null;
+    let predictionConfidence: 'high' | 'low' = 'high';
+    let predictionReasoning: string | undefined;
+
+    if (usePrediction) {
+      console.log('🔮 [PREDICTION] Prediction mode enabled');
+      
+      // Query recent orders to predict next session_index
+      const { data: recentOrders, error: predError } = await supabase
+        .from('facebook_pending_orders')
+        .select('session_index, created_time')
+        .eq('facebook_user_id', comment.from.id)
+        .not('session_index', 'is', null)
+        .order('session_index', { ascending: false })
+        .limit(5);
+      
+      if (predError) {
+        console.error('❌ [PREDICTION] Error fetching orders:', predError);
+        predictedSessionIndex = 1;
+        predictionConfidence = 'high';
+        predictionReasoning = 'First order (no history)';
+      } else if (!recentOrders || recentOrders.length === 0) {
+        predictedSessionIndex = 1;
+        predictionConfidence = 'high';
+        predictionReasoning = 'First order for this user';
+      } else {
+        const maxIndex = parseInt(recentOrders[0].session_index);
+        
+        // Check for concurrent orders within 5 seconds (race condition risk)
+        const now = Date.now();
+        const concurrentOrders = recentOrders.filter((order: any) => {
+          const createdTime = new Date(order.created_time).getTime();
+          const diff = now - createdTime;
+          return diff < 5000; // 5 seconds
+        });
+        
+        predictionConfidence = concurrentOrders.length > 1 ? 'low' : 'high';
+        predictionReasoning = predictionConfidence === 'low' 
+          ? `${concurrentOrders.length} orders created within 5s (race condition risk)`
+          : 'Normal prediction';
+        
+        predictedSessionIndex = maxIndex + 1;
+      }
+      
+      console.log(`✅ [PREDICTION] Result: ${predictedSessionIndex} (confidence: ${predictionConfidence})`);
+      console.log(`   Reasoning: ${predictionReasoning}`);
+      
+      // Extract product codes from comment
+      const productCodes = extractProductCodes(comment.message || '');
+      
+      // Insert immediately with predicted value (for fast UI display)
+      const { error: insertError } = await supabase
+        .from('facebook_pending_orders')
+        .insert({
+          facebook_comment_id: comment.id,
+          facebook_post_id: video.objectId,
+          facebook_user_id: comment.from.id,
+          name: comment.from.name,
+          session_index: predictedSessionIndex.toString(),
+          predicted_session_index: predictedSessionIndex,
+          prediction_method: 'predicted',
+          is_prediction_correct: null, // Will be set after TPOS response
+          comment: comment.message,
+          created_time: convertFacebookTimeToISO(comment.created_time),
+          comment_type: commentType || null,
+          product_codes: productCodes,
+          order_count: 1,
+        });
+      
+      if (insertError) {
+        console.error('❌ [PREDICTION] Error inserting predicted order:', insertError);
+      } else {
+        console.log('✅ [PREDICTION] Inserted order with predicted SessionIndex');
+      }
+    }
 
     // Fetch Facebook token from tpos_credentials
     const { data: tokenData, error: tokenError } = await supabase
@@ -501,36 +579,90 @@ serve(async (req) => {
         console.log(`➕ Creating new order with count: 1`);
         console.log(`➕ commentType value before INSERT: "${commentType}"`);
 
-      const { error: insertError } = await supabase
-        .from('facebook_pending_orders')
-        .insert({
-          name: data.Name || comment.from.name,
-          session_index: data.SessionIndex?.toString() || null,
-          code: data.Code || null,
-          phone: data.Telephone || null,
-          comment: comment.message || null,
-          created_time: convertFacebookTimeToISO(comment.created_time),
-          tpos_order_id: data.Id || null,
-          facebook_comment_id: comment.id,
-          facebook_user_id: comment.from.id,
-          facebook_post_id: video.objectId,
-          order_count: 1,
-          comment_type: commentType || null,
-          product_codes: productCodes,
-        });
-      
-        if (insertError) {
-          console.error('❌ Error saving to facebook_pending_orders:', insertError);
+        if (!usePrediction) {
+          // Non-prediction mode: insert as normal
+          const { error: insertError } = await supabase
+            .from('facebook_pending_orders')
+            .insert({
+              name: data.Name || comment.from.name,
+              session_index: data.SessionIndex?.toString() || null,
+              code: data.Code || null,
+              phone: data.Telephone || null,
+              comment: comment.message || null,
+              created_time: convertFacebookTimeToISO(comment.created_time),
+              tpos_order_id: data.Id || null,
+              facebook_comment_id: comment.id,
+              facebook_user_id: comment.from.id,
+              facebook_post_id: video.objectId,
+              order_count: 1,
+              comment_type: commentType || null,
+              product_codes: productCodes,
+              prediction_method: 'tpos_response',
+            });
+          
+          if (insertError) {
+            console.error('❌ Error saving to facebook_pending_orders:', insertError);
+          } else {
+            console.log(`✅ Successfully created order with commentType: "${commentType}"`);
+            console.log('📊 [CREATE ORDER] facebook_pending_orders created:');
+            console.log('   - Product Codes:', productCodes);
+            console.log('   - Comment Type:', commentType);
+            console.log('   - Facebook Comment ID:', comment.id);
+          }
         } else {
-          console.log(`✅ Successfully created order with commentType: "${commentType}"`);
-          console.log('📊 [CREATE ORDER] facebook_pending_orders created:');
-          console.log('   - Product Codes:', productCodes);
-          console.log('   - Comment Type:', commentType);
-          console.log('   - Facebook Comment ID:', comment.id);
+          // Prediction mode: reconcile predicted vs actual session_index
+          const actualSessionIndex = parseInt(data.SessionIndex);
+          const isCorrect = actualSessionIndex === predictedSessionIndex;
+          
+          console.log('🔍 [RECONCILIATION]');
+          console.log(`   Predicted: ${predictedSessionIndex}`);
+          console.log(`   Actual: ${actualSessionIndex}`);
+          console.log(`   Match: ${isCorrect ? '✅' : '❌'}`);
+          
+          // Update with actual values from TPOS
+          const { error: updateError } = await supabase
+            .from('facebook_pending_orders')
+            .update({
+              session_index: actualSessionIndex.toString(),
+              is_prediction_correct: isCorrect,
+              reconciled_at: new Date().toISOString(),
+              tpos_order_id: data.Id,
+              code: data.Code,
+              phone: data.Telephone,
+              name: data.Name || comment.from.name,
+            })
+            .eq('facebook_comment_id', comment.id);
+          
+          if (updateError) {
+            console.error('❌ [RECONCILIATION] Error updating order:', updateError);
+          } else {
+            console.log('✅ [RECONCILIATION] Updated order with actual values');
+          }
+          
+          // If mismatch, insert correction record for monitoring & trigger realtime
+          if (!isCorrect) {
+            console.warn('⚠️ [RECONCILIATION] Race condition detected! Inserting correction record...');
+            
+            const { error: corrError } = await supabase
+              .from('session_index_corrections')
+              .insert({
+                comment_id: comment.id,
+                facebook_user_id: comment.from.id,
+                predicted: predictedSessionIndex!,
+                actual: actualSessionIndex,
+                confidence: predictionConfidence,
+              });
+            
+            if (corrError) {
+              console.error('❌ [RECONCILIATION] Error inserting correction:', corrError);
+            } else {
+              console.log('✅ [RECONCILIATION] Correction record inserted (will trigger realtime notification)');
+            }
+          }
         }
       
       // Update facebook_comments_archive
-      if (!insertError) {
+      if (true) {
         const { error: archiveUpdateError } = await supabase
           .from('facebook_comments_archive')
           .update({

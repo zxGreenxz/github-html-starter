@@ -70,6 +70,7 @@ export function LiveCommentsPanel({
   };
   
   const [customerStatusMap, setCustomerStatusMap] = useState<Map<string, any>>(loadCacheFromStorage);
+  const [correctedCommentIds, setCorrectedCommentIds] = useState<Set<string>>(new Set());
   const [isLoadingCustomerStatus, setIsLoadingCustomerStatus] = useState(false);
   const fetchInProgress = useRef(false);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -412,10 +413,57 @@ export function LiveCommentsPanel({
     };
   }, [videoId, pageId, queryClient]);
 
+  // Realtime subscription for session_index corrections
+  useEffect(() => {
+    if (!videoId) return;
+    
+    const channel = supabase
+      .channel('session-index-corrections')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_index_corrections',
+      }, (payload) => {
+        const { predicted, actual, comment_id } = payload.new;
+        
+        console.log('🔔 [CORRECTION] Correction detected:', payload.new);
+        
+        // Add to corrected set for highlighting
+        setCorrectedCommentIds(prev => new Set(prev).add(comment_id));
+        
+        // Remove from corrected set after 5 seconds
+        setTimeout(() => {
+          setCorrectedCommentIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(comment_id);
+            return newSet;
+          });
+        }, 5000);
+        
+        // Show toast notification
+        toast({
+          title: "🔄 Mã đơn đã được cập nhật",
+          description: `Đơn hàng đã thay đổi từ #${predicted} → #${actual}`,
+          duration: 5000,
+        });
+        
+        // Force refetch to update UI
+        queryClient.invalidateQueries({ queryKey: ['facebook-comments'] });
+        queryClient.invalidateQueries({ queryKey: ['facebook-pending-orders'] });
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [videoId, queryClient, toast]);
+
   const createOrderMutation = useMutation({
     mutationFn: async ({ comment }: { comment: FacebookComment }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("User not authenticated");
+
+      const usePrediction = localStorage.getItem('use_session_index_prediction') === 'true';
 
       const response = await fetch(
         `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/create-tpos-order-from-comment`,
@@ -427,7 +475,8 @@ export function LiveCommentsPanel({
           },
           body: JSON.stringify({ 
             comment, 
-            video: { objectId: videoId } 
+            video: { objectId: videoId },
+            usePrediction // ← NEW: pass prediction flag
           }),
         }
       );
@@ -626,9 +675,10 @@ export function LiveCommentsPanel({
                 <div
                   key={comment.id}
                   className={cn(
-                    "rounded-lg border transition-colors",
+                    "rounded-lg border transition-all duration-300",
                     isMobile ? "p-2" : "p-3",
-                    newCommentIds.has(comment.id) ? 'bg-accent' : 'bg-card'
+                    newCommentIds.has(comment.id) && 'bg-accent',
+                    correctedCommentIds.has(comment.id) && 'bg-yellow-100 dark:bg-yellow-900/20 border-yellow-400 dark:border-yellow-600 animate-pulse'
                   )}
                 >
                   {/* Header: Avatar, Name, Order Code, Status, Phone */}

@@ -244,10 +244,14 @@ export type Database = {
           facebook_post_id: string | null
           facebook_user_id: string | null
           id: string
+          is_prediction_correct: boolean | null
           name: string
           order_count: number
           phone: string | null
+          predicted_session_index: number | null
+          prediction_method: string | null
           product_codes: string[] | null
+          reconciled_at: string | null
           session_index: string | null
           tpos_order_id: string | null
           updated_at: string
@@ -262,10 +266,14 @@ export type Database = {
           facebook_post_id?: string | null
           facebook_user_id?: string | null
           id?: string
+          is_prediction_correct?: boolean | null
           name: string
           order_count?: number
           phone?: string | null
+          predicted_session_index?: number | null
+          prediction_method?: string | null
           product_codes?: string[] | null
+          reconciled_at?: string | null
           session_index?: string | null
           tpos_order_id?: string | null
           updated_at?: string
@@ -280,10 +288,14 @@ export type Database = {
           facebook_post_id?: string | null
           facebook_user_id?: string | null
           id?: string
+          is_prediction_correct?: boolean | null
           name?: string
           order_count?: number
           phone?: string | null
+          predicted_session_index?: number | null
+          prediction_method?: string | null
           product_codes?: string[] | null
+          reconciled_at?: string | null
           session_index?: string | null
           tpos_order_id?: string | null
           updated_at?: string
@@ -1246,6 +1258,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      session_index_corrections: {
+        Row: {
+          actual: number
+          comment_id: string
+          confidence: string
+          corrected_at: string
+          created_at: string
+          facebook_user_id: string
+          id: string
+          predicted: number
+        }
+        Insert: {
+          actual: number
+          comment_id: string
+          confidence: string
+          corrected_at?: string
+          created_at?: string
+          facebook_user_id: string
+          id?: string
+          predicted: number
+        }
+        Update: {
+          actual?: number
+          comment_id?: string
+          confidence?: string
+          corrected_at?: string
+          created_at?: string
+          facebook_user_id?: string
+          id?: string
+          predicted?: number
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {

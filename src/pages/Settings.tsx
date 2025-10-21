@@ -34,11 +34,17 @@ import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
 import { TPOSVariantLookup } from "@/components/settings/TPOSVariantLookup";
 import { TPOSAPIReference } from "@/components/settings/TPOSAPIReference";
+import { PredictionStatsMonitor } from "@/components/settings/PredictionStatsMonitor";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [usePrediction, setUsePrediction] = useState(() => {
+    return localStorage.getItem('use_session_index_prediction') === 'true';
+  });
   const [checkResult, setCheckResult] = useState<any>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
@@ -631,6 +637,75 @@ const Settings = () => {
         {/* Tab: Cấu hình chung */}
         <TabsContent value="general" className="space-y-6 mt-4">
           <TPOSCredentialsManager />
+          
+          {/* Optimistic Order Prediction Toggle */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Tối ưu tạo đơn hàng
+              </CardTitle>
+              <CardDescription>
+                Cấu hình dự đoán mã đơn hàng để hiển thị nhanh hơn
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start space-x-3 p-4 border rounded-lg bg-muted/50">
+                <Switch
+                  id="prediction-toggle"
+                  checked={usePrediction}
+                  onCheckedChange={(checked) => {
+                    localStorage.setItem('use_session_index_prediction', String(checked));
+                    setUsePrediction(checked);
+                    toast({
+                      title: checked ? "✅ Đã bật dự đoán mã đơn" : "❌ Đã tắt dự đoán mã đơn",
+                      description: checked 
+                        ? "Mã đơn sẽ hiển thị ngay lập tức. Có thể thay đổi nếu có nhiều đơn cùng lúc."
+                        : "Mã đơn sẽ được lấy từ TPOS (chậm hơn nhưng chính xác 100%)",
+                    });
+                  }}
+                />
+                <div className="flex-1">
+                  <label 
+                    htmlFor="prediction-toggle" 
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Dự đoán mã đơn hàng trước (hiển thị ngay)
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Hiển thị số đơn ngay lập tức thay vì đợi TPOS (~500ms nhanh hơn)
+                  </p>
+                  {usePrediction && (
+                    <Alert className="mt-3">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        ⚠️ Số đơn có thể thay đổi nếu có nhiều người đặt đơn cùng lúc. 
+                        Hệ thống sẽ tự động cập nhật và thông báo cho bạn.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Monitoring Dashboard */}
+          {usePrediction && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TestTube2 className="h-5 w-5" />
+                  Thống kê dự đoán mã đơn
+                </CardTitle>
+                <CardDescription>
+                  Theo dõi độ chính xác của dự đoán session_index (7 ngày gần đây)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PredictionStatsMonitor />
+              </CardContent>
+            </Card>
+          )}
           
           <div className="grid grid-cols-1 gap-6">
             <FacebookPageManager />
