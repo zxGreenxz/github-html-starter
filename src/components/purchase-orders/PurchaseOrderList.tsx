@@ -482,6 +482,7 @@ export function PurchaseOrderList({
               <TableHead>Giá bán (VND)</TableHead>
               <TableHead>Ghi chú</TableHead>
               <TableHead>Trạng thái</TableHead>
+              <TableHead className="border-r text-center">Chỉnh sửa ĐH</TableHead>
               <TableHead>
                 <div className="flex items-center gap-2">
                   <span>Thao tác</span>
@@ -497,7 +498,7 @@ export function PurchaseOrderList({
           <TableBody>
             {flattenedItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                   Không có đơn hàng nào
                 </TableCell>
               </TableRow>
@@ -686,6 +687,20 @@ export function PurchaseOrderList({
                         rowSpan={flatItem.itemCount}
                       >
                         {getStatusBadge(flatItem.status, flatItem.hasShortage)}
+                      </TableCell>
+                      {/* Order-level Edit Button */}
+                      <TableCell 
+                        className="border-r text-center" 
+                        rowSpan={flatItem.itemCount}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditOrder(flatItem)}
+                          title="Chỉnh sửa đơn hàng"
+                        >
+                          <Pencil className="w-4 h-4 text-blue-600" />
+                        </Button>
                       </TableCell>
                     </>
                   )}
