@@ -516,7 +516,10 @@ const PurchaseOrders = () => {
 
   // Convert selected purchase orders to TPOSProductItem format
   const getSelectedTPOSItems = (): TPOSProductItem[] => {
-    const selectedOrdersData = orders?.filter(order => selectedOrders.includes(order.id)) || [];
+    // Filter out draft orders - only include pending or other valid statuses
+    const selectedOrdersData = orders?.filter(order => 
+      selectedOrders.includes(order.id) && order.status !== 'draft'
+    ) || [];
     
     const items: TPOSProductItem[] = [];
     selectedOrdersData.forEach(order => {
