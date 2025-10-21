@@ -417,8 +417,13 @@ export function BulkTPOSUploadDialog({
 
   // Upload using variants from inventory (3-step process)
   const handleInventoryUpload = async (item: TPOSProductItem) => {
+    // ✅ Extract base product code from product_code
+    const baseCode = item.product_code.includes('-') 
+      ? item.product_code.split('-')[0] 
+      : item.product_code;
+    
     const result = await uploadTPOSFromInventoryVariants(
-      item.product_code,
+      baseCode,
       (msg) => {
         setProgress(prev => prev.map((p) => 
           p.itemId === item.id ? { ...p, error: msg } : p
@@ -432,7 +437,7 @@ export function BulkTPOSUploadDialog({
 
     if (result.variantsUploaded) {
       toast({
-        title: `✅ ${item.product_code}`,
+        title: `✅ ${baseCode}`,
         description: `Đã upload ${result.variantsUploaded} variants`,
         duration: 3000
       });

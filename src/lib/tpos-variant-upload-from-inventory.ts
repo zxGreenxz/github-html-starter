@@ -264,42 +264,37 @@ export async function uploadTPOSFromInventoryVariants(
   onProgress?: (message: string) => void
 ): Promise<UploadFromInventoryResult> {
   try {
-    onProgress?.('🔍 Đang tải variants từ kho...');
+    onProgress?.('🔍 Đang tìm sản phẩm cha trong kho...');
 
-    // STEP 1: Query variants from database
-    const { data: variants, error: variantsError } = await supabase
-      .from('products')
-      .select('product_code, variant, product_name, selling_price, purchase_price, product_images')
-      .eq('base_product_code', baseProductCode)
-      .not('variant', 'is', null)
-      .neq('variant', '');
-
-    if (variantsError) throw variantsError;
-
-    if (!variants || variants.length === 0) {
-      return {
-        success: false,
-        error: '❌ Không tìm thấy variants trong kho. Vui lòng dùng chế độ thủ công.'
-      };
-    }
-
-    onProgress?.(`✅ Tìm thấy ${variants.length} variants trong kho`);
-
-    // STEP 2: Load base product info
+    // STEP 1: Load base product (parent product) info
     const { data: baseProduct, error: baseError } = await supabase
       .from('products')
       .select('*')
       .eq('product_code', baseProductCode)
-      .eq('base_product_code', baseProductCode)
       .single();
 
     if (baseError || !baseProduct) {
-      throw new Error('Không tìm thấy sản phẩm gốc');
+      return {
+        success: false,
+        error: '❌ Không tìm thấy sản phẩm cha trong kho'
+      };
     }
 
-    // STEP 3: Build attribute lines from inventory
-    onProgress?.('🔨 Đang xây dựng attribute lines...');
-    const attributeLines = buildAttributeLinesFromInventory(variants as any);
+    // STEP 2: Get variant text from parent product
+    const variantText = baseProduct.variant || '';
+    
+    if (!variantText) {
+      return {
+        success: false,
+        error: '❌ Sản phẩm cha không có thông tin variants'
+      };
+    }
+
+    onProgress?.(`✅ Variant text: ${variantText}`);
+
+    // STEP 3: Parse variant text to attribute lines
+    onProgress?.('🔨 Đang parse variants từ sản phẩm cha...');
+    const attributeLines = parseVariantToAttributeLines(variantText);
 
     if (attributeLines.length === 0) {
       return {
