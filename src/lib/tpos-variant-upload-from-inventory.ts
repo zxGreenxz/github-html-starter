@@ -76,19 +76,28 @@ function parseVariantToAttributeLines(variantStr: string): AttributeLine[] {
   const parts = cleanStr
     .split(/[\s,]+/)
     .map(s => s.trim())
-    .filter(s => s.length > 0)
-    .map(s => s.toUpperCase());
+    .filter(s => s.length > 0);
+    // Keep original case for proper number matching
 
   const attributeLines: AttributeLine[] = [];
 
   for (const part of parts) {
+    const partUpper = part.toUpperCase();
+    
     // Check each attribute type
     Object.entries(ATTRIBUTE_MAP).forEach(([attrId, attrInfo]) => {
-      const match = attrInfo.values.find(
-        v => v.Name.toUpperCase() === part || 
-             v.Code.toUpperCase() === part ||
-             part.includes(v.Name.toUpperCase())
+      // ✅ STEP 1: Prioritize exact match (Name or Code)
+      let match = attrInfo.values.find(
+        v => v.Name.toUpperCase() === partUpper || 
+             v.Code.toUpperCase() === partUpper
       );
+      
+      // ✅ STEP 2: Fallback to includes() only if no exact match
+      if (!match) {
+        match = attrInfo.values.find(
+          v => partUpper.includes(v.Name.toUpperCase())
+        );
+      }
 
       if (match) {
         const id = parseInt(attrId);
