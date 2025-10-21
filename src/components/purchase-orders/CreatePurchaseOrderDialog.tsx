@@ -284,20 +284,27 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
+      // ALWAYS validate required fields for creating order (both new and from draft)
       if (!formData.supplier_name.trim()) {
         throw new Error("Vui lòng nhập tên nhà cung cấp");
       }
 
-      // Validate required fields: product_name, product_code, product_images
-      const invalidItems = items.filter(item => 
-        !item.product_name?.trim() || 
+      // Filter items that have product_name to validate
+      const itemsWithName = items.filter(item => item.product_name?.trim());
+      
+      if (itemsWithName.length === 0) {
+        throw new Error("Vui lòng thêm ít nhất một sản phẩm");
+      }
+
+      // Validate required fields for all items with product_name
+      const invalidItems = itemsWithName.filter(item => 
         !item.product_code?.trim() || 
         !item.product_images || 
         item.product_images.length === 0
       );
       
       if (invalidItems.length > 0) {
-        throw new Error(`⚠️ Vui lòng điền đầy đủ: Tên SP, Mã SP, và Hình ảnh SP cho ${invalidItems.length} dòng`);
+        throw new Error(`⚠️ Vui lòng điền đầy đủ Mã SP và Hình ảnh SP cho ${invalidItems.length} sản phẩm`);
       }
 
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
