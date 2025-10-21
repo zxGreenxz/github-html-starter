@@ -11,6 +11,7 @@ import { ProductStats } from "@/components/products/ProductStats";
 import { ProductList } from "@/components/products/ProductList";
 import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
+import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -28,6 +29,7 @@ export default function Products() {
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isImportVariantsDialogOpen, setIsImportVariantsDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -221,6 +223,14 @@ export default function Products() {
                     >
                       Import Excel
                     </Button>
+                    <Button
+                      onClick={() => setIsImportVariantsDialogOpen(true)}
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      Import Biến Thể
+                    </Button>
                     {debouncedSearch.length >= 2 && (
                       <Button
                         onClick={handleImportFromTPOS}
@@ -288,6 +298,12 @@ export default function Products() {
         <ImportProductsDialog
           open={isImportDialogOpen}
           onOpenChange={setIsImportDialogOpen}
+          onSuccess={refetch}
+        />
+        
+        <ImportTPOSVariantsDialog
+          open={isImportVariantsDialogOpen}
+          onOpenChange={setIsImportVariantsDialogOpen}
           onSuccess={refetch}
         />
       </div>
