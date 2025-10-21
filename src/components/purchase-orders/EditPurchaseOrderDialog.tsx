@@ -1035,7 +1035,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableHead className="w-16">STT</TableHead>
                     <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
                     <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
-                    <TableHead className="w-[60px]">SL</TableHead>
+                    <TableHead className="w-[80px]">SL</TableHead>
                     <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
                     <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
                     <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
@@ -1074,7 +1074,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center"
+                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center w-[80px]"
                         />
                       </TableCell>
                       <TableCell>
@@ -1133,15 +1133,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                             title="Sao chép dòng"
                           >
                             <Copy className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            onClick={() => removeItem(index)} 
-                            size="sm" 
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                            title="Xóa dòng"
-                          >
-                            <X className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
