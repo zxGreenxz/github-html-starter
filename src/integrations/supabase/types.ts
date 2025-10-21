@@ -946,6 +946,7 @@ export type Database = {
           unit: string | null
           updated_at: string
           variant: string | null
+          variant_metadata: Json | null
         }
         Insert: {
           barcode?: string | null
@@ -967,6 +968,7 @@ export type Database = {
           unit?: string | null
           updated_at?: string
           variant?: string | null
+          variant_metadata?: Json | null
         }
         Update: {
           barcode?: string | null
@@ -988,6 +990,7 @@ export type Database = {
           unit?: string | null
           updated_at?: string
           variant?: string | null
+          variant_metadata?: Json | null
         }
         Relationships: []
       }
@@ -1499,6 +1502,7 @@ export type Database = {
           unit: string | null
           updated_at: string
           variant: string | null
+          variant_metadata: Json | null
         }[]
       }
       unaccent: {

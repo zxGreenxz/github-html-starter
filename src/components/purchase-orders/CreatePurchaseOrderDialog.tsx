@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
-import { parseVariant } from "@/lib/variant-utils";
+import type { TPOSAttributeLine } from "@/lib/variant-generator";
 
 interface PurchaseOrderItem {
   quantity: number;
@@ -33,6 +33,7 @@ interface PurchaseOrderItem {
   product_code: string;
   product_name: string;
   variant: string;
+  variant_metadata?: TPOSAttributeLine[];
   base_product_code?: string;
   purchase_price: number | string;
   selling_price: number | string;
@@ -482,7 +483,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       product_images: string[];
       price_images: string[];
       _tempTotalPrice: number;
-    }>
+    }>,
+    attributeLines: TPOSAttributeLine[]
   ) => {
     console.log('🎯 handleVariantsGenerated:', { index, variants });
 
@@ -494,7 +496,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         product_code: parentItem.product_code.trim().toUpperCase(),
         product_name: parentItem.product_name.trim().toUpperCase(),
         base_product_code: parentItem.product_code.trim().toUpperCase(),
-        variant: variants.map(v => v.variant).join(', '),
+        variant: '',
+        variant_metadata: attributeLines as any,
         purchase_price: Number(parentItem.purchase_price || 0) * 1000,
         selling_price: Number(parentItem.selling_price || 0) * 1000,
         supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
@@ -534,16 +537,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
       if (variantsError) throw variantsError;
 
       // ✅ 3. Cập nhật variant cho parent item trong form
-      const variantDisplayValue = variants.map(v => {
-        const parsed = parseVariant(v.variant);
-        return parsed.name || parsed.code;
-      }).join(', ');
+      // Format: "Size Chữ: M, S, L | Màu: Nude, Đỏ, Nâu"
+      const variantDisplayValue = attributeLines
+        .map(line => {
+          const valueNames = line.Values.map(v => v.Name).join(', ');
+          return `${line.Attribute.Name}: ${valueNames}`;
+        })
+        .join(' | ');
 
       setItems(prev => {
         const newItems = [...prev];
         newItems[index] = {
           ...newItems[index],
-          variant: variantDisplayValue
+          variant: variantDisplayValue,
+          variant_metadata: attributeLines
         };
         return newItems;
       });
@@ -1026,8 +1033,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
             product_images: items[variantGeneratorIndex].product_images,
             price_images: items[variantGeneratorIndex].price_images
           }}
-          onVariantsGenerated={(variants) => {
-            handleVariantsGenerated(variantGeneratorIndex, variants);
+          onVariantsGenerated={(variants, attributeLines) => {
+            handleVariantsGenerated(variantGeneratorIndex, variants, attributeLines);
             setIsVariantDialogOpen(false);
             setVariantGeneratorIndex(null);
           }}

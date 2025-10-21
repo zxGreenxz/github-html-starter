@@ -1,3 +1,4 @@
+import { VariantMetadataDisplay } from "./VariantMetadataDisplay";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ interface PurchaseOrderItem {
   product_code: string;
   product_name: string;
   variant: string | null;
+  variant_metadata?: any;
   purchase_price: number;
   selling_price: number;
   product_images: string[] | null;
@@ -611,9 +613,13 @@ export function PurchaseOrderList({
                   <TableCell className="border-r">
                     {productCode}
                   </TableCell>
-                    <TableCell className="border-r">
-                      {variant}
-                    </TableCell>
+                  <TableCell className="border-r">
+                    {flatItem.item?.variant_metadata ? (
+                      <VariantMetadataDisplay metadata={flatItem.item.variant_metadata} />
+                    ) : (
+                      <span className="text-sm">{variant}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="border-r text-center">
                     <div className="font-medium">
                       {flatItem.item?.quantity || 0}
