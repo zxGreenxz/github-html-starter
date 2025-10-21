@@ -218,19 +218,28 @@ serve(async (req) => {
         if (updatedCommentsArray.length > 0) {
           console.log(`💾 Pushing ${updatedCommentsArray.length} comments to archive...`);
           
-          const commentsToInsert = updatedCommentsArray.map((comment: any) => ({
-            facebook_comment_id: comment.id,
-            facebook_post_id: postId,
-            facebook_user_id: comment.from?.id || '',
-            facebook_user_name: comment.from?.name || 'Unknown',
-            comment_message: comment.message || '',
-            comment_created_time: comment.created_time,
-            like_count: comment.like_count || 0,
-            is_deleted_by_tpos: comment.is_deleted_by_tpos || false,
-            tpos_session_index: sessionIndex,
-            last_fetched_at: fetchedAt,
-            updated_at: fetchedAt,
-          }));
+          const commentsToInsert = updatedCommentsArray.map((comment: any) => {
+            const baseData: any = {
+              facebook_comment_id: comment.id,
+              facebook_post_id: postId,
+              facebook_user_id: comment.from?.id || '',
+              facebook_user_name: comment.from?.name || 'Unknown',
+              comment_message: comment.message || '',
+              comment_created_time: comment.created_time,
+              like_count: comment.like_count || 0,
+              is_deleted_by_tpos: comment.is_deleted_by_tpos || false,
+              last_fetched_at: fetchedAt,
+              updated_at: fetchedAt,
+            };
+            
+            // ✅ CHỈ gán tpos_session_index cho comments MỚI (chưa có order)
+            // Nếu comment đã có order, không ghi đè giá trị từ TPOS API
+            if (!comment.tpos_order_id) {
+              baseData.tpos_session_index = sessionIndex;
+            }
+            
+            return baseData;
+          });
           
           const { error: archiveError } = await supabaseClient
             .from('facebook_comments_archive')
