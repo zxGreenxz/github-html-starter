@@ -450,7 +450,7 @@ export function BulkTPOSUploadDialog({
 
     try {
       // Batch update variants with error handling
-      await batchUpdateVariants(
+      const result = await batchUpdateVariantsWithCheck(
         currentVariantsData,
         resolvedUpdates,
         currentItem,
@@ -460,14 +460,24 @@ export function BulkTPOSUploadDialog({
       // Mark as success
       setProgress(prev => prev.map((p) => 
         p.itemId === currentItem.id 
-          ? { ...p, status: 'success' } 
+          ? { ...p, status: 'success', error: result.missing.length > 0 ? `Thiếu ${result.missing.length} variants` : undefined } 
           : p
       ));
       
-      toast({
-        title: "✅ Đã cập nhật variants",
-        description: `Đã cập nhật ${resolvedUpdates.length} variants vào kho`
-      });
+      // Toast thông báo
+      if (result.missing.length > 0) {
+        toast({
+          variant: "default",
+          title: `⚠️ Đã cập nhật ${result.updated} variants`,
+          description: `Thiếu ${result.missing.length} biến thể:\n${result.missing.slice(0, 3).join('\n')}${result.missing.length > 3 ? `\n...và ${result.missing.length - 3} biến thể khác` : ''}`,
+          duration: 8000
+        });
+      } else {
+        toast({
+          title: "✅ Đã cập nhật variants",
+          description: `Đã cập nhật ${result.updated} variants vào kho`
+        });
+      }
     } catch (error: any) {
       // Error already handled in batchUpdateVariants
       console.error('Error resolving conflicts:', error);
@@ -480,133 +490,124 @@ export function BulkTPOSUploadDialog({
     setCurrentTPOSProductId(null);
   };
 
-  // Batch update variants with error handling (stop on first error, no rollback)
-  const batchUpdateVariants = async (
+  // Update productid_bienthe for resolved variants with missing check
+  const batchUpdateVariantsWithCheck = async (
     variantsFromTPOS: any[],
     resolvedUpdates: ResolvedUpdate[],
     baseItem: TPOSProductItem,
     tposProductId: number
-  ): Promise<void> => {
-    const updateMap = new Map(
-      resolvedUpdates.map(u => [u.product_code, u.fields_to_update])
-    );
-    
-    for (const variant of variantsFromTPOS) {
-      const code = variant.DefaultCode;
-      if (!code) continue;
-      
-      const fieldsToUpdate = updateMap.get(code);
-      if (!fieldsToUpdate || fieldsToUpdate.length === 0) {
-        continue;
-      }
-      
-      try {
-        // Build update object with base required fields
-        const updateData: any = {
-          product_code: code,
-          product_name: variant.Name || baseItem.product_name,
-          base_product_code: baseItem.product_code,
-          supplier_name: baseItem.supplier_name,
-          product_images: baseItem.product_images,
-          price_images: baseItem.price_images,
-          tpos_product_id: tposProductId,
-          productid_bienthe: variant.Id,
-          tpos_image_url: variant.ImageUrl,
-          variant: extractVariantName(variant),
-          updated_at: new Date().toISOString()
+  ): Promise<{ updated: number; missing: string[] }> => {
+    try {
+      const variantIdMap = variantsFromTPOS.reduce((acc, variant) => {
+        acc[variant.DefaultCode] = {
+          id: variant.Id,
+          name: variant.Name
         };
+        return acc;
+      }, {} as Record<string, { id: number; name: string }>);
+
+      // Update resolved variants
+      let updatedCount = 0;
+      for (const update of resolvedUpdates) {
+        const tposCode = update.product_code;
+        const variantInfo = variantIdMap[tposCode];
         
-        // Add only the fields user selected to update
-        for (const field of fieldsToUpdate) {
-          switch (field) {
-            case 'selling_price':
-              updateData.selling_price = variant.PriceVariant || 0;
-              break;
-            case 'purchase_price':
-              updateData.purchase_price = variant.PurchasePrice || 0;
-              break;
-            case 'barcode':
-              updateData.barcode = variant.Barcode;
-              break;
-            case 'stock_quantity':
-              updateData.stock_quantity = variant.QtyAvailable || 0;
-              break;
-            case 'product_name':
-              updateData.product_name = variant.Name;
-              break;
-          }
-        }
-        
-        // Upsert single variant
+        if (!variantInfo) continue;
+
         const { error } = await supabase
           .from('products')
-          .upsert([updateData], {
-            onConflict: 'product_code'
-          });
-        
-        if (error) {
-          // STOP IMMEDIATELY ON ERROR
-          throw new Error(`Lỗi update variant ${code}: ${error.message}`);
-        }
-        
-      } catch (error: any) {
-        // Stop immediately, no rollback
-        toast({
-          variant: "destructive",
-          title: "❌ Lỗi mạng",
-          description: `Đã dừng process khi update variant ${code}. Lỗi: ${error.message}`
-        });
-        
-        setProgress(prev => prev.map((p) => 
-          p.itemId === baseItem.id 
-            ? { ...p, status: 'error', error: `Lỗi mạng tại variant ${code}` }
-            : p
-        ));
-        
-        throw error;
-      }
-    }
-  };
+          .update({ productid_bienthe: variantInfo.id })
+          .eq('product_code', tposCode);
 
-  // Upsert all variants without conflicts
-  const batchUpsertVariants = async (
-    variantsFromTPOS: any[],
-    baseItem: TPOSProductItem,
-    tposProductId: number
-  ): Promise<void> => {
-    try {
-      const variantRecords = variantsFromTPOS.map(variant => ({
-        product_code: variant.DefaultCode,
-        product_name: variant.Name,
-        variant: extractVariantName(variant),
-        selling_price: variant.PriceVariant || 0,
-        purchase_price: variant.PurchasePrice || 0,
-        barcode: variant.Barcode,
-        stock_quantity: variant.QtyAvailable || 0,
-        base_product_code: baseItem.product_code,
-        supplier_name: baseItem.supplier_name,
-        product_images: baseItem.product_images,
-        price_images: baseItem.price_images,
-        tpos_product_id: tposProductId,
-        productid_bienthe: variant.Id,
-        tpos_image_url: variant.ImageUrl,
-        updated_at: new Date().toISOString()
-      }));
-      
-      const { error } = await supabase
-        .from('products')
-        .upsert(variantRecords, {
-          onConflict: 'product_code',
-          ignoreDuplicates: false
-        });
-      
-      if (error) {
-        throw error;
+        if (error) throw error;
+        updatedCount++;
       }
+
+      // Check for unresolved (missing) variants
+      const resolvedTPOSCodes = new Set(resolvedUpdates.map(u => u.product_code));
+      const allTPOSCodes = Object.keys(variantIdMap);
+      const missingCodes = allTPOSCodes.filter(code => !resolvedTPOSCodes.has(code));
+
+      console.log(`✅ Đã cập nhật productid_bienthe cho ${updatedCount} sản phẩm con (resolved)`);
+
+      return {
+        updated: updatedCount,
+        missing: missingCodes.map(code => `${code} (${variantIdMap[code].name})`)
+      };
+
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "❌ Lỗi lưu variants",
+        title: "❌ Lỗi cập nhật resolved variants",
+        description: error.message
+      });
+      throw error;
+    }
+  };
+
+  // Update productid_bienthe only for existing products
+  const updateVariantTPOSIds = async (
+    variantsFromTPOS: any[],
+    baseItem: TPOSProductItem,
+    tposProductId: number
+  ): Promise<{ updated: number; missing: string[] }> => {
+    try {
+      // Map variant TPOS IDs theo product_code
+      const variantIdMap = variantsFromTPOS.reduce((acc, variant) => {
+        acc[variant.DefaultCode] = {
+          id: variant.Id,
+          name: variant.Name
+        };
+        return acc;
+      }, {} as Record<string, { id: number; name: string }>);
+
+      // Lấy danh sách product_code của variants từ TPOS
+      const variantCodes = Object.keys(variantIdMap);
+
+      // Query các sản phẩm con đã có trong kho
+      const { data: existingProducts, error: fetchError } = await supabase
+        .from('products')
+        .select('id, product_code, product_name')
+        .in('product_code', variantCodes);
+
+      if (fetchError) throw fetchError;
+
+      // So sánh để tìm variants còn thiếu
+      const existingCodes = new Set(existingProducts?.map(p => p.product_code) || []);
+      const missingCodes = variantCodes.filter(code => !existingCodes.has(code));
+
+      // Prepare update data: chỉ update productid_bienthe nhưng phải include required fields
+      const updates = (existingProducts || []).map(product => ({
+        id: product.id,
+        product_code: product.product_code,
+        product_name: product.product_name,
+        productid_bienthe: variantIdMap[product.product_code].id
+      }));
+
+      // Batch update nếu có sản phẩm cần update
+      if (updates.length > 0) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .upsert(updates, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          });
+
+        if (updateError) throw updateError;
+      }
+
+      console.log(`✅ Đã cập nhật productid_bienthe cho ${updates.length}/${variantCodes.length} sản phẩm con`);
+
+      // Trả về kết quả
+      return {
+        updated: updates.length,
+        missing: missingCodes.map(code => `${code} (${variantIdMap[code].name})`)
+      };
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi cập nhật variant IDs",
         description: error.message
       });
       throw error;
@@ -853,15 +854,25 @@ export function BulkTPOSUploadDialog({
           // Wait for user to resolve conflicts
           return; // Exit early, will continue after conflict resolution
         } else {
-          // No conflicts - direct upsert
-          await batchUpsertVariants(variantsFromTPOS, item, tposProductId);
-          
+          // No conflicts - update variant IDs only
+          const result = await updateVariantTPOSIds(variantsFromTPOS, item, tposProductId);
+
           successCount++;
           setProgress(prev => prev.map((p) => 
             p.itemId === item.id 
-              ? { ...p, status: 'success' } 
+              ? { ...p, status: 'success', error: result.missing.length > 0 ? `Thiếu ${result.missing.length} variants` : undefined } 
               : p
           ));
+
+          // Toast thông báo nếu có variants thiếu
+          if (result.missing.length > 0) {
+            toast({
+              variant: "default",
+              title: `⚠️ ${item.product_code} - Thiếu biến thể`,
+              description: `Đã cập nhật ${result.updated} biến thể. Thiếu ${result.missing.length}:\n${result.missing.slice(0, 3).join('\n')}${result.missing.length > 3 ? `\n...và ${result.missing.length - 3} biến thể khác` : ''}`,
+              duration: 8000
+            });
+          }
         }
       } catch (error) {
         errorCount++;
