@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
+import { EditPurchaseOrderItemDialog } from "./EditPurchaseOrderItemDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
 
@@ -32,6 +33,7 @@ interface PurchaseOrderItem {
   selling_price: number;
   product_images: string[] | null;
   price_images: string[] | null;
+  tpos_product_id?: number | null;
 }
 
 interface PurchaseOrder {
@@ -93,6 +95,10 @@ export function PurchaseOrderList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
+  const [editingItem, setEditingItem] = useState<PurchaseOrderItem | null>(null);
+  const [isEditItemDialogOpen, setIsEditItemDialogOpen] = useState(false);
+  const [isDeleteItemDialogOpen, setIsDeleteItemDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<PurchaseOrderItem | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -279,6 +285,59 @@ export function PurchaseOrderList({
   const confirmDelete = () => {
     if (orderToDelete) {
       deletePurchaseOrderMutation.mutate(orderToDelete.id);
+    }
+  };
+
+  const handleEditItem = (item: PurchaseOrderItem) => {
+    setEditingItem(item);
+    setIsEditItemDialogOpen(true);
+  };
+
+  const handleDeleteItem = (item: PurchaseOrderItem) => {
+    setItemToDelete(item);
+    setIsDeleteItemDialogOpen(true);
+  };
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      // Delete goods_receiving_items first
+      const { error: receivingError } = await supabase
+        .from("goods_receiving_items")
+        .delete()
+        .eq("purchase_order_item_id", itemId);
+      
+      if (receivingError) throw receivingError;
+      
+      // Delete purchase_order_item
+      const { error: itemError } = await supabase
+        .from("purchase_order_items")
+        .delete()
+        .eq("id", itemId);
+      
+      if (itemError) throw itemError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      toast({
+        title: "Thành công",
+        description: "Sản phẩm đã được xóa",
+      });
+      setIsDeleteItemDialogOpen(false);
+      setItemToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Lỗi",
+        description: "Không thể xóa sản phẩm",
+        variant: "destructive",
+      });
+      console.error("Error deleting item:", error);
+    }
+  });
+
+  const confirmDeleteItem = () => {
+    if (itemToDelete && itemToDelete.id) {
+      deleteItemMutation.mutate(itemToDelete.id);
     }
   };
 
@@ -628,34 +687,45 @@ export function PurchaseOrderList({
                       >
                         {getStatusBadge(flatItem.status, flatItem.hasShortage)}
                       </TableCell>
-                      <TableCell rowSpan={flatItem.itemCount}>
-                        <div className="flex items-center gap-2">
-                          {!flatItem.hasDeletedProduct && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditOrder(flatItem)}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteOrder(flatItem)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => onToggleSelect(flatItem.id)}
-                            aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
-                          />
-                        </div>
-                      </TableCell>
                     </>
                   )}
+                  
+                  {/* Item-level actions - each item has its own buttons */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {/* Only show edit button if no tpos_product_id */}
+                      {!flatItem.item?.tpos_product_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditItem(flatItem.item!)}
+                          title="Chỉnh sửa sản phẩm"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      
+                      {/* Delete button for each item */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteItem(flatItem.item!)}
+                        className="text-destructive hover:text-destructive"
+                        title="Xóa sản phẩm"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      
+                      {/* Order selection checkbox - only on first item with rowSpan */}
+                      {flatItem.isFirstItem && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => onToggleSelect(flatItem.id)}
+                          aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
+                        />
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               );
             })
@@ -670,10 +740,16 @@ export function PurchaseOrderList({
         onOpenChange={setIsEditDialogOpen}
       />
 
+      <EditPurchaseOrderItemDialog
+        item={editingItem}
+        open={isEditItemDialogOpen}
+        onOpenChange={setIsEditItemDialogOpen}
+      />
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+            <AlertDialogTitle>Xác nhận xóa đơn hàng</AlertDialogTitle>
             <AlertDialogDescription>
               Bạn có chắc chắn muốn xóa đơn hàng này? Tất cả sản phẩm trong đơn hàng cũng sẽ bị xóa. 
               Hành động này không thể hoàn tác.
@@ -683,6 +759,27 @@ export function PurchaseOrderList({
             <AlertDialogCancel>Hủy</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteItemDialogOpen} onOpenChange={setIsDeleteItemDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa sản phẩm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa sản phẩm "{itemToDelete?.product_name}"? 
+              Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteItem}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Xóa

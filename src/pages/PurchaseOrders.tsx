@@ -31,6 +31,7 @@ interface PurchaseOrderItem {
   selling_price: number;
   product_images: string[] | null;
   price_images: string[] | null;
+  tpos_product_id?: number | null;
 }
 
 interface PurchaseOrder {
@@ -174,7 +175,8 @@ const PurchaseOrders = () => {
             purchase_price,
             selling_price,
             product_images,
-            price_images
+            price_images,
+            tpos_product_id
           ),
           receiving:goods_receiving(
             id,
