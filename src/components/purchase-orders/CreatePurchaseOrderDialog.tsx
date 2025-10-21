@@ -866,11 +866,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       if (variantsError) throw variantsError;
 
-      // ✅ 3. Update parent item's variant field in form with formatted text
+      // ✅ 3. Update parent item's variant field and quantity in form
+      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
+      
       const newItems = [...items];
       newItems[index] = {
         ...newItems[index],
-        variant: variantText
+        variant: variantText,
+        quantity: totalQuantity,  // Update quantity to sum of all variants
+        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
       };
       setItems(newItems);
 

@@ -620,10 +620,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         // Insert new variant items after the current base item
         setItems(prev => {
           const newItems = [...prev];
-          // Update the base item with variant text
+          // Update the base item with variant text and total quantity
+          const totalQuantity = createdVariants.length; // Each variant has quantity 1
           newItems[index] = {
             ...newItems[index],
             _tempVariant: variantText,
+            quantity: totalQuantity,  // Update quantity to total variants
+            _tempTotalPrice: Number(newItems[index]._tempUnitPrice || 0) * totalQuantity  // Recalculate total
           };
           // Insert variant items after the base item
           newItems.splice(index + 1, 0, ...newVariantItems);
