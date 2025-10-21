@@ -264,7 +264,10 @@ const PurchaseOrders = () => {
 
   // Separate draft orders from active orders
   const draftOrders = orders?.filter(order => order.status === 'draft') || [];
-  const activeOrders = filteredOrders.filter(order => order.status !== 'draft');
+  // Keep draft orders in activeOrders only when statusFilter is NOT "all" and NOT specifically filtering drafts
+  const activeOrders = statusFilter === "pending" 
+    ? filteredOrders  // Show both pending and draft when filter is "pending"
+    : filteredOrders.filter(order => order.status !== 'draft');  // Hide draft from other views
 
   const handleEditDraft = (order: PurchaseOrder) => {
     setDraftToEdit(order);
