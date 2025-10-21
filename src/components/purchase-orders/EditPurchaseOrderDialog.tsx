@@ -192,52 +192,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   }, [order, open]);
 
   // Load items when existingItems change
-  useEffect(() => {
-    if (existingItems && existingItems.length > 0) {
-      setItems(existingItems.map(item => ({
-        id: item.id,
-        product_code: item.product_code,
-        product_name: item.product_name,
-        variant: item.variant || "",
-        purchase_price: item.purchase_price,
-        selling_price: item.selling_price,
-        product_images: item.product_images || [],
-        price_images: item.price_images || [],
-        quantity: item.quantity || 1,
-        notes: item.notes || "",
-        position: item.position,
-        _tempProductName: item.product_name,
-        _tempProductCode: item.product_code,
-        _tempVariant: item.variant || "",
-        _tempUnitPrice: Number(item.purchase_price) / 1000,
-        _tempSellingPrice: Number(item.selling_price) / 1000,
-        _tempTotalPrice: (item.quantity * Number(item.purchase_price)) / 1000,
-        _tempProductImages: item.product_images || [],
-        _tempPriceImages: item.price_images || [],
-      })));
-    } else if (open && existingItems) {
-      // If no existing items, add one empty row
-      setItems([{
-        product_code: "",
-        product_name: "",
-        variant: "",
-        purchase_price: 0,
-        selling_price: 0,
-        product_images: [],
-        price_images: [],
-        quantity: 1,
-        notes: "",
-        _tempProductName: "",
-        _tempProductCode: "",
-        _tempVariant: "",
-        _tempUnitPrice: "",
-        _tempSellingPrice: "",
-        _tempTotalPrice: 0,
-        _tempProductImages: [],
-        _tempPriceImages: [],
-      }]);
-    }
-  }, [existingItems, open]);
+  // ❌ REMOVED: No longer loading from DB first - expandParentProducts handles everything
 
   // Fetch FULL product data from TPOS (similar to TPOS Manager)
   const fetchFullProductForEdit = async (productCode: string) => {
@@ -312,20 +267,45 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   };
 
-  // Expand parent products by fetching FULL data from TPOS
+  // ✅ ALWAYS fetch from TPOS if tpos_product_id exists
   useEffect(() => {
     const expandParentProducts = async () => {
-      if (!existingItems || existingItems.length === 0 || !open) return;
+      if (!open) return;
       
-      console.log("🔍 Checking for parent products to expand...");
+      // Handle empty purchase order
+      if (!existingItems || existingItems.length === 0) {
+        setItems([{
+          id: crypto.randomUUID(),
+          product_code: "",
+          product_name: "",
+          variant: "",
+          purchase_price: 0,
+          selling_price: 0,
+          product_images: [],
+          price_images: [],
+          quantity: 1,
+          notes: "",
+          _tempProductName: "",
+          _tempProductCode: "",
+          _tempVariant: "",
+          _tempUnitPrice: 0,
+          _tempSellingPrice: 0,
+          _tempTotalPrice: 0,
+          _tempQuantity: 1,
+          _tempProductImages: [],
+          _tempPriceImages: [],
+          _isNew: true,
+        }]);
+        return;
+      }
+      
+      console.log("🔍 Fetching ALL products from TPOS...");
       const expandedItems: PurchaseOrderItem[] = [];
       
       for (const item of existingItems) {
-        // Check if this is a parent product (no variant, has tpos_product_id)
-        const isParent = !item.variant && item.tpos_product_id;
-        
-        if (isParent) {
-          console.log("🔄 Expanding parent:", item.product_code);
+        // ✅ ALWAYS fetch from TPOS if tpos_product_id exists
+        if (item.tpos_product_id) {
+          console.log("🔄 Fetching from TPOS:", item.product_code);
           
           // Fetch FULL product data
           const fullProductData = await fetchFullProductForEdit(item.product_code);
@@ -343,9 +323,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                 product_code: variant.DefaultCode || item.product_code,
                 product_name: variant.Name || variant.NameGet || item.product_name,
                 variant: variantAttributes,
-                quantity: variant.QtyAvailable || 0, // ✅ Stock from TPOS
-                purchase_price: variant.PriceVariant || 0, // ✅ Purchase price
-                selling_price: variant.ListPrice || 0, // ✅ Selling price
+                quantity: variant.QtyAvailable || 0,
+                purchase_price: variant.PriceVariant || 0,
+                selling_price: variant.ListPrice || 0,
                 product_images: item.product_images || [],
                 price_images: item.price_images || [],
                 tpos_product_id: variant.Id,
@@ -362,8 +342,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                 _tempTotalPrice: ((variant.QtyAvailable || 0) * (variant.PriceVariant || 0)) / 1000,
                 _tempProductImages: item.product_images || [],
                 _tempPriceImages: item.price_images || [],
-                _fullTPOSData: variant, // ✅ STORE FULL VARIANT DATA
-                _parentTPOSData: fullProductData // ✅ STORE FULL PARENT DATA
+                _fullTPOSData: variant,
+                _parentTPOSData: fullProductData
               });
             });
           } else {
@@ -382,7 +362,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             });
           }
         } else {
-          // Not a parent, keep as is
+          // ⚠️ No tpos_product_id - use DB data as fallback
+          console.log("⚠️ No TPOS ID for:", item.product_code, "- using DB data");
           expandedItems.push({
             ...item,
             _tempQuantity: item.quantity,
@@ -398,10 +379,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       }
       
-      if (expandedItems.length > 0) {
-        setItems(expandedItems);
-        console.log("✅ Expanded to", expandedItems.length, "items");
-      }
+      setItems(expandedItems);
+      console.log("✅ Loaded", expandedItems.length, "items from TPOS");
     };
     
     expandParentProducts();
