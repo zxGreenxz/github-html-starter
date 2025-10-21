@@ -68,7 +68,20 @@ export function ImportTPOSVariantsDialog({
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      // Normalize column names to handle special characters
+      const normalizeColumnName = (name: string) => {
+        return name.trim().replace(/\\\*/g, '*');
+      };
+
+      const rawData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = rawData.map(row => {
+        const normalizedRow: any = {};
+        Object.keys(row).forEach(key => {
+          normalizedRow[normalizeColumnName(key)] = (row as any)[key];
+        });
+        return normalizedRow;
+      });
 
       if (jsonData.length === 0) {
         toast({
@@ -79,6 +92,10 @@ export function ImportTPOSVariantsDialog({
         setIsImporting(false);
         return;
       }
+
+      // Debug: Log first row column names
+      console.log("📋 Column names detected:", Object.keys(jsonData[0]));
+      console.log("📋 First row sample:", jsonData[0]);
 
       let updatedCount = 0;
       let skippedCount = 0;
@@ -105,6 +122,21 @@ export function ImportTPOSVariantsDialog({
           updateData.stock_quantity = parseInt(stockQuantity.toString() || "0");
         }
 
+        // First check if product exists
+        const { data: existingProduct } = await supabase
+          .from("products")
+          .select("id")
+          .eq("product_code", productCode)
+          .single();
+
+        if (!existingProduct) {
+          console.warn(`⚠️ Bỏ qua ${productCode}: Không tìm thấy trong DB`);
+          skippedCount++;
+          setProgress(((i + 1) / jsonData.length) * 100);
+          continue;
+        }
+
+        // Now update
         const { error } = await supabase
           .from("products")
           .update(updateData)
@@ -123,7 +155,8 @@ export function ImportTPOSVariantsDialog({
 
       toast({
         title: "Import thành công",
-        description: `Đã cập nhật ${updatedCount} sản phẩm, bỏ qua ${skippedCount} dòng`,
+        description: `✅ Cập nhật ${updatedCount} sản phẩm${skippedCount > 0 ? `\n⚠️ Bỏ qua ${skippedCount} dòng (thiếu dữ liệu hoặc không tồn tại trong DB)` : ''}`,
+        duration: 5000,
       });
 
       onSuccess();
