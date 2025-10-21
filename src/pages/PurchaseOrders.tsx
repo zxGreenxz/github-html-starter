@@ -254,8 +254,10 @@ const PurchaseOrders = () => {
         item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     
-    // Status filter
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    // Status filter - "pending" includes both pending and draft orders
+    const matchesStatus = statusFilter === "all" || 
+      order.status === statusFilter ||
+      (statusFilter === "pending" && order.status === "draft");
     
     return matchesSearch && matchesStatus;
   }) || [];
