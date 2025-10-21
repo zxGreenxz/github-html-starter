@@ -116,6 +116,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
+  // Cache for TPOS variants to avoid redundant API calls
+  const [tposVariantsCache, setTposVariantsCache] = useState<Record<string, any[]>>({});
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -228,6 +230,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   // Fetch variants from TPOS API
   const fetchVariantsFromTPOS = async (productCode: string, parentImages: string[]) => {
     try {
+      // Check cache first
+      if (tposVariantsCache[productCode]) {
+        console.log("Using cached variants for:", productCode);
+        return tposVariantsCache[productCode];
+      }
+      
       // Get product's tpos_product_id from database
       const { data: productData, error: productError } = await supabase
         .from("products")
@@ -279,17 +287,25 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         : parentImages;
       const priceImagesToUse = productData.price_images || [];
       
-      return variants.map((variant: any) => ({
+      const mappedVariants = variants.map((variant: any) => ({
         product_code: variant.DefaultCode || productCode,
         product_name: variant.Name || variant.NameGet,
         variant: variant.AttributeValues?.map((attr: any) => attr.Name).join(', ') || '',
-        selling_price: variant.PriceVariant || 0,
-        purchase_price: variant.PurchasePrice || 0,
+        purchase_price: variant.PriceVariant || 0,      // ✅ Giá mua
+        selling_price: variant.ListPrice || 0,          // ✅ Giá bán
         stock_quantity: variant.QtyAvailable || 0,
         product_images: imagesToUse,
         price_images: priceImagesToUse,
         tpos_product_id: variant.Id
       }));
+      
+      // Save to cache
+      setTposVariantsCache(prev => ({
+        ...prev,
+        [productCode]: mappedVariants
+      }));
+      
+      return mappedVariants;
     } catch (error) {
       console.error("Error fetching variants from TPOS:", error);
       return null;
@@ -398,6 +414,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       _tempProductImages: [],
       _tempPriceImages: [],
     }]);
+    // Clear cache when closing modal without saving
+    setTposVariantsCache({});
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
@@ -871,6 +889,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       return order.id;
     },
     onSuccess: () => {
+      // Clear TPOS variants cache after successful update
+      setTposVariantsCache({});
+      
       // Invalidate queries to refetch fresh data from database
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
