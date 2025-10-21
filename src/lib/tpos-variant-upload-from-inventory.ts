@@ -451,33 +451,51 @@ async function updateExistingProductVariants(
     const existingData = await fetchResponse.json();
     const cleanData = removeODataMetadata(existingData);
 
-    // STEP 2: Preview variants (SuggestionsVariant)
-    onProgress?.('🔍 [1/3] Đang tạo preview variants...');
+    // STEP 2: Preview variants (SuggestionsVariant) - POST TUẦN TỰ 3 LẦN
+    onProgress?.('🔍 [1/3] Đang tạo preview variants (3 bước)...');
     
-    const previewPayload = {
-      model: {
-        ...cleanData,
-        AttributeLines: attributeLines,
-        ProductVariants: [] // Let TPOS generate
-      }
-    };
+    let currentAttributeLines: AttributeLine[] = [];
+    let finalPreviewData: any;
 
-    const previewResponse = await fetch(
-      'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(previewPayload)
-      }
-    );
+    for (let i = 0; i < attributeLines.length; i++) {
+      currentAttributeLines.push(attributeLines[i]);
+      
+      onProgress?.(
+        `🔍 [Preview ${i+1}/${attributeLines.length}] ${attributeLines[i].Attribute.Name} (${attributeLines[i].Values.length} values)...`
+      );
+      
+      const previewPayload = {
+        model: {
+          ...cleanData,
+          AttributeLines: currentAttributeLines,
+          ProductVariants: []
+        }
+      };
 
-    if (!previewResponse.ok) {
-      const errorData = await previewResponse.json();
-      throw new Error(`Preview failed: ${errorData.error?.message || previewResponse.status}`);
+      const previewResponse = await fetch(
+        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(previewPayload)
+        }
+      );
+
+      if (!previewResponse.ok) {
+        const errorData = await previewResponse.json();
+        throw new Error(
+          `Preview step ${i+1} failed: ${errorData.error?.message || previewResponse.status}`
+        );
+      }
+
+      finalPreviewData = await previewResponse.json();
+      onProgress?.(
+        `✅ Preview ${i+1}: ${finalPreviewData.value?.length || 0} variants`
+      );
     }
 
-    const previewData = await previewResponse.json();
-    onProgress?.(`✅ Preview: ${previewData.value?.length || 0} variants`);
+    const previewData = finalPreviewData;
+    onProgress?.(`✅ Hoàn tất preview: ${previewData.value?.length || 0} variants tổng cộng`);
 
     // STEP 3: Save to database (UpdateV2)
     onProgress?.('💾 [2/3] Đang lưu vào TPOS database...');
