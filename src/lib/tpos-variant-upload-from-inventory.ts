@@ -82,80 +82,91 @@ function parseVariantToAttributeLines(variantStr: string): AttributeLine[] {
     groups.push(match[1]);
   }
 
-  // ✅ STEP 2: Fallback to old format if no parentheses found
+  // ✅ STEP 2: Fallback to old comma-separated format
   if (groups.length === 0) {
     const cleanStr = variantStr.replace(/[()]/g, '');
-    const parts = cleanStr
-      .split(/[\s,]+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+    const parts = cleanStr.split(/[\s,]+/).map(s => s.trim()).filter(s => s.length > 0);
     
-    if (parts.length > 0) {
-      groups.push(parts.join(' | '));
+    // Group by attribute type
+    const sizeNumGroup: string[] = [];
+    const sizeTextGroup: string[] = [];
+    const colorGroup: string[] = [];
+    
+    for (const part of parts) {
+      if (/^\d+$/.test(part)) {
+        sizeNumGroup.push(part);
+      } else if (part.length <= 4 && /^[A-Z]+$/i.test(part)) {
+        sizeTextGroup.push(part);
+      } else {
+        colorGroup.push(part);
+      }
     }
+    
+    // Rebuild groups theo thứ tự: Size Số → Size Chữ → Màu
+    if (sizeNumGroup.length > 0) groups.push(sizeNumGroup.join(' | '));
+    if (sizeTextGroup.length > 0) groups.push(sizeTextGroup.join(' | '));
+    if (colorGroup.length > 0) groups.push(colorGroup.join(' | '));
   }
 
-  // ✅ STEP 3: Process each group
+  // ✅ STEP 3: Process each group và XÁC ĐỊNH AttributeId
   for (const group of groups) {
-    // Split by pipe |
-    const values = group
-      .split('|')
-      .map(v => v.trim())
-      .filter(v => v.length > 0);
+    const values = group.split('|').map(v => v.trim()).filter(v => v.length > 0);
+    
+    if (values.length === 0) continue;
 
-    // Try to match each value with TPOS attributes
-    for (const value of values) {
-      const valueUpper = value.toUpperCase();
+    // ✅ DETECT attribute type từ first value
+    let detectedAttributeId: number | null = null;
+    
+    // Check if group is Size Số (all numbers)
+    if (values.every(v => /^\d+$/.test(v))) {
+      detectedAttributeId = 4; // Size Số
+    }
+    // Check if group is Size Chữ (short uppercase letters)
+    else if (values.every(v => v.length <= 4 && /^[A-Z]+$/i.test(v))) {
+      detectedAttributeId = 1; // Size Chữ
+    }
+    // Otherwise, it's Color
+    else {
+      detectedAttributeId = 3; // Màu
+    }
+
+    // ✅ STEP 4: Match values với TPOS attributes
+    if (detectedAttributeId) {
+      const attrInfo = ATTRIBUTE_MAP[detectedAttributeId];
       
-      Object.entries(ATTRIBUTE_MAP).forEach(([attrId, attrInfo]) => {
-        // ✅ STEP 1: Prioritize exact match (Name or Code)
-        let matchedValue = attrInfo.values.find(
-          v => v.Name.toUpperCase() === valueUpper || 
-               v.Code.toUpperCase() === valueUpper
-        );
-        
-        // ✅ STEP 2: Fallback to includes() only if no exact match
-        if (!matchedValue) {
-          matchedValue = attrInfo.values.find(
-            v => valueUpper.includes(v.Name.toUpperCase())
+      const matchedValues = values
+        .map(v => {
+          const valueUpper = v.toUpperCase();
+          return attrInfo.values.find(
+            av => av.Name.toUpperCase() === valueUpper || 
+                  av.Code.toUpperCase() === valueUpper
           );
-        }
+        })
+        .filter(v => v !== undefined);
 
-        if (matchedValue) {
-          const id = parseInt(attrId);
-          let line = attributeLines.find(l => l.AttributeId === id);
-          
-          if (!line) {
-            line = {
-              Attribute: {
-                Id: id,
-                Name: attrInfo.name,
-                Code: attrInfo.code,
-                Sequence: null,
-                CreateVariant: true
-              },
-              Values: [],
-              AttributeId: id
-            };
-            attributeLines.push(line);
-          }
-
-          // Avoid duplicates
-          if (!line.Values.find(v => v.Id === matchedValue.Id)) {
-            line.Values.push({
-              Id: matchedValue.Id,
-              Name: matchedValue.Name,
-              Code: matchedValue.Code,
-              Sequence: matchedValue.Sequence,
-              AttributeId: id,
-              AttributeName: attrInfo.name,
-              PriceExtra: null,
-              NameGet: `${attrInfo.name}: ${matchedValue.Name}`,
-              DateCreated: null
-            });
-          }
-        }
-      });
+      if (matchedValues.length > 0) {
+        attributeLines.push({
+          Attribute: {
+            Id: detectedAttributeId,
+            Name: attrInfo.name,
+            Code: attrInfo.code,
+            Sequence: null,
+            CreateVariant: true
+          },
+          Values: matchedValues.map(v => ({
+            Id: v!.Id,
+            Name: v!.Name,
+            Code: v!.Code,
+            Sequence: v!.Sequence,
+            AttributeId: detectedAttributeId,
+            AttributeName: attrInfo.name,
+            PriceExtra: null,
+            NameGet: `${attrInfo.name}: ${v!.Name}`,
+            DateCreated: null
+          })),
+          AttributeId: detectedAttributeId
+        });
+      }
     }
   }
 
@@ -166,20 +177,20 @@ function parseVariantToAttributeLines(variantStr: string): AttributeLine[] {
  * Build attribute lines from inventory variants
  */
 function buildAttributeLinesFromInventory(variants: VariantFromInventory[]): AttributeLine[] {
-  const attributeLines: AttributeLine[] = [];
-
-  for (const variant of variants) {
-    if (!variant.variant) continue;
+  if (variants.length === 0) return [];
+  
+  // ✅ Parse variant đầu tiên để lấy thứ tự attributes
+  const firstVariant = variants[0];
+  const attributeLines = parseVariantToAttributeLines(firstVariant.variant);
+  
+  // ✅ Merge values từ các variants khác
+  for (let i = 1; i < variants.length; i++) {
+    const lines = parseVariantToAttributeLines(variants[i].variant);
     
-    const lines = parseVariantToAttributeLines(variant.variant);
-    
-    // Merge with existing attribute lines
     for (const line of lines) {
-      let existingLine = attributeLines.find(l => l.AttributeId === line.AttributeId);
+      const existingLine = attributeLines.find(l => l.AttributeId === line.AttributeId);
       
-      if (!existingLine) {
-        attributeLines.push(line);
-      } else {
+      if (existingLine) {
         // Merge values without duplicates
         for (const value of line.Values) {
           if (!existingLine.Values.find(v => v.Id === value.Id)) {
@@ -189,7 +200,7 @@ function buildAttributeLinesFromInventory(variants: VariantFromInventory[]): Att
       }
     }
   }
-
+  
   return attributeLines;
 }
 
