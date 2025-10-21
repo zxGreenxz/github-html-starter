@@ -129,6 +129,7 @@ export function ImportProductsDialog({ open, onOpenChange, onSuccess }: ImportPr
           category: row["Nhóm sản phẩm"]?.toString().trim() || null,
           barcode: row["Mã vạch"]?.toString().trim() || null,
           stock_quantity: parseInt(row["Số lượng tồn"]?.toString() || "0") || 0,
+          tpos_product_id: row["Id"] ? parseInt(row["Id"]?.toString()) : null,
         };
 
         // UPSERT: Tự động insert nếu mới, update nếu đã tồn tại
@@ -202,7 +203,7 @@ export function ImportProductsDialog({ open, onOpenChange, onSuccess }: ImportPr
               disabled={isImporting}
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Cột cần có: Mã sản phẩm, Tên sản phẩm, Giá bán, Giá mua, Đơn vị, Nhóm sản phẩm, Mã vạch, Số lượng tồn
+              Cột cần có: Mã sản phẩm, Tên sản phẩm, Giá bán, Giá mua, Đơn vị, Nhóm sản phẩm, Mã vạch, Số lượng tồn, Id (tùy chọn)
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               ✅ Sản phẩm đã tồn tại (trùng mã) sẽ được <strong>CẬP NHẬT</strong> giá và thông tin
