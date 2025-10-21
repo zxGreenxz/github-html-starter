@@ -127,7 +127,7 @@ export function ImportTPOSVariantsDialog({
           .from("products")
           .select("id")
           .eq("product_code", productCode)
-          .single();
+          .maybeSingle();
 
         if (!existingProduct) {
           console.warn(`⚠️ Bỏ qua ${productCode}: Không tìm thấy trong DB`);
