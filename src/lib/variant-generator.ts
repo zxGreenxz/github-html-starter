@@ -183,6 +183,26 @@ export function generateSKU(
 ): string {
   let code = baseCode;
 
+  // Detect các loại attribute
+  const hasSizeText = attrs.some(attr => 
+    attr.AttributeId === 1 || attr.AttributeName === "Size Chữ"
+  );
+
+  const hasColor = attrs.some(attr => 
+    attr.AttributeId === 3 || attr.AttributeName === "Màu"
+  );
+
+  const hasSizeNumber = attrs.some(attr => 
+    attr.AttributeId === 4 || attr.AttributeName === "Size Số"
+  );
+
+  // Nếu CHỈ CÓ size số (không có size chữ và màu), thêm "A"
+  const isSizeNumberOnly = hasSizeNumber && !hasSizeText && !hasColor;
+  
+  if (isSizeNumberOnly) {
+    code += "A";
+  }
+
   // Duyệt theo thứ tự tự nhiên của attrs
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
