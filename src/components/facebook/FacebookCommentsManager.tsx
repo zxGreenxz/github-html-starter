@@ -139,7 +139,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_HIDE_NAMES = ["Nhi Judy House"];
 const REALTIME_CHECK_INTERVAL = 5000; // 5 seconds
-const DEBOUNCE_DELAY = 100;
+const DEBOUNCE_DELAY = 500; // ⚡ Increased to batch more comments before fetching
 const FETCH_LIMIT = 500;
 const ORDERS_TOP = 200;
 
@@ -1288,43 +1288,35 @@ export function FacebookCommentsManager({
     [searchQuery],
   );
 
-  const filteredComments = useMemo(() => {
+  // ⚡ OPTIMIZATION: Split filtering into 3 independent steps
+  // Step 1: Filter by search query
+  const searchFiltered = useMemo(() => {
+    if (!searchQuery) return commentsWithStatus;
+    
     return commentsWithStatus.filter((comment) => {
-      // Search filter
-      if (searchQuery) {
-        const messageLower = comment.message?.toLowerCase() || "";
-        const nameLower = comment.from?.name?.toLowerCase() || "";
-
-        if (
-          !messageLower.includes(searchQueryLower) &&
-          !nameLower.includes(searchQueryLower)
-        ) {
-          return false;
-        }
-      }
-
-      // Order filter
-      if (
-        showOnlyWithOrders &&
-        (!comment.orderInfo || !comment.orderInfo.Code)
-      ) {
-        return false;
-      }
-
-      // Hide names filter
-      if (hideNames.includes(comment.from?.name || "")) {
-        return false;
-      }
-
-      return true;
+      const messageLower = comment.message?.toLowerCase() || "";
+      const nameLower = comment.from?.name?.toLowerCase() || "";
+      return messageLower.includes(searchQueryLower) || nameLower.includes(searchQueryLower);
     });
-  }, [
-    commentsWithStatus,
-    searchQuery,
-    searchQueryLower,
-    showOnlyWithOrders,
-    hideNames,
-  ]);
+  }, [commentsWithStatus, searchQuery, searchQueryLower]);
+
+  // Step 2: Filter by order status
+  const statusFiltered = useMemo(() => {
+    if (!showOnlyWithOrders) return searchFiltered;
+    
+    return searchFiltered.filter((comment) => {
+      return comment.orderInfo && comment.orderInfo.Code;
+    });
+  }, [searchFiltered, showOnlyWithOrders]);
+
+  // Step 3: Filter by hidden names
+  const filteredComments = useMemo(() => {
+    if (hideNames.length === 0) return statusFiltered;
+    
+    return statusFiltered.filter((comment) => {
+      return !hideNames.includes(comment.from?.name || "");
+    });
+  }, [statusFiltered, hideNames]);
 
   // ============================================================================
   // HANDLERS
