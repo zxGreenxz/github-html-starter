@@ -512,15 +512,56 @@ export function LiveCommentsPanel({
       setPendingCommentIds(prev => new Set(prev).add(variables.comment.id));
     },
     onSuccess: (data, variables) => {
+      const responseData = data.response; // TPOS response: { Code, SessionIndex, Name, Telephone, ... }
+      
       toast({
         title: "Tạo đơn hàng thành công!",
-        description: `Đơn hàng ${data.response.Code} đã được tạo.`,
+        description: `Đơn hàng ${responseData.Code} - Mã #${responseData.SessionIndex}`,
       });
       
-      // Force refresh status for user who just created order
+      // ✅ Update cache IMMEDIATELY with data from response
       const comment = variables.comment;
+      if (comment?.from?.id && responseData.SessionIndex) {
+        console.log(`[LiveCommentsPanel] Updating cache with SessionIndex: ${responseData.SessionIndex}`);
+        
+        const newStatusMap = new Map(customerStatusMapRef.current);
+        const existingStatus = customerStatusMapRef.current.get(comment.from.id);
+        
+        newStatusMap.set(comment.from.id, {
+          partnerStatus: existingStatus?.partnerStatus || 'Bình thường',
+          orderInfo: {
+            Code: responseData.Code,
+            SessionIndex: responseData.SessionIndex, // ← KEY: Update session_index immediately
+            Name: responseData.Name,
+            Telephone: responseData.Telephone,
+            TotalAmount: responseData.TotalAmount,
+            TotalQuantity: responseData.TotalQuantity,
+            Note: responseData.Note,
+            order_count: existingStatus?.orderInfo?.order_count ? existingStatus.orderInfo.order_count + 1 : 1,
+            Facebook_ASUserId: comment.from.id,
+          },
+          isLoadingStatus: false,
+        });
+        
+        customerStatusMapRef.current = newStatusMap;
+        setCustomerStatusMap(newStatusMap);
+        
+        // Save to localStorage for persistence
+        try {
+          const cacheObj = Object.fromEntries(newStatusMap);
+          localStorage.setItem('liveComments_customerStatusCache', JSON.stringify(cacheObj));
+          console.log(`[LiveCommentsPanel] Cache updated and saved for user ${comment.from.id}`);
+        } catch (e) {
+          console.error('[LiveCommentsPanel] Error saving cache:', e);
+        }
+      }
+      
+      // ✅ Background refresh for consistency (optional, after 1 second)
       if (comment?.from?.id) {
-        refreshSingleUserStatus(comment.from.id, comment.id);
+        setTimeout(() => {
+          console.log(`[LiveCommentsPanel] Background refresh for user ${comment.from.id}`);
+          refreshSingleUserStatus(comment.from.id, comment.id);
+        }, 1000);
       }
     },
     onError: (error: any) => {
