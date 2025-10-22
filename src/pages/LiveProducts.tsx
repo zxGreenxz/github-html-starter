@@ -34,6 +34,7 @@ import { generateOrderImage } from "@/lib/order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
 import { formatVariant, getVariantName } from "@/lib/variant-utils";
 import { ZoomableImage } from "@/components/products/ZoomableImage";
+import { ProductImage } from "@/components/products/ProductImage";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
@@ -416,6 +417,30 @@ export default function LiveProducts() {
     },
     enabled: !!selectedPhase && !!selectedSession
   });
+
+  // Fetch product details from products table for images
+  const { data: productsDetails = [] } = useQuery({
+    queryKey: ["products-details-for-live", allLiveProducts.map(p => p.product_code)],
+    queryFn: async () => {
+      if (allLiveProducts.length === 0) return [];
+      
+      const productCodes = [...new Set(allLiveProducts.map(p => p.product_code))];
+      
+      const { data, error } = await supabase
+        .from("products")
+        .select("product_code, product_images, tpos_image_url, tpos_product_id, base_product_code")
+        .in("product_code", productCodes);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: allLiveProducts.length > 0,
+  });
+
+  // Create a map for quick lookup
+  const productsDetailsMap = useMemo(() => {
+    return new Map(productsDetails.map(p => [p.product_code, p]));
+  }, [productsDetails]);
 
   // State to manage prepared quantities in the input fields
   const [preparedQuantities, setPreparedQuantities] = useState<Record<string, number>>({});
@@ -1834,14 +1859,24 @@ export default function LiveProducts() {
                         const timeB = new Date(b.created_at || 0).getTime();
                         return timeB - timeA;
                       });
-                      return sortedProducts.map(product => <TableRow key={product.id}>
+                      return sortedProducts.map(product => {
+                        const productDetail = productsDetailsMap.get(product.product_code);
+                        
+                        return <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.product_code}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
                             <TableCell className="text-muted-foreground">
                               {getVariantName(product.variant)}
                             </TableCell>
                             <TableCell>
-                              <ZoomableImage src={product.image_url} alt={product.product_name} />
+                              <ProductImage
+                                productId={product.id}
+                                productCode={product.product_code}
+                                productImages={productDetail?.product_images || null}
+                                tposImageUrl={productDetail?.tpos_image_url || product.image_url}
+                                tposProductId={productDetail?.tpos_product_id || null}
+                                baseProductCode={productDetail?.base_product_code || product.base_product_code}
+                              />
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-1">
@@ -1940,7 +1975,8 @@ export default function LiveProducts() {
                                 </Button>
                               </div>
                             </TableCell>
-                          </TableRow>);
+                          </TableRow>;
+                      });
                     })()}
                     </TableBody>
                   </Table>
@@ -1991,11 +2027,20 @@ export default function LiveProducts() {
                       }
                       return filteredHangLe.map(product => {
                         const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
+                        const productDetail = productsDetailsMap.get(product.product_code);
+                        
                         return <TableRow key={product.id}>
                                 <TableCell className="font-medium">{product.product_code}</TableCell>
                                 <TableCell>{product.product_name}</TableCell>
                                 <TableCell>
-                                  <ZoomableImage src={product.image_url} alt={product.product_name} />
+                                  <ProductImage
+                                    productId={product.id}
+                                    productCode={product.product_code}
+                                    productImages={productDetail?.product_images || null}
+                                    tposImageUrl={productDetail?.tpos_image_url || product.image_url}
+                                    tposProductId={productDetail?.tpos_product_id || null}
+                                    baseProductCode={productDetail?.base_product_code || product.base_product_code}
+                                  />
                                 </TableCell>
                                 
                                 <TableCell className="text-center">
