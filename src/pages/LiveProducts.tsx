@@ -325,6 +325,27 @@ export default function LiveProducts() {
     staleTime: 30000, // 30s - phases change infrequently, realtime handles updates
   });
 
+  // ✅ Fetch session data with facebook_post_id (cached at parent level)
+  const { data: sessionData } = useQuery({
+    queryKey: ['live-session-data', selectedSession],
+    queryFn: async () => {
+      if (!selectedSession) return null;
+      
+      const { data, error } = await supabase
+        .from('live_sessions')
+        .select('facebook_post_id, supplier_name')
+        .eq('id', selectedSession)
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ [CACHE] Loaded facebook_post_id for session:', data?.facebook_post_id);
+      return data;
+    },
+    enabled: !!selectedSession,
+    staleTime: Infinity, // Cache permanently - session data doesn't change during session
+  });
+
   // Fetch live products for selected phase (or all phases if "all" selected)
   const {
     data: allLiveProducts = []
@@ -401,7 +422,7 @@ export default function LiveProducts() {
       }
     },
     enabled: !!selectedPhase && !!selectedSession,
-    staleTime: 10000, // 10s - products update frequently but realtime handles changes
+    staleTime: 30000, // 30s - products update frequently but realtime handles changes
   });
 
   // Fetch product details from products table for images
@@ -1840,7 +1861,7 @@ export default function LiveProducts() {
                                             {productOrders.length === 0 && <span className="text-xs text-muted-foreground">
                                                 Chưa có đơn
                                               </span>}
-                                            {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />}
+                                            {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} facebookPostId={sessionData?.facebook_post_id} />}
                                           </>;
                                 })()}
                                      </div>
@@ -2012,7 +2033,7 @@ export default function LiveProducts() {
                                           </TooltipProvider>;
                                 })}
                                       {selectedPhase !== "all" && <div className="flex items-center gap-2 ml-2">
-                                          <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />
+                                          <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} facebookPostId={sessionData?.facebook_post_id} />
                                         </div>}
                                     </>;
                             })()}
@@ -2127,7 +2148,7 @@ export default function LiveProducts() {
                                           </Tooltip>
                                         </TooltipProvider>;
                               })}
-                                    {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />}
+                                    {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} facebookPostId={sessionData?.facebook_post_id} />}
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-center">

@@ -21,6 +21,7 @@ interface QuickAddOrderProps {
   availableQuantity: number;
   onOrderAdded?: (quantity: number) => void;
   isAutoPrintEnabled?: boolean;
+  facebookPostId?: string; // ✅ Received from parent to avoid cascade queries
 }
 type PendingOrder = {
   id: string;
@@ -42,7 +43,8 @@ export function QuickAddOrder({
   sessionId,
   availableQuantity,
   onOrderAdded,
-  isAutoPrintEnabled = true
+  isAutoPrintEnabled = false,
+  facebookPostId // ✅ Received from parent
 }: QuickAddOrderProps) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -77,29 +79,7 @@ export function QuickAddOrder({
     enabled: !!phaseId && phaseId !== 'all'
   });
 
-  // Fetch facebook_post_id from live_session
-  const { data: sessionData } = useQuery({
-    queryKey: ['live-session', productId],
-    queryFn: async () => {
-      const { data: productData, error: productError } = await supabase
-        .from('live_products')
-        .select('live_session_id')
-        .eq('id', productId)
-        .single();
-      
-      if (productError) throw productError;
-
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('live_sessions')
-        .select('facebook_post_id, supplier_name')
-        .eq('id', productData.live_session_id)
-        .single();
-      
-      if (sessionError) throw sessionError;
-      return sessionData;
-    },
-    enabled: !!productId
-  });
+  // ✅ Removed cascade query - facebook_post_id now received from parent
 
   // Fetch existing orders and count usage per comment
   const {
@@ -121,7 +101,7 @@ export function QuickAddOrder({
   const {
     data: pendingOrders = []
   } = useQuery({
-    queryKey: ['facebook-pending-orders', phaseData?.phase_date, sessionData?.facebook_post_id],
+    queryKey: ['facebook-pending-orders', phaseData?.phase_date, facebookPostId],
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
       
@@ -130,9 +110,9 @@ export function QuickAddOrder({
         .select('*, order_count');
       
       // PRIORITY: Filter by facebook_post_id if available
-      if (sessionData?.facebook_post_id) {
-        console.log('🎯 [QUICK ADD] Filtering by facebook_post_id:', sessionData.facebook_post_id);
-        query = query.eq('facebook_post_id', sessionData.facebook_post_id);
+      if (facebookPostId) {
+        console.log('🎯 [QUICK ADD] Filtering by facebook_post_id:', facebookPostId);
+        query = query.eq('facebook_post_id', facebookPostId);
       } else {
         // FALLBACK: Filter by date (backward compatibility)
         console.warn('⚠️ [QUICK ADD] No facebook_post_id, filtering by date');
@@ -147,7 +127,8 @@ export function QuickAddOrder({
       
       return (data || []) as PendingOrder[];
     },
-    enabled: !!phaseData?.phase_date
+    enabled: !!phaseData?.phase_date,
+    staleTime: 10000, // ✅ Cache 10s to prevent refetch on every keystroke
   });
 
   // ✅ Data will be refetched ON-DEMAND when dropdown is opened (see Popover onOpenChange)
@@ -351,7 +332,7 @@ export function QuickAddOrder({
         queryKey: ['orders-with-products', phaseId]
       });
       queryClient.invalidateQueries({
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date, sessionData?.facebook_post_id]
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date, facebookPostId]
       });
 
       // Auto-print bill using saved printer configuration (if enabled)
@@ -644,7 +625,7 @@ export function QuickAddOrder({
         if (open && phaseData?.phase_date) {
           console.log('🔄 [QUICK ADD] Refetching facebook_pending_orders for phase_date:', phaseData.phase_date);
           queryClient.invalidateQueries({
-            queryKey: ['facebook-pending-orders', phaseData.phase_date, sessionData?.facebook_post_id]
+            queryKey: ['facebook-pending-orders', phaseData.phase_date, facebookPostId]
           });
         }
       }}>
