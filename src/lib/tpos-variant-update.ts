@@ -33,6 +33,11 @@ export async function updateTPOSProductWithVariants(
 
   const existingProduct = await getResponse.json();
 
+  // ✅ Kiểm tra nếu CHỈ CÓ SIZE SỐ (AttributeId = 4)
+  const hasOnlySizeNumber = attributeLines.length === 1 && 
+    attributeLines[0].Attribute.Id === 4 &&
+    attributeLines[0].Attribute.Name === "Size Số";
+
   // Build AttributeLines payload
   const tposAttributeLines = attributeLines.map(line => ({
     Attribute: {
@@ -146,6 +151,10 @@ export async function updateTPOSProductWithVariants(
   // Build update payload
   const updatePayload = {
     ...existingProduct,
+    // ✅ Nếu chỉ có size số thì thêm "A" vào mã sản phẩm cha
+    DefaultCode: hasOnlySizeNumber 
+      ? `${existingProduct.DefaultCode}A` 
+      : existingProduct.DefaultCode,
     AttributeLines: tposAttributeLines,
     ProductVariants: tposVariants
   };
