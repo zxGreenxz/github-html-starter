@@ -637,6 +637,15 @@ export function FacebookCommentsManager({
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
 
+      // ✅ INSTANT UPDATE: Fetch status ngay cho user vừa tạo order
+      if (variables.comment.from.id) {
+        console.log('🔄 [INSTANT UPDATE] Fetching status for user after order creation');
+        await fetchSingleUserStatus(
+          variables.comment.from.id, 
+          variables.comment.from.name
+        );
+      }
+
       // Auto-print bill using print queue
       try {
         const { getActivePrinter, loadFormatSettings, generatePrintHTML } = await import('@/lib/printer-config-utils');
