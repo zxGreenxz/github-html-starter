@@ -907,6 +907,12 @@ export function FacebookCommentsManager({
         async (payload) => {
           const newComment = payload.new as any;
 
+          // ⚡ INSTANT UPDATE: Fetch status ngay lập tức cho comment mới
+          if (payload.eventType === 'INSERT' && newComment?.facebook_user_id) {
+            const commentAuthorName = newComment.facebook_user_name || 'Unknown';
+            await fetchSingleUserStatus(newComment.facebook_user_id, commentAuthorName);
+          }
+
           // Track new comments for batching
           if (payload.eventType === 'INSERT' && newComment?.facebook_comment_id) {
             pendingCommentsRef.current.add(newComment.facebook_comment_id);
@@ -918,6 +924,7 @@ export function FacebookCommentsManager({
           }
 
           // Debounce: Wait 500ms after last event before invalidating
+          // (Để sync toàn bộ data, nhưng avatar đã update rồi)
           pendingInvalidationRef.current = setTimeout(async () => {
             try {
               const isLive = selectedVideo.statusLive === 1;
@@ -1122,6 +1129,73 @@ export function FacebookCommentsManager({
       }
     },
     [toast],
+  );
+
+  // Fetch status for a single user immediately (for real-time updates)
+  const fetchSingleUserStatus = useCallback(
+    async (facebookUserId: string, commentAuthorName: string) => {
+      try {
+        // 1. Query order từ facebook_pending_orders
+        const { data: order } = await supabase
+          .from('facebook_pending_orders')
+          .select('*')
+          .eq('facebook_user_id', facebookUserId)
+          .eq('facebook_post_id', selectedVideo.objectId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // 2. Query customer info
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('facebook_id', facebookUserId)
+          .maybeSingle();
+
+        // 3. Determine status
+        let partnerStatus: string;
+        if (order && order.phone) {
+          partnerStatus = mapStatusText(customer?.customer_status || 'Bình thường');
+        } else if (customer) {
+          partnerStatus = mapStatusText(customer.customer_status);
+          if (!customer.phone || customer.info_status === 'incomplete') {
+            partnerStatus = "Cần thêm TT";
+          }
+        } else {
+          partnerStatus = "Khách lạ";
+        }
+
+        // 4. Update customerStatusMap NGAY LẬP TỨC
+        const newStatusMap = new Map(customerStatusMapRef.current);
+        newStatusMap.set(facebookUserId, {
+          partnerStatus,
+          orderInfo: order ? {
+            SessionIndex: order.session_index,
+            Id: order.id,
+            Code: order.code || '',
+            Facebook_UserId: order.facebook_user_id,
+            Facebook_PostId: order.facebook_post_id,
+            Facebook_CommentId: order.facebook_comment_id || '',
+            Facebook_UserName: order.name,
+            Name: order.name,
+            Telephone: order.phone || '',
+          } as any : undefined,
+          isLoadingStatus: false,
+        });
+        
+        customerStatusMapRef.current = newStatusMap;
+        setCustomerStatusMap(newStatusMap);
+
+        console.log(`✅ [INSTANT UPDATE] Avatar for ${commentAuthorName}:`, {
+          SessionIndex: order?.session_index,
+          Status: partnerStatus
+        });
+
+      } catch (error) {
+        console.error('❌ Error fetching single user status:', error);
+      }
+    },
+    [selectedVideo.objectId],
   );
 
   const debouncedFetchStatus = useMemo(
