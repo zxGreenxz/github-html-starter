@@ -1683,9 +1683,16 @@ export default function LiveProducts() {
                                    <TableCell className="text-muted-foreground">
                                      {getVariantName(product.variant)}
                                    </TableCell>
-                                    <TableCell className="border-r">
-                                      <ZoomableImage src={product.image_url} alt={group.product_name} />
-                                    </TableCell>
+                                     <TableCell className="border-r">
+                                       <ProductImage
+                                         productId={product.id}
+                                         productCode={product.product_code}
+                                         productImages={productsDetailsMap.get(product.product_code)?.product_images || null}
+                                         tposImageUrl={productsDetailsMap.get(product.product_code)?.tpos_image_url || product.image_url}
+                                         tposProductId={productsDetailsMap.get(product.product_code)?.tpos_product_id || null}
+                                         baseProductCode={productsDetailsMap.get(product.product_code)?.base_product_code || product.base_product_code}
+                                       />
+                                     </TableCell>
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={async () => {
