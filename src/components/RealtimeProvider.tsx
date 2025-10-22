@@ -69,6 +69,15 @@ export function RealtimeProvider() {
       .on("postgres_changes", { event: "*", schema: "public", table: "facebook_comments_archive" }, () => {
         queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "scanned_barcodes_session" }, (payload) => {
+        console.log("📡 [REALTIME] New barcode scanned:", payload.new);
+        
+        // Dispatch custom event for components to listen
+        const event = new CustomEvent('barcode-synced', {
+          detail: payload.new
+        });
+        window.dispatchEvent(event);
+      })
       // Customers & reports & activity logs
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });

@@ -1105,6 +1105,33 @@ export type Database = {
         }
         Relationships: []
       }
+      products_variant_migration_backup: {
+        Row: {
+          backup_time: string | null
+          base_product_code: string | null
+          id: string | null
+          product_code: string | null
+          product_name: string | null
+          variant: string | null
+        }
+        Insert: {
+          backup_time?: string | null
+          base_product_code?: string | null
+          id?: string | null
+          product_code?: string | null
+          product_name?: string | null
+          variant?: string | null
+        }
+        Update: {
+          backup_time?: string | null
+          base_product_code?: string | null
+          id?: string | null
+          product_code?: string | null
+          product_name?: string | null
+          variant?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1258,6 +1285,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scanned_barcodes_session: {
+        Row: {
+          base_product_code: string | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          page_id: string
+          product_code: string
+          product_name: string | null
+          scanned_at: string | null
+          session_id: string
+          user_id: string | null
+          user_name: string | null
+          variant: string | null
+        }
+        Insert: {
+          base_product_code?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          page_id: string
+          product_code: string
+          product_name?: string | null
+          scanned_at?: string | null
+          session_id: string
+          user_id?: string | null
+          user_name?: string | null
+          variant?: string | null
+        }
+        Update: {
+          base_product_code?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          page_id?: string
+          product_code?: string
+          product_name?: string | null
+          scanned_at?: string | null
+          session_id?: string
+          user_id?: string | null
+          user_name?: string | null
+          variant?: string | null
+        }
+        Relationships: []
       }
       session_index_corrections: {
         Row: {

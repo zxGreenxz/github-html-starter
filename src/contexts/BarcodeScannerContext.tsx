@@ -22,9 +22,10 @@ interface BarcodeScannerContextType {
   togglePage: (page: ScannerPage) => void;
   lastScannedCode: string;
   scannedBarcodes: ScannedBarcode[];
-  addScannedBarcode: (barcode: ScannedBarcode) => Promise<void>;
-  clearScannedBarcodes: () => void;
+  addScannedBarcode: (barcode: ScannedBarcode, sessionId?: string, pageId?: string) => Promise<void>;
+  clearScannedBarcodes: (sessionId?: string) => Promise<void>;
   removeScannedBarcode: (code: string) => void;
+  loadSessionBarcodes: (sessionId: string) => Promise<void>;
 }
 
 const BarcodeScannerContext = createContext<BarcodeScannerContextType | undefined>(undefined);
@@ -55,7 +56,11 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addScannedBarcode = async (barcode: ScannedBarcode) => {
+  const addScannedBarcode = async (
+    barcode: ScannedBarcode, 
+    sessionId?: string, 
+    pageId?: string
+  ) => {
     // Fetch all variants for this product
     const variantCodes = await fetchProductVariants(barcode.code);
     
@@ -81,6 +86,11 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
         return updated;
       });
+
+      // Sync to database if session context provided
+      if (sessionId && pageId) {
+        await saveBarcodeToDatabase(variantBarcodes, sessionId, pageId);
+      }
     } else {
       // Single product - add normally
       setScannedBarcodes(prev => {
@@ -88,10 +98,100 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
         return updated;
       });
+
+      // Sync to database if session context provided
+      if (sessionId && pageId) {
+        await saveBarcodeToDatabase([barcode], sessionId, pageId);
+      }
     }
   };
 
-  const clearScannedBarcodes = () => {
+  const saveBarcodeToDatabase = async (
+    barcodes: ScannedBarcode[], 
+    sessionId: string, 
+    pageId: string
+  ) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      for (const barcode of barcodes) {
+        await supabase
+          .from('scanned_barcodes_session')
+          .insert({
+            session_id: sessionId,
+            page_id: pageId,
+            user_id: user.id,
+            user_name: profile?.display_name || 'Unknown',
+            product_code: barcode.code,
+            product_name: barcode.productInfo?.name,
+            image_url: barcode.productInfo?.image_url,
+          })
+          .select();
+      }
+    } catch (error: any) {
+      // Ignore duplicate errors (23505 = unique constraint violation)
+      if (error?.code !== '23505') {
+        console.error('Error saving barcode to database:', error);
+      }
+    }
+  };
+
+  const loadSessionBarcodes = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('scanned_barcodes_session')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('scanned_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Convert to ScannedBarcode format and merge with existing
+      const dbBarcodes: ScannedBarcode[] = data?.map(item => ({
+        code: item.product_code,
+        timestamp: item.scanned_at || new Date().toISOString(),
+        productInfo: item.product_name ? {
+          id: item.id,
+          name: item.product_name,
+          image_url: item.image_url || undefined,
+          product_code: item.product_code,
+        } : undefined
+      })) || [];
+
+      setScannedBarcodes(prev => {
+        // Merge DB barcodes with existing, removing duplicates
+        const existingCodes = new Set(prev.map(b => b.code));
+        const newBarcodes = dbBarcodes.filter(b => !existingCodes.has(b.code));
+        const updated = [...prev, ...newBarcodes];
+        localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      console.error('Error loading session barcodes:', error);
+    }
+  };
+
+  const clearScannedBarcodes = async (sessionId?: string) => {
+    // Clear from database if session provided
+    if (sessionId) {
+      try {
+        await supabase
+          .from('scanned_barcodes_session')
+          .delete()
+          .eq('session_id', sessionId);
+      } catch (error) {
+        console.error('Error clearing barcodes from database:', error);
+      }
+    }
+
+    // Clear from local state
     setScannedBarcodes([]);
     localStorage.removeItem('scanned_barcodes');
   };
@@ -219,7 +319,8 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
       scannedBarcodes,
       addScannedBarcode,
       clearScannedBarcodes,
-      removeScannedBarcode
+      removeScannedBarcode,
+      loadSessionBarcodes
     }}>
       {children}
       

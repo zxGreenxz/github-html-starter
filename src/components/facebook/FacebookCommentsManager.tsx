@@ -1213,6 +1213,11 @@ export function FacebookCommentsManager({
       onVideoSelected(pageId, video.objectId, video);
     }
 
+    // Dispatch event for barcode session sync
+    window.dispatchEvent(new CustomEvent('facebook-video-selected', {
+      detail: { videoId: video.objectId, pageId }
+    }));
+
     // Reset state
     allCommentIdsRef.current = new Set();
     setNewCommentIds(new Set());

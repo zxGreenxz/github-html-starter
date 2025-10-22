@@ -19,10 +19,49 @@ import { Badge } from "@/components/ui/badge";
 
 const FacebookComments = () => {
   const { isCommentsOpen, setIsCommentsOpen } = useCommentsSidebar();
-  const { addScannedBarcode, scannedBarcodes } = useBarcodeScanner();
+  const { addScannedBarcode, scannedBarcodes, loadSessionBarcodes } = useBarcodeScanner();
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [isBarcodePanelOpen, setIsBarcodePanelOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<{ objectId: string; pageId: string } | null>(null);
+
+  // Load initial barcodes when video is selected
+  useEffect(() => {
+    const handleVideoSelected = async (event: CustomEvent) => {
+      const { videoId, pageId } = event.detail;
+      setSelectedVideo({ objectId: videoId, pageId });
+      
+      // Load existing barcodes for this session
+      if (videoId) {
+        await loadSessionBarcodes(videoId);
+      }
+    };
+
+    window.addEventListener('facebook-video-selected' as any, handleVideoSelected as any);
+    return () => {
+      window.removeEventListener('facebook-video-selected' as any, handleVideoSelected as any);
+    };
+  }, [loadSessionBarcodes]);
+
+  // Listen to realtime barcode syncs
+  useEffect(() => {
+    const handleBarcodeSynced = (event: CustomEvent) => {
+      const data = event.detail;
+      
+      // Only process if same session
+      if (!selectedVideo || data.session_id !== selectedVideo.objectId) return;
+
+      toast({
+        title: "📡 Barcode mới",
+        description: `${data.user_name} đã quét: ${data.product_name || data.product_code}`,
+      });
+    };
+
+    window.addEventListener('barcode-synced' as any, handleBarcodeSynced as any);
+    return () => {
+      window.removeEventListener('barcode-synced' as any, handleBarcodeSynced as any);
+    };
+  }, [selectedVideo, toast]);
 
   // Handle barcode scanning with variants
   useEffect(() => {
@@ -48,17 +87,21 @@ const FacebookComments = () => {
           return;
         }
 
-        // Call addScannedBarcode once - it will handle fetching and adding all variants
-        await addScannedBarcode({
-          code: product.product_code,
-          timestamp: new Date().toISOString(),
-          productInfo: {
-            id: product.id,
-            name: product.product_name,
-            image_url: product.product_images?.[0] || product.tpos_image_url,
-            product_code: product.product_code,
-          }
-        });
+        // Call addScannedBarcode with session context
+        await addScannedBarcode(
+          {
+            code: product.product_code,
+            timestamp: new Date().toISOString(),
+            productInfo: {
+              id: product.id,
+              name: product.product_name,
+              image_url: product.product_images?.[0] || product.tpos_image_url,
+              product_code: product.product_code,
+            }
+          },
+          selectedVideo?.objectId, // sessionId
+          selectedVideo?.pageId     // pageId
+        );
         
         // Show success toast
         const variantCodes = await fetchProductVariants(product.product_code);
@@ -87,7 +130,7 @@ const FacebookComments = () => {
     return () => {
       window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
     };
-  }, [addScannedBarcode, toast]);
+  }, [addScannedBarcode, selectedVideo, toast]);
 
   return (
     <div className={cn(
@@ -141,7 +184,7 @@ const FacebookComments = () => {
           isMobile ? "bottom-0 max-h-[60vh]" : "bottom-0 max-h-[50vh]",
           isCommentsOpen && !isMobile ? "right-[450px]" : "right-0"
         )}>
-          <ScannedBarcodesPanel />
+          <ScannedBarcodesPanel sessionId={selectedVideo?.objectId} />
         </div>
       )}
     </div>

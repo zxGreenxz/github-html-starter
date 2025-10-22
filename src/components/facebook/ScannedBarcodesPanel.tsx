@@ -40,7 +40,11 @@ interface ScannedBarcode {
 // MAIN COMPONENT
 // ============================================================================
 
-export function ScannedBarcodesPanel() {
+interface ScannedBarcodesPanelProps {
+  sessionId?: string;
+}
+
+export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
   const { 
     scannedBarcodes, 
     clearScannedBarcodes, 
@@ -122,8 +126,8 @@ export function ScannedBarcodesPanel() {
     setShowClearDialog(true);
   };
 
-  const confirmClearAll = () => {
-    clearScannedBarcodes();
+  const confirmClearAll = async () => {
+    await clearScannedBarcodes(sessionId);
     setShowClearDialog(false);
   };
 
