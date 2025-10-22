@@ -10,22 +10,22 @@ export async function updateTPOSProductWithVariants(
   attributeLines: TPOSAttributeLine[],
   variants: GeneratedVariant[],
   bearerToken: string,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
 ): Promise<void> {
   const headers = {
-    'Authorization': `Bearer ${bearerToken}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'Referer': 'https://tomato.tpos.vn/',
-    'Origin': 'https://tomato.tpos.vn',
-    'x-request-id': crypto.randomUUID()
+    Authorization: `Bearer ${bearerToken}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    Referer: "https://tomato.tpos.vn/",
+    Origin: "https://tomato.tpos.vn",
+    "x-request-id": crypto.randomUUID(),
   };
 
   // Fetch existing product
   onProgress?.("🔍 Lấy thông tin sản phẩm hiện tại...");
   const getUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
-  
+
   const getResponse = await fetch(getUrl, { headers });
   if (!getResponse.ok) {
     throw new Error(`Failed to get product: ${getResponse.statusText}`);
@@ -34,15 +34,15 @@ export async function updateTPOSProductWithVariants(
   const existingProduct = await getResponse.json();
 
   // Build AttributeLines payload
-  const tposAttributeLines = attributeLines.map(line => ({
+  const tposAttributeLines = attributeLines.map((line) => ({
     Attribute: {
       Id: line.Attribute.Id,
       Name: line.Attribute.Name,
       Code: line.Attribute.Id === 1 ? "SZCh" : line.Attribute.Id === 3 ? "Mau" : "SZNu",
       Sequence: line.Attribute.Id === 1 ? 1 : line.Attribute.Id === 3 ? 2 : 3,
-      CreateVariant: true
+      CreateVariant: true,
     },
-    Values: line.Values.map(v => ({
+    Values: line.Values.map((v) => ({
       Id: v.Id,
       Name: v.Name,
       Code: v.Code,
@@ -51,13 +51,13 @@ export async function updateTPOSProductWithVariants(
       AttributeName: line.Attribute.Name,
       PriceExtra: null,
       NameGet: `${line.Attribute.Name}: ${v.Name}`,
-      DateCreated: null
+      DateCreated: null,
     })),
-    AttributeId: line.Attribute.Id
+    AttributeId: line.Attribute.Id,
   }));
 
   // Build ProductVariants payload
-  const tposVariants = variants.map(v => ({
+  const tposVariants = variants.map((v) => ({
     Id: 0,
     EAN13: null,
     DefaultCode: null,
@@ -130,7 +130,7 @@ export async function updateTPOSProductWithVariants(
     StringExtraProperties: null,
     CreatedById: null,
     Error: null,
-    AttributeValues: v.AttributeValues.map(av => ({
+    AttributeValues: v.AttributeValues.map((av) => ({
       Id: av.Id,
       Name: av.Name,
       Code: null,
@@ -139,24 +139,24 @@ export async function updateTPOSProductWithVariants(
       AttributeName: av.AttributeName,
       PriceExtra: null,
       NameGet: `${av.AttributeName}: ${av.Name}`,
-      DateCreated: null
-    }))
+      DateCreated: null,
+    })),
   }));
 
   // Build update payload
   const updatePayload = {
     ...existingProduct,
     AttributeLines: tposAttributeLines,
-    ProductVariants: tposVariants
+    ProductVariants: tposVariants,
   };
 
   // Update product
   onProgress?.(`🚀 Cập nhật ${variants.length} variants lên TPOS...`);
   const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})`;
   const updateResponse = await fetch(updateUrl, {
-    method: 'PUT',
+    method: "POST",
     headers,
-    body: JSON.stringify(updatePayload)
+    body: JSON.stringify(updatePayload),
   });
 
   if (!updateResponse.ok && updateResponse.status !== 204) {
