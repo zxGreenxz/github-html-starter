@@ -104,7 +104,8 @@ export function QuickAddOrder({
         .from('facebook_pending_orders')
         .select('*, order_count');
       
-      query = query.eq('comment_type', 'hang_dat');
+      // Removed filter to support records without comment_type (backward compatibility)
+      // query = query.eq('comment_type', 'hang_dat');
       query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
       query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
       query = query.order('created_time', { ascending: false });

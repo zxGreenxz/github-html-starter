@@ -595,7 +595,7 @@ serve(async (req) => {
               facebook_user_id: comment.from.id,
               facebook_post_id: video.objectId,
               order_count: 1,
-              comment_type: commentType || null,
+              comment_type: commentType || 'hang_dat',
               product_codes: productCodes,
               prediction_method: 'tpos_response',
             });
