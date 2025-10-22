@@ -24,6 +24,40 @@ import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 
+// Helper: Get product image with priority: product_images > tpos_image_url > parent image
+const getProductImages = async (product: any): Promise<string[]> => {
+  // Priority 1: product_images array
+  if (product.product_images && product.product_images.length > 0) {
+    return product.product_images;
+  }
+  
+  // Priority 2: tpos_image_url
+  if (product.tpos_image_url) {
+    return [product.tpos_image_url];
+  }
+  
+  // Priority 3: Parent image (if child variant)
+  if (product.base_product_code && product.product_code !== product.base_product_code) {
+    const { data: parentProduct } = await supabase
+      .from("products")
+      .select("product_images, tpos_image_url")
+      .eq("product_code", product.base_product_code)
+      .maybeSingle();
+    
+    if (parentProduct) {
+      if (parentProduct.product_images && parentProduct.product_images.length > 0) {
+        return parentProduct.product_images;
+      }
+      if (parentProduct.tpos_image_url) {
+        return [parentProduct.tpos_image_url];
+      }
+    }
+  }
+  
+  // No image found
+  return [];
+};
+
 interface AttributeLine {
   attributeId: number;
   attributeName: string;
@@ -691,9 +725,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
-  const handleSelectProduct = (product: any) => {
+  const handleSelectProduct = async (product: any) => {
     if (currentItemIndex !== null) {
       const newItems = [...items];
+      
+      // Fetch images with priority logic
+      const productImages = await getProductImages(product);
+      
       newItems[currentItemIndex] = {
         ...newItems[currentItemIndex],
         product_name: product.product_name,
@@ -701,7 +739,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         variant: product.variant || "",
         purchase_price: product.purchase_price / 1000,
         selling_price: product.selling_price / 1000,
-        product_images: product.product_images || [],
+        product_images: productImages,
         price_images: product.price_images || [],
         _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000)
       };
@@ -715,7 +753,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     setCurrentItemIndex(null);
   };
 
-  const handleSelectMultipleProducts = (products: any[]) => {
+  const handleSelectMultipleProducts = async (products: any[]) => {
     if (currentItemIndex === null || products.length === 0) return;
 
     const newItems = [...items];
@@ -733,8 +771,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return;
     }
     
-    // Fill first product into current line
+    // Fill first product into current line WITH IMAGE FETCH
     const firstProduct = products[0];
+    const firstProductImages = await getProductImages(firstProduct);
+    
     newItems[currentItemIndex] = {
       ...currentItem,
       product_name: firstProduct.product_name,
@@ -742,24 +782,30 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       variant: firstProduct.variant || "",
       purchase_price: firstProduct.purchase_price / 1000,
       selling_price: firstProduct.selling_price / 1000,
-      product_images: firstProduct.product_images || [],
+      product_images: firstProductImages,
       price_images: firstProduct.price_images || [],
       _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000)
     };
 
-    // Add remaining products as new lines after current line
-    const additionalItems = products.slice(1).map(product => ({
-      quantity: 1,
-      notes: "",
-      product_name: product.product_name,
-      product_code: product.product_code,
-      variant: product.variant || "",
-      purchase_price: product.purchase_price / 1000,
-      selling_price: product.selling_price / 1000,
-      product_images: product.product_images || [],
-      price_images: product.price_images || [],
-      _tempTotalPrice: product.purchase_price / 1000,
-    }));
+    // Add remaining products as new lines WITH IMAGE FETCH
+    const additionalItems = await Promise.all(
+      products.slice(1).map(async (product) => {
+        const productImages = await getProductImages(product);
+        
+        return {
+          quantity: 1,
+          notes: "",
+          product_name: product.product_name,
+          product_code: product.product_code,
+          variant: product.variant || "",
+          purchase_price: product.purchase_price / 1000,
+          selling_price: product.selling_price / 1000,
+          product_images: productImages,
+          price_images: product.price_images || [],
+          _tempTotalPrice: product.purchase_price / 1000,
+        };
+      })
+    );
 
     newItems.splice(currentItemIndex + 1, 0, ...additionalItems);
     setItems(newItems);
