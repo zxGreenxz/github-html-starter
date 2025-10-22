@@ -2070,6 +2070,12 @@ export function FacebookCommentsManager({
                                       className="text-xs font-semibold"
                                     >
                                       {comment.from?.name}
+                                      {comment.orderInfo?.SessionIndex !== undefined && 
+                                       comment.orderInfo?.SessionIndex !== null && (
+                                        <span className="ml-1.5 text-yellow-300">
+                                          #{comment.orderInfo.SessionIndex}
+                                        </span>
+                                      )}
                                     </Badge>
 
                                     {comment.partnerStatus &&
