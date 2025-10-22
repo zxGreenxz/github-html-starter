@@ -117,32 +117,7 @@ export function QuickAddOrder({
     enabled: !!phaseData?.phase_date
   });
 
-  // Real-time subscription for instant updates (optimized)
-  useEffect(() => {
-    if (!phaseData?.phase_date) return;
-    
-    console.log('⚡ [QUICK ADD REALTIME] Setting up subscription for phase_date:', phaseData.phase_date);
-    
-    const channel = supabase
-      .channel('facebook-pending-orders-realtime-quickadd')
-      .on('postgres_changes', {
-        event: '*', // ✅ Listen to ALL events (INSERT, UPDATE, DELETE)
-        schema: 'public',
-        table: 'facebook_pending_orders',
-        filter: `phase_date=eq.${phaseData.phase_date}` // ✅ Filter at DB level for current phase only
-      }, payload => {
-        console.log('⚡ [QUICK ADD REALTIME] Event received:', payload.eventType, payload);
-        queryClient.invalidateQueries({
-          queryKey: ['facebook-pending-orders', phaseData.phase_date]
-        });
-      })
-      .subscribe();
-      
-    return () => {
-      console.log('🔌 [QUICK ADD REALTIME] Unsubscribing from channel');
-      supabase.removeChannel(channel);
-    };
-  }, [phaseData?.phase_date, queryClient]);
+  // ✅ Data will be refetched ON-DEMAND when dropdown is opened (see Popover onOpenChange)
 
   // Count how many times each comment has been used
   const commentUsageCount = React.useMemo(() => {
@@ -586,7 +561,17 @@ export function QuickAddOrder({
   };
   const isOutOfStock = availableQuantity <= 0;
   return <div className="w-full flex gap-2">
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={(open) => {
+        setIsOpen(open);
+        
+        // ✅ Refetch data khi MỞ dropdown
+        if (open && phaseData?.phase_date) {
+          console.log('🔄 [QUICK ADD] Refetching facebook_pending_orders for phase_date:', phaseData.phase_date);
+          queryClient.invalidateQueries({
+            queryKey: ['facebook-pending-orders', phaseData.phase_date]
+          });
+        }
+      }}>
         <PopoverTrigger asChild>
           <div className="flex-1 relative">
             <Input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyPress={handleKeyPress} onClick={() => setIsOpen(true)} placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."} className={cn("text-sm h-9", isOutOfStock && "border-red-500")} disabled={addOrderMutation.isPending} />
