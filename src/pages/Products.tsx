@@ -13,6 +13,7 @@ import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
 import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
+import { SyncVariantsDialog } from "@/components/products/SyncVariantsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -32,6 +33,7 @@ export default function Products() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImportVariantsDialogOpen, setIsImportVariantsDialogOpen] = useState(false);
   const [isSyncTPOSDialogOpen, setIsSyncTPOSDialogOpen] = useState(false);
+  const [isSyncVariantsDialogOpen, setIsSyncVariantsDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -242,6 +244,15 @@ export default function Products() {
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Đồng bộ TPOS
                     </Button>
+                    <Button
+                      onClick={() => setIsSyncVariantsDialogOpen(true)}
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      <Package className="h-4 w-4 mr-2" />
+                      Đồng bộ Biến thể
+                    </Button>
                     {debouncedSearch.length >= 2 && (
                       <Button
                         onClick={handleImportFromTPOS}
@@ -321,6 +332,12 @@ export default function Products() {
         <SyncTPOSDialog
           open={isSyncTPOSDialogOpen}
           onOpenChange={setIsSyncTPOSDialogOpen}
+          onSuccess={refetch}
+        />
+        
+        <SyncVariantsDialog
+          open={isSyncVariantsDialogOpen}
+          onOpenChange={setIsSyncVariantsDialogOpen}
           onSuccess={refetch}
         />
       </div>
