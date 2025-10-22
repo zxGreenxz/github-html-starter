@@ -751,6 +751,16 @@ export function LiveCommentsPanel({
                             {comment.from.name}
                           </span>
 
+                          {/* Session Index Badge */}
+                          {comment.orderInfo?.SessionIndex && (
+                            <Badge className={cn(
+                              "bg-slate-700 text-white font-semibold",
+                              isMobile ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0"
+                            )}>
+                              #{comment.orderInfo.SessionIndex}
+                            </Badge>
+                          )}
+
                           {/* Deleted Badge */}
                           {comment.is_deleted_by_tpos && (
                             <Badge 
