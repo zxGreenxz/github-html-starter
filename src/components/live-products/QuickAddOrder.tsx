@@ -117,6 +117,38 @@ export function QuickAddOrder({
     enabled: !!phaseData?.phase_date
   });
 
+  // ⚡ Realtime subscription for facebook_pending_orders changes
+  useEffect(() => {
+    if (!phaseData?.phase_date) return;
+
+    console.log('🔴 [REALTIME] Subscribing to facebook_pending_orders changes...');
+
+    const channel = supabase
+      .channel('facebook-pending-orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'facebook_pending_orders',
+        },
+        (payload) => {
+          console.log('🔴 [REALTIME] facebook_pending_orders changed:', payload.eventType);
+          
+          // Invalidate query để refetch data
+          queryClient.invalidateQueries({
+            queryKey: ['facebook-pending-orders', phaseData.phase_date]
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔴 [REALTIME] Unsubscribing from facebook_pending_orders...');
+      supabase.removeChannel(channel);
+    };
+  }, [phaseData?.phase_date, queryClient]);
+
   // ✅ Data will be refetched ON-DEMAND when dropdown is opened (see Popover onOpenChange)
 
   // Count how many times each comment has been used
