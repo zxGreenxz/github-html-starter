@@ -33,39 +33,14 @@ export function RealtimeProvider() {
         queryClient.invalidateQueries({ queryKey: ["goods-receiving-items"] });
         queryClient.invalidateQueries({ queryKey: ["goods-receiving"] });
       })
-      // Live session ecosystem
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_sessions" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["live-sessions"] });
-        queryClient.invalidateQueries({ queryKey: ["live-products"] });
-        queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_phases" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["live-phases"] });
-        queryClient.invalidateQueries({ queryKey: ["live-products"] });
-        queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_products" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["live-products"] });
-        queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_orders" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
-        queryClient.invalidateQueries({ queryKey: ["upload-tpos-orders"] });
-      })
+      // ❌ REMOVED: live_* tables now use LOCAL filtered subscriptions in LiveProducts.tsx
+      // This prevents unnecessary refetches for all sessions when only one is active
       // Facebook integration
       .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pages" }, () => {
         queryClient.invalidateQueries({ queryKey: ["facebook-pages"] });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pending_orders" }, (payload) => {
-        console.log('📡 [REALTIME PROVIDER] facebook_pending_orders event:', payload.eventType);
-        queryClient.invalidateQueries({ queryKey: ["facebook-pending-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["tpos-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
-      })
+      // ❌ REMOVED: facebook_pending_orders now uses LOCAL filtered subscription in QuickAddOrder.tsx
+      // This prevents unnecessary refetches for all dates when only one phase is active
       .on("postgres_changes", { event: "*", schema: "public", table: "facebook_comments_archive" }, () => {
         queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
       })
