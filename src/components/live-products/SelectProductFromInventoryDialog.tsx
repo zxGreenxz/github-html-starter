@@ -504,6 +504,7 @@ export function SelectProductFromInventoryDialog({
                           productImages={product.product_images}
                           tposImageUrl={product.tpos_image_url}
                           tposProductId={product.tpos_product_id}
+                          baseProductCode={product.base_product_code}
                         />
                       </TableCell>
                       <TableCell className="font-medium">{product.product_code}</TableCell>

@@ -21,6 +21,7 @@ interface TestProduct {
   supplier_name?: string | null;
   product_images?: string[] | null;
   tpos_image_url?: string | null;
+  base_product_code?: string | null;
   quantity: number; // Số lượng được thêm
 }
 
@@ -194,6 +195,7 @@ export function BarcodeProductTest() {
                           productCode={product.product_code}
                           productImages={product.product_images}
                           tposImageUrl={product.tpos_image_url}
+                          baseProductCode={product.base_product_code}
                         />
                       </TableCell>
                       <TableCell className="font-mono text-sm">

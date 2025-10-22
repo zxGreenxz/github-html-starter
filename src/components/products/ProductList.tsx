@@ -343,6 +343,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                   productImages={product.product_images}
                   tposImageUrl={product.tpos_image_url}
                   tposProductId={product.tpos_product_id}
+                  baseProductCode={product.base_product_code}
                 />
                 </div>
                 
@@ -352,6 +353,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                   productImages={product.product_images}
                   tposImageUrl={product.tpos_image_url}
                   tposProductId={product.tpos_product_id}
+                  baseProductCode={product.base_product_code}
                 />
 
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -561,6 +563,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                     productImages={product.product_images}
                     tposImageUrl={product.tpos_image_url}
                     tposProductId={product.tpos_product_id}
+                    baseProductCode={product.base_product_code}
                   />
                 </TableCell>
                 <TableCell className="font-medium">{product.product_code}</TableCell>

@@ -28,6 +28,7 @@ interface Product {
   product_images?: string[];
   tpos_image_url?: string;
   tpos_product_id?: number;
+  base_product_code?: string;
 }
 
 interface SelectProductDialogProps {
@@ -170,6 +171,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                           productImages={product.product_images}
                           tposImageUrl={product.tpos_image_url}
                           tposProductId={product.tpos_product_id}
+                          baseProductCode={product.base_product_code}
                         />
                         <div className="flex-1 space-y-2 cursor-pointer" onClick={() => handleSelect(product)}>
                           <div className="font-semibold">{product.product_name}</div>
@@ -294,6 +296,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                           productImages={product.product_images}
                           tposImageUrl={product.tpos_image_url}
                           tposProductId={product.tpos_product_id}
+                          baseProductCode={product.base_product_code}
                         />
                       </TableCell>
                       <TableCell className="font-medium">{product.product_code}</TableCell>

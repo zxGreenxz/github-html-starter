@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
-import { fetchAndSaveTPOSImage, getProductImageUrl } from "@/lib/tpos-image-loader";
+import { fetchAndSaveTPOSImage, getProductImageUrl, getParentImageUrl } from "@/lib/tpos-image-loader";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ interface ProductImageProps {
   productImages?: string[] | null;
   tposImageUrl?: string | null;
   tposProductId?: number | null;
+  baseProductCode?: string | null;
 }
 
 export function ProductImage({
@@ -18,17 +19,35 @@ export function ProductImage({
   productImages,
   tposImageUrl,
   tposProductId,
+  baseProductCode,
 }: ProductImageProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
+  const [parentImageUrl, setParentImageUrl] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    // Get initial image URL based on priority
-    const initialUrl = getProductImageUrl(productImages || null, tposImageUrl || null);
+    // Fetch parent image if this is a child product
+    const fetchParentImage = async () => {
+      if (baseProductCode && baseProductCode !== productCode) {
+        const parentImg = await getParentImageUrl(productCode, baseProductCode);
+        setParentImageUrl(parentImg);
+      }
+    };
+    
+    fetchParentImage();
+  }, [productCode, baseProductCode]);
+
+  useEffect(() => {
+    // Get initial image URL based on priority (including parent image)
+    const initialUrl = getProductImageUrl(
+      productImages || null, 
+      tposImageUrl || null,
+      parentImageUrl
+    );
     
     if (initialUrl) {
       setImageUrl(initialUrl);
@@ -45,7 +64,7 @@ export function ProductImage({
           setIsLoading(false);
         });
     }
-  }, [productId, productCode, productImages, tposImageUrl, tposProductId]);
+  }, [productId, productCode, productImages, tposImageUrl, tposProductId, parentImageUrl]);
 
   const handleMouseEnter = () => {
     if (!imgRef.current || !imageUrl) return;
