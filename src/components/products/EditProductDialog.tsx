@@ -20,6 +20,7 @@ interface Product {
   barcode?: string;
   stock_quantity: number;
   supplier_name?: string;
+  base_product_code?: string | null;
 }
 
 interface EditProductDialogProps {
@@ -73,13 +74,16 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
     setIsSubmitting(true);
 
+    const updatedSellingPrice = parseFloat(formData.selling_price) || 0;
+    const updatedPurchasePrice = parseFloat(formData.purchase_price) || 0;
+
     const { error } = await supabase
       .from("products")
       .update({
         product_name: formData.product_name,
         variant: formData.variant || null,
-        selling_price: parseFloat(formData.selling_price) || 0,
-        purchase_price: parseFloat(formData.purchase_price) || 0,
+        selling_price: updatedSellingPrice,
+        purchase_price: updatedPurchasePrice,
         unit: formData.unit,
         category: formData.category || null,
         barcode: formData.barcode || null,
@@ -88,22 +92,42 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       })
       .eq("id", product.id);
 
-    setIsSubmitting(false);
-
     if (error) {
+      setIsSubmitting(false);
       toast({
         title: "Lỗi",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Thành công",
-        description: "Đã cập nhật sản phẩm",
-      });
-      onSuccess();
-      onOpenChange(false);
+      return;
     }
+
+    // Nếu đây là parent product (không có base_product_code), 
+    // cập nhật giá cho variants có giá = 0
+    const isParentProduct = !product.base_product_code;
+    if (isParentProduct && product.product_code) {
+      // Update selling_price for variants with 0 price
+      await supabase
+        .from("products")
+        .update({ selling_price: updatedSellingPrice })
+        .eq("base_product_code", product.product_code)
+        .eq("selling_price", 0);
+      
+      // Update purchase_price for variants with 0 price
+      await supabase
+        .from("products")
+        .update({ purchase_price: updatedPurchasePrice })
+        .eq("base_product_code", product.product_code)
+        .eq("purchase_price", 0);
+    }
+
+    setIsSubmitting(false);
+    toast({
+      title: "Thành công",
+      description: "Đã cập nhật sản phẩm",
+    });
+    onSuccess();
+    onOpenChange(false);
   };
 
   return (

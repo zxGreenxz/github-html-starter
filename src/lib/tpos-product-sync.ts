@@ -116,6 +116,35 @@ async function syncSingleProduct(
       }
     }
 
+    // 2.5. Cập nhật giá cho variants nếu chúng đang có giá = 0
+    if (tposData.ListPrice || tposData.PurchasePrice) {
+      // Chỉ update selling_price cho variants đang có giá = 0
+      if (tposData.ListPrice) {
+        const { error: variantSellingError } = await supabase
+          .from("products")
+          .update({ selling_price: tposData.ListPrice })
+          .eq("base_product_code", tposData.DefaultCode)
+          .eq("selling_price", 0);
+        
+        if (!variantSellingError) {
+          console.log(`Updated selling_price for variants with base_product_code: ${tposData.DefaultCode}`);
+        }
+      }
+      
+      // Chỉ update purchase_price cho variants đang có giá = 0
+      if (tposData.PurchasePrice) {
+        const { error: variantPurchaseError } = await supabase
+          .from("products")
+          .update({ purchase_price: tposData.PurchasePrice })
+          .eq("base_product_code", tposData.DefaultCode)
+          .eq("purchase_price", 0);
+        
+        if (!variantPurchaseError) {
+          console.log(`Updated purchase_price for variants with base_product_code: ${tposData.DefaultCode}`);
+        }
+      }
+    }
+
     // 3. Cập nhật base_product_code cho các biến thể con
     if (tposData.ProductVariants && tposData.ProductVariants.length > 0) {
       for (const variant of tposData.ProductVariants) {

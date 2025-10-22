@@ -273,6 +273,16 @@ async function fetchAndSaveVariantsFromTPOS(
 
     onProgress?.(`💾 Lưu ${variants.length} variants vào kho...`);
 
+    // Lấy giá parent product từ DB (nếu tồn tại)
+    const { data: parentProduct } = await supabase
+      .from('products')
+      .select('selling_price, purchase_price')
+      .eq('product_code', baseProductCode)
+      .maybeSingle();
+
+    const parentSellingPrice = parentProduct?.selling_price || baseProductData.selling_price;
+    const parentPurchasePrice = parentProduct?.purchase_price || baseProductData.purchase_price;
+
     // Prepare variant products to insert into database (prices in VND * 1000 format)
     const variantProducts = variants.map((variant: any) => {
       // Extract variant text from AttributeValues
@@ -283,10 +293,14 @@ async function fetchAndSaveVariantsFromTPOS(
       // Generate variant product code (base code + variant suffix if needed)
       const variantCode = variant.DefaultCode || baseProductCode;
       
-      // TPOS returns prices in actual VND (e.g., 120000)
-      // Store as-is in database (120000 VND)
-      const sellingPriceVND = variant.PriceVariant || baseProductData.selling_price;
-      const purchasePriceVND = variant.PurchasePrice || baseProductData.purchase_price;
+      // Nếu variant có giá riêng trên TPOS → dùng giá đó
+      // Nếu không → fallback về giá parent
+      const sellingPriceVND = (variant.PriceVariant && variant.PriceVariant > 0) 
+        ? variant.PriceVariant 
+        : parentSellingPrice;
+      const purchasePriceVND = (variant.PurchasePrice && variant.PurchasePrice > 0)
+        ? variant.PurchasePrice
+        : parentPurchasePrice;
 
       return {
         product_code: variantCode,

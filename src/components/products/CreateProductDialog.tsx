@@ -50,13 +50,30 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
       ? `${formData.product_name} (${formData.variant})` 
       : formData.product_name;
 
+    let finalSellingPrice = parseFloat(formData.selling_price) || 0;
+    let finalPurchasePrice = parseFloat(formData.purchase_price) || 0;
+
+    // Nếu variant không có giá và có base_product_code, lấy giá từ parent
+    if ((finalSellingPrice === 0 || finalPurchasePrice === 0) && finalProductCode) {
+      const { data: parentProduct } = await supabase
+        .from('products')
+        .select('selling_price, purchase_price')
+        .eq('product_code', finalProductCode)
+        .maybeSingle();
+      
+      if (parentProduct) {
+        if (finalSellingPrice === 0) finalSellingPrice = parentProduct.selling_price;
+        if (finalPurchasePrice === 0) finalPurchasePrice = parentProduct.purchase_price;
+      }
+    }
+
     const { error } = await supabase.from("products").insert({
       product_code: finalProductCode,
       base_product_code: finalProductCode,
       product_name: finalProductName,
       variant: formData.variant || null,
-      selling_price: parseFloat(formData.selling_price) || 0,
-      purchase_price: parseFloat(formData.purchase_price) || 0,
+      selling_price: finalSellingPrice,
+      purchase_price: finalPurchasePrice,
       unit: formData.unit,
       category: formData.category || null,
       barcode: formData.barcode || null,
