@@ -157,9 +157,10 @@ export function LiveCommentsPanel({
       // Fetch pending orders with order_count
       const { data: pendingOrders = [] } = await supabase
         .from('facebook_pending_orders')
-        .select('facebook_comment_id, code, tpos_order_id, order_count, phone')
+        .select('facebook_comment_id, code, tpos_order_id, order_count, phone, session_index')
         .in('facebook_user_id', facebookIdsToFetch)
-        .order('order_count', { ascending: false });
+        .eq('facebook_post_id', videoId)
+        .order('created_at', { ascending: false });
 
       // Create a map to get the latest order info for each comment
       const commentOrderMap = new Map<string, any>();
@@ -194,9 +195,18 @@ export function LiveCommentsPanel({
         let customerDataForUpsert: any;
         let orderInfoWithCount = order;
 
-        // Add order_count from pending orders if available
-        if (order && pendingOrderInfo?.order_count) {
-          orderInfoWithCount = { ...order, order_count: pendingOrderInfo.order_count };
+        // Prioritize session_index and order_count from pending orders
+        if (pendingOrderInfo) {
+          orderInfoWithCount = {
+            ...order,
+            SessionIndex: pendingOrderInfo.session_index,
+            order_count: pendingOrderInfo.order_count
+          };
+        } else if (order) {
+          orderInfoWithCount = {
+            ...order,
+            order_count: 1
+          };
         }
 
         if (order && order.Telephone) {
@@ -283,9 +293,10 @@ export function LiveCommentsPanel({
       // Fetch fresh data from TPOS API for this specific user
       const { data: pendingOrders = [] } = await supabase
         .from('facebook_pending_orders')
-        .select('facebook_comment_id, code, tpos_order_id, order_count, phone')
+        .select('facebook_comment_id, code, tpos_order_id, order_count, phone, session_index')
         .eq('facebook_user_id', facebookId)
-        .order('order_count', { ascending: false });
+        .eq('facebook_post_id', videoId)
+        .order('created_at', { ascending: false });
 
       const { data: customer } = await supabase
         .from('customers')
@@ -298,8 +309,17 @@ export function LiveCommentsPanel({
       const pendingOrderInfo = pendingOrders.find(po => po.facebook_comment_id === commentId);
 
       let orderInfoWithCount = order;
-      if (order && pendingOrderInfo?.order_count) {
-        orderInfoWithCount = { ...order, order_count: pendingOrderInfo.order_count };
+      if (pendingOrderInfo) {
+        orderInfoWithCount = {
+          ...order,
+          SessionIndex: pendingOrderInfo.session_index,
+          order_count: pendingOrderInfo.order_count
+        };
+      } else if (order) {
+        orderInfoWithCount = {
+          ...order,
+          order_count: 1
+        };
       }
 
       // Update cache
