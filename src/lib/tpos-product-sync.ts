@@ -14,7 +14,7 @@ interface TPOSProductResponse {
   Id: number;
   DefaultCode: string;
   ImageUrl: string | null;
-  StandardPrice: number;
+  PurchasePrice: number;
   ListPrice: number;
   ProductVariants: TPOSProductVariant[];
 }
@@ -47,7 +47,7 @@ async function fetchTPOSProductDetail(
   bearerToken: string
 ): Promise<TPOSProductResponse | null> {
   try {
-    const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?$filter=Id eq ${tposProductId}&$expand=ProductVariants`;
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
     
     const response = await fetch(url, {
       method: "GET",
@@ -59,11 +59,13 @@ async function fetchTPOSProductDetail(
     }
 
     const data = await response.json();
-    const product = data.value?.[0];
-    if (!product) {
+    
+    // API mới trả về object trực tiếp (không có .value array)
+    if (!data || !data.Id) {
       return null;
     }
-    return product;
+    
+    return data;
   } catch (error) {
     console.error(`Error fetching TPOS product ${tposProductId}:`, error);
     return null;
@@ -96,8 +98,12 @@ async function syncSingleProduct(
     // 2. Cập nhật tpos_image_url, purchase_price, selling_price cho sản phẩm cha
     const updateData: any = {};
     if (tposData.ImageUrl) updateData.tpos_image_url = tposData.ImageUrl;
-    if (tposData.StandardPrice) updateData.purchase_price = tposData.StandardPrice;
-    if (tposData.ListPrice) updateData.selling_price = tposData.ListPrice;
+    if (tposData.PurchasePrice !== undefined && tposData.PurchasePrice !== null) {
+      updateData.purchase_price = tposData.PurchasePrice;
+    }
+    if (tposData.ListPrice !== undefined && tposData.ListPrice !== null) {
+      updateData.selling_price = tposData.ListPrice;
+    }
 
     if (Object.keys(updateData).length > 0) {
       const { error: updateError } = await supabase
