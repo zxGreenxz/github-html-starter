@@ -1232,9 +1232,8 @@ export async function uploadToTPOS(
         imageBase64 = await imageUrlToBase64(item.product_images[0]);
       }
       
-      // Step 3: Tạo AttributeLines (GIỮ NGUYÊN LOGIC CŨ)
+      // Step 3: Detect attributes
       const detected = detectAttributesFromText(item.variant || '');
-      const attributeLines = createAttributeLines(detected);
       
       if (detected.color && detected.color.length > 0 || detected.sizeText && detected.sizeText.length > 0 || detected.sizeNumber && detected.sizeNumber.length > 0) {
         console.log(`   🎨 Detected attributes:`, {
@@ -1244,9 +1243,52 @@ export async function uploadToTPOS(
         });
       }
       
-      // Step 4: Tạo sản phẩm trực tiếp
-      console.log(`   ⚡ Creating product on TPOS...`);
-      const createdProduct = await createProductDirectly(item, imageBase64, attributeLines);
+      // ✅ Check if ONLY size number exists
+      const hasSizeNumberOnly = 
+        detected.sizeNumber && detected.sizeNumber.length > 0 &&
+        (!detected.sizeText || detected.sizeText.length === 0) &&
+        (!detected.color || detected.color.length === 0);
+      
+      let createdProduct: any;
+      
+      if (hasSizeNumberOnly) {
+        // ========================================
+        // CASE 1: CHỈ CÓ SIZE SỐ → Dùng variant-creator
+        // ========================================
+        console.log(`   🔢 [SIZE NUMBER ONLY] Creating base product first...`);
+        
+        // Tạo product CƠ BẢN (không có AttributeLines)
+        createdProduct = await createProductDirectly(item, imageBase64, []);
+        
+        console.log(`   ✅ Base product created: ${createdProduct.Id}`);
+        console.log(`   🎨 Now creating variants using tpos-variant-creator...`);
+        
+        // Gọi createTPOSVariants để tạo variants
+        const { createTPOSVariants } = await import('./tpos-variant-creator');
+        
+        try {
+          await createTPOSVariants(
+            createdProduct.Id,
+            item.variant || '',
+            (message) => {
+              console.log(`      📍 ${message}`);
+              onProgress?.(currentStep, totalSteps, message);
+            }
+          );
+          console.log(`   ✅ Variants created successfully`);
+        } catch (variantError) {
+          console.warn(`   ⚠️ Failed to create variants:`, variantError);
+          // Không throw - product đã tạo thành công, chỉ variants bị lỗi
+        }
+        
+      } else {
+        // ========================================
+        // CASE 2: CÓ SIZE CHỮ hoặc MÀU → Dùng logic cũ
+        // ========================================
+        const attributeLines = createAttributeLines(detected);
+        console.log(`   ⚡ Creating product with AttributeLines...`);
+        createdProduct = await createProductDirectly(item, imageBase64, attributeLines);
+      }
       
       console.log(`   ✅ Created: ${createdProduct.Id} - ${createdProduct.Name}`);
       
