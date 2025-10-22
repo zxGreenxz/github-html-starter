@@ -1328,26 +1328,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
           </div>
 
-          <div className="flex gap-2 justify-between">
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Hủy
+            </Button>
             <Button 
-              variant="outline"
+              variant="secondary"
               onClick={() => saveDraftMutation.mutate()}
               disabled={saveDraftMutation.isPending}
             >
               {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
             </Button>
-            
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Hủy
-              </Button>
-              <Button 
-                onClick={() => createOrderMutation.mutate()}
-                disabled={createOrderMutation.isPending}
-              >
-                {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
-              </Button>
-            </div>
+            <Button 
+              onClick={() => createOrderMutation.mutate()}
+              disabled={createOrderMutation.isPending}
+            >
+              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+            </Button>
           </div>
         </div>
       </DialogContent>
