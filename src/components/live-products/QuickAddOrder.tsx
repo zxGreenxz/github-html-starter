@@ -113,8 +113,7 @@ export function QuickAddOrder({
       if (error) throw error;
       return (data || []) as PendingOrder[];
     },
-    enabled: !!phaseData?.phase_date,
-    refetchInterval: 1000 // ✅ Reduced to 1000ms (1 second) as fallback
+    enabled: !!phaseData?.phase_date
   });
 
   // Real-time subscription for instant updates (optimized)
