@@ -22,8 +22,9 @@ import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload } from "lucide-react";
+import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload, Printer } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CommentsSettingsCollapsible } from "@/components/live-products/CommentsSettingsCollapsible";
 import { LiveCommentsPanel } from "@/components/live-products/LiveCommentsPanel";
@@ -205,6 +206,17 @@ export default function LiveProducts() {
   const [showOnlyWithOrders, setShowOnlyWithOrders] = useState(false);
   const [hideNhiJudyHouse, setHideNhiJudyHouse] = useState(true);
   const hideNames = hideNhiJudyHouse ? ["Nhi Judy House"] : [];
+
+  // Auto-print toggle state - persist in localStorage
+  const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState(() => {
+    const saved = localStorage.getItem('liveProducts_autoPrintEnabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  // Effect to save auto-print state to localStorage
+  useEffect(() => {
+    localStorage.setItem('liveProducts_autoPrintEnabled', JSON.stringify(isAutoPrintEnabled));
+  }, [isAutoPrintEnabled]);
   const productListRef = useRef<HTMLDivElement>(null);
   const {
     isCommentsOpen: isCommentsPanelOpen,
@@ -1464,6 +1476,27 @@ export default function LiveProducts() {
                       <Trash2 className="h-4 w-4" />
                       Xóa đợt live
                     </Button>
+
+                    {/* Auto-print toggle */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
+                            <Printer className={cn("h-4 w-4", isAutoPrintEnabled ? "text-green-600" : "text-gray-400")} />
+                            <Switch
+                              checked={isAutoPrintEnabled}
+                              onCheckedChange={setIsAutoPrintEnabled}
+                            />
+                            <span className="text-sm font-medium">
+                              {isAutoPrintEnabled ? "In tự động BẬT" : "In tự động TẮT"}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Bật/tắt in tự động khi thêm đơn từ QuickAddOrder</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </>
                 )}
               </div>
@@ -1734,7 +1767,7 @@ export default function LiveProducts() {
                                             {productOrders.length === 0 && <span className="text-xs text-muted-foreground">
                                                 Chưa có đơn
                                               </span>}
-                                            {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />}
+                                            {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />}
                                           </>;
                                 })()}
                                      </div>
@@ -1896,7 +1929,7 @@ export default function LiveProducts() {
                                           </TooltipProvider>;
                                 })}
                                       {selectedPhase !== "all" && <div className="flex items-center gap-2 ml-2">
-                                          <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />
+                                          <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />
                                         </div>}
                                     </>;
                             })()}
@@ -2001,7 +2034,7 @@ export default function LiveProducts() {
                                           </Tooltip>
                                         </TooltipProvider>;
                               })}
-                                    {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />}
+                                    {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} isAutoPrintEnabled={isAutoPrintEnabled} />}
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-center">

@@ -20,6 +20,7 @@ interface QuickAddOrderProps {
   sessionId?: string;
   availableQuantity: number;
   onOrderAdded?: (quantity: number) => void;
+  isAutoPrintEnabled?: boolean;
 }
 type PendingOrder = {
   id: string;
@@ -40,7 +41,8 @@ export function QuickAddOrder({
   phaseId,
   sessionId,
   availableQuantity,
-  onOrderAdded
+  onOrderAdded,
+  isAutoPrintEnabled = true
 }: QuickAddOrderProps) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -311,8 +313,8 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill using saved printer configuration
-      if (billData) {
+      // Auto-print bill using saved printer configuration (if enabled)
+      if (billData && isAutoPrintEnabled) {
         const activePrinter = await getActivePrinter();
         if (activePrinter) {
           try {
@@ -511,6 +513,8 @@ export function QuickAddOrder({
             };
           }
         }
+      } else if (billData && !isAutoPrintEnabled) {
+        console.log('⏩ Auto-print skipped (disabled by user)');
       }
       const isManualEntry = !billData;
       toast({
