@@ -594,8 +594,8 @@ export function LiveCommentsPanel({
     return comments.map((comment) => {
       const statusInfo = customerStatusMap.get(comment.from.id);
       
-      // Prioritize session_index from comment (archive) over orderInfo
-      const sessionIndex = (comment as any).session_index || statusInfo?.orderInfo?.SessionIndex || statusInfo?.orderInfo?.order_count;
+      // Prioritize SessionIndex from facebook_pending_orders (by user + post)
+      const sessionIndex = statusInfo?.orderInfo?.SessionIndex || (comment as any).session_index || statusInfo?.orderInfo?.order_count;
       
       return {
         ...comment,
