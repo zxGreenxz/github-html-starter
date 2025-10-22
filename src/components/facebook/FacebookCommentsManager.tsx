@@ -926,6 +926,12 @@ export function FacebookCommentsManager({
           // Debounce: Wait 500ms after last event before invalidating
           // (Để sync toàn bộ data, nhưng avatar đã update rồi)
           pendingInvalidationRef.current = setTimeout(async () => {
+            // ⚡ GUARD: Check selectedVideo still exists
+            if (!selectedVideo?.objectId) {
+              console.warn('Refetch skipped: selectedVideo is null');
+              return;
+            }
+
             try {
               const isLive = selectedVideo.statusLive === 1;
               const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
@@ -1134,6 +1140,12 @@ export function FacebookCommentsManager({
   // Fetch status for a single user immediately (for real-time updates)
   const fetchSingleUserStatus = useCallback(
     async (facebookUserId: string, commentAuthorName: string) => {
+      // ⚡ GUARD: Don't fetch if no video selected
+      if (!selectedVideo?.objectId) {
+        console.warn('fetchSingleUserStatus: No video selected');
+        return;
+      }
+
       try {
         // 1. Query order từ facebook_pending_orders
         const { data: order } = await supabase
@@ -1195,7 +1207,7 @@ export function FacebookCommentsManager({
         console.error('❌ Error fetching single user status:', error);
       }
     },
-    [selectedVideo.objectId],
+    [selectedVideo?.objectId],
   );
 
   const debouncedFetchStatus = useMemo(
