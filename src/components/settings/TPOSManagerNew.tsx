@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getActiveTPOSToken, getTPOSHeaders, generateRandomId } from "@/lib/tpos-config";
 import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 import { TPOS_ATTRIBUTE_IDS } from "@/lib/tpos-variant-attributes-compat";
+import { syncAllVariants, SyncProgress } from "@/lib/tpos-product-sync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, X, Plus, Trash2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, X, Plus, Trash2, Loader2, Package } from "lucide-react";
 
 
 interface AttributeValue {
@@ -75,6 +77,8 @@ export function TPOSManagerNew() {
   const [variantTemplateId, setVariantTemplateId] = useState("");
   const [variantData, setVariantData] = useState<any>(null);
   const [isLoadingVariants, setIsLoadingVariants] = useState(false);
+  const [isVariantSyncing, setIsVariantSyncing] = useState(false);
+  const [variantProgress, setVariantProgress] = useState<SyncProgress | null>(null);
 
   // === MODULE 4: EDIT PRODUCT STATES ===
   const [editProductId, setEditProductId] = useState("");
@@ -1430,6 +1434,98 @@ export function TPOSManagerNew() {
                   {isLoadingVariants ? "Đang tải..." : "📥 Tải Dữ Liệu"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Sync Variants Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>🔄 Đồng Bộ Biến Thể từ TPOS</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  <strong>Chức năng:</strong> Đồng bộ giá bán, giá mua, số lượng tồn kho và số lượng dự báo cho tất cả biến thể từ TPOS API.
+                  <br />
+                  <strong>Lưu ý:</strong> Chỉ đồng bộ các sản phẩm có <code>productid_bienthe</code>.
+                </AlertDescription>
+              </Alert>
+
+              <Button
+                onClick={async () => {
+                  setIsVariantSyncing(true);
+                  setVariantProgress({
+                    current: 0,
+                    total: 0,
+                    success: 0,
+                    failed: 0,
+                    skipped: 0,
+                    logs: [],
+                  });
+                  
+                  try {
+                    await syncAllVariants((progress) => {
+                      setVariantProgress(progress);
+                    });
+                    
+                    toast({
+                      title: "✅ Thành công",
+                      description: `Đã đồng bộ ${variantProgress?.success || 0} biến thể`,
+                    });
+                  } catch (error: any) {
+                    toast({
+                      title: "❌ Lỗi",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsVariantSyncing(false);
+                  }
+                }}
+                disabled={isVariantSyncing}
+                className="w-full"
+              >
+                {isVariantSyncing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang đồng bộ biến thể... ({variantProgress?.current}/{variantProgress?.total})
+                  </>
+                ) : (
+                  <>
+                    <Package className="mr-2 h-4 w-4" />
+                    Đồng bộ Biến thể
+                  </>
+                )}
+              </Button>
+
+              {isVariantSyncing && variantProgress && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                  <div className="flex justify-between text-sm">
+                    <span>Tiến độ:</span>
+                    <span className="font-medium">
+                      {variantProgress.current}/{variantProgress.total}
+                    </span>
+                  </div>
+                  
+                  <Progress 
+                    value={(variantProgress.current / variantProgress.total) * 100} 
+                  />
+                  
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="text-green-600">✅ {variantProgress.success}</div>
+                    <div className="text-red-600">❌ {variantProgress.failed}</div>
+                    <div className="text-yellow-600">⏭️ {variantProgress.skipped}</div>
+                  </div>
+
+                  <ScrollArea className="h-[200px] rounded border p-2 bg-background">
+                    {variantProgress.logs.map((log, i) => (
+                      <div key={i} className="text-xs py-1 font-mono">
+                        {log}
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </div>
+              )}
             </CardContent>
           </Card>
 
