@@ -122,7 +122,7 @@ export const TPOS_ATTRIBUTES_DATA = {
       { Id: 93, Name: "43", Code: "43" },
       { Id: 94, Name: "44", Code: "44" },
     ],
-  }
+  },
 };
 
 // Type definitions
@@ -174,22 +174,19 @@ export interface GeneratedVariant {
  *
  * @example
  * generateSKU("NTEST", [{Code: "S"}, {Code: "den"}, {Code: "28"}], new Set())
- * // Returns: "NTESTSD28"
+ * // Returns: "NTESTSDA28"
  */
-export function generateSKU(
-  baseCode: string,
-  attrs: TPOSAttributeValue[],
-  existingCodes: Set<string>
-): string {
+export function generateSKU(baseCode: string, attrs: TPOSAttributeValue[], existingCodes: Set<string>): string {
   let code = baseCode;
 
   // Duyệt theo thứ tự tự nhiên của attrs
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
 
-    // Nếu là số thì giữ nguyên, nếu là chữ thì lấy ký tự đầu viết hoa
+    // Nếu là số thuần túy (ví dụ: "38", "40") → thêm "A" trước số (A38, A40)
+    // Nếu không phải số → lấy ký tự đầu tiên viết hoa
     if (/^\d+$/.test(attrCode)) {
-      code += attrCode;
+      code += "A" + attrCode; // Thêm "A" trước số
     } else {
       code += attrCode.charAt(0).toUpperCase();
     }
@@ -221,10 +218,7 @@ export function generateSKU(
  * generateVariantName("NTEST", [{Name: "S"}, {Name: "Đen"}, {Name: "28"}])
  * // Returns: "NTEST (S, Đen, 28)"
  */
-export function generateVariantName(
-  productName: string,
-  attrs: TPOSAttributeValue[]
-): string {
+export function generateVariantName(productName: string, attrs: TPOSAttributeValue[]): string {
   const attrNames = attrs.map((a) => a.Name).join(", ");
   return `${productName} (${attrNames})`;
 }
@@ -236,10 +230,7 @@ export function generateVariantName(
  * @param attributeLines - Mảng các attribute lines
  * @returns Mảng các variant objects
  */
-export function generateVariants(
-  productData: ProductData,
-  attributeLines: TPOSAttributeLine[]
-): GeneratedVariant[] {
+export function generateVariants(productData: ProductData, attributeLines: TPOSAttributeLine[]): GeneratedVariant[] {
   if (!attributeLines || attributeLines.length === 0) {
     return [];
   }
@@ -299,7 +290,7 @@ export function generateVariants(
  */
 export function compareVariants(
   expectedVariants: GeneratedVariant[],
-  actualVariants: GeneratedVariant[]
+  actualVariants: GeneratedVariant[],
 ): {
   matches: Array<{ code: string; name: string }>;
   missing: Array<{ code: string; name: string }>;
