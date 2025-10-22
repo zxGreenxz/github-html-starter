@@ -386,30 +386,25 @@ export async function uploadTPOSFromInventoryVariants(
       };
     }
 
-    // STEP 2: Get variant text from parent product
+    // STEP 2: Get variant text from parent product (cho phép rỗng)
     const variantText = baseProduct.variant || '';
-    
-    if (!variantText) {
-      return {
-        success: false,
-        error: '❌ Sản phẩm cha không có thông tin variants'
-      };
+    let attributeLines: AttributeLine[] = [];
+
+    if (variantText) {
+      // Có variants → parse
+      onProgress?.(`✅ Variant text: ${variantText}`);
+      onProgress?.('🔨 Đang parse variants từ sản phẩm cha...');
+      attributeLines = parseVariantToAttributeLines(variantText);
+      
+      if (attributeLines.length === 0) {
+        onProgress?.('⚠️ Parse variants thất bại, sẽ upload không có variants');
+      } else {
+        onProgress?.(`✅ Đã tạo ${attributeLines.length} attribute lines`);
+      }
+    } else {
+      // Không có variants → upload sản phẩm đơn giản
+      onProgress?.('ℹ️ Sản phẩm không có variants, sẽ upload dạng đơn giản');
     }
-
-    onProgress?.(`✅ Variant text: ${variantText}`);
-
-    // STEP 3: Parse variant text to attribute lines
-    onProgress?.('🔨 Đang parse variants từ sản phẩm cha...');
-    const attributeLines = parseVariantToAttributeLines(variantText);
-
-    if (attributeLines.length === 0) {
-      return {
-        success: false,
-        error: '❌ Không thể parse variants. Dữ liệu variants không hợp lệ.'
-      };
-    }
-
-    onProgress?.(`✅ Đã tạo ${attributeLines.length} attribute lines`);
 
     // STEP 4: Get TPOS token and headers
     const token = await getActiveTPOSToken();
@@ -518,16 +513,25 @@ async function createNewProductWithVariants(
 
     onProgress?.(`✅ Đã tạo base product (ID: ${tposProductId})`);
 
-    // ====== BƯỚC 2: UpdateV2 - THÊM VARIANTS (5-STEP: Generate → Preview → Save → Verify) ======
-    onProgress?.('🔄 [2/2] Đang thêm variants bằng UpdateV2...');
-    
-    return await updateExistingProductVariants(
-      tposProductId,
-      baseProduct,
-      attributeLines,
-      headers,
-      onProgress
-    );
+    // ====== BƯỚC 2: Nếu có variants → thêm bằng UpdateV2 ======
+    if (attributeLines.length > 0) {
+      onProgress?.('🔄 [2/2] Đang thêm variants bằng UpdateV2...');
+      return await updateExistingProductVariants(
+        tposProductId,
+        baseProduct,
+        attributeLines,
+        headers,
+        onProgress
+      );
+    } else {
+      // Không có variants → hoàn tất
+      onProgress?.('✅ Đã tạo sản phẩm đơn giản (không có variants)');
+      return {
+        success: true,
+        tposProductId,
+        variantsUploaded: 0
+      };
+    }
 
   } catch (error: any) {
     throw new Error(`Lỗi tạo sản phẩm mới: ${error.message}`);
@@ -544,6 +548,16 @@ async function updateExistingProductVariants(
   onProgress?: (message: string) => void
 ): Promise<UploadFromInventoryResult> {
   try {
+    // Nếu không có variants → không cần update
+    if (attributeLines.length === 0) {
+      onProgress?.('ℹ️ Sản phẩm không có variants, bỏ qua bước update variants');
+      return {
+        success: true,
+        tposProductId,
+        variantsUploaded: 0
+      };
+    }
+
     // STEP 1: Fetch existing product data
     onProgress?.('📥 Đang tải dữ liệu sản phẩm hiện tại...');
     
