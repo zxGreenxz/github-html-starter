@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -427,7 +427,7 @@ export default function LiveProducts() {
 
   // Fetch product details from products table for images
   const { data: productsDetails = [] } = useQuery({
-    queryKey: ["products-details-for-live", allLiveProducts.map(p => p.product_code)],
+    queryKey: ["products-details-for-live", selectedPhase, selectedSession],
     queryFn: async () => {
       if (allLiveProducts.length === 0) return [];
       
@@ -445,10 +445,11 @@ export default function LiveProducts() {
     staleTime: 60000, // 60s - product images rarely change
   });
 
-  // Create a map for quick lookup
+  // Create a map for quick lookup with stable dependency
   const productsDetailsMap = useMemo(() => {
+    const stableKey = productsDetails.map(p => p.product_code).sort().join(',');
     return new Map(productsDetails.map(p => [p.product_code, p]));
-  }, [productsDetails]);
+  }, [productsDetails.map(p => p.product_code).sort().join(',')]);
 
   // State to manage prepared quantities in the input fields
   const [preparedQuantities, setPreparedQuantities] = useState<Record<string, number>>({});
@@ -477,21 +478,30 @@ export default function LiveProducts() {
     setPreparedQuantities(initialQuantities);
   }, [allLiveProducts]);
 
-  // Filter products by type using useMemo to avoid reference errors
-  const liveProducts = useMemo(() => allLiveProducts.filter(p => !p.product_type || p.product_type === 'hang_dat'), [allLiveProducts]);
+  // Filter products by type - stable intermediate values
+  const liveProducts = useMemo(() => 
+    allLiveProducts.filter(p => !p.product_type || p.product_type === 'hang_dat'), 
+    [allLiveProducts]
+  );
   const productsHangDat = useMemo(() => liveProducts, [liveProducts]);
-  const productsHangLe = useMemo(() => allLiveProducts.filter(p => p.product_type === 'hang_le'), [allLiveProducts]);
+  const productsHangLe = useMemo(() => 
+    allLiveProducts.filter(p => p.product_type === 'hang_le'), 
+    [allLiveProducts]
+  );
 
-  // Memoized filtered products for better performance
-  const filteredProductsHangDat = useMemo(() => {
-    return filterProductsBySearch(productsHangDat, debouncedProductSearch);
-  }, [productsHangDat, debouncedProductSearch]);
-  const filteredProductsHangLe = useMemo(() => {
-    return filterProductsBySearch(productsHangLe, debouncedProductSearch);
-  }, [productsHangLe, debouncedProductSearch]);
-  const filteredLiveProducts = useMemo(() => {
-    return filterProductsBySearch(liveProducts, debouncedProductSearch);
-  }, [liveProducts, debouncedProductSearch]);
+  // Memoized filtered products - single pass filtering
+  const filteredProductsHangDat = useMemo(() => 
+    filterProductsBySearch(productsHangDat, debouncedProductSearch), 
+    [productsHangDat, debouncedProductSearch]
+  );
+  const filteredProductsHangLe = useMemo(() => 
+    filterProductsBySearch(productsHangLe, debouncedProductSearch), 
+    [productsHangLe, debouncedProductSearch]
+  );
+  const filteredLiveProducts = useMemo(() => 
+    filterProductsBySearch(liveProducts, debouncedProductSearch), 
+    [liveProducts, debouncedProductSearch]
+  );
 
   // Barcode scanner listener - chỉ hoạt động khi enabledPages bao gồm 'live-products'
   useEffect(() => {
@@ -830,7 +840,7 @@ export default function LiveProducts() {
       }) as OrderWithProduct[];
     },
     enabled: !!selectedPhase && !!selectedSession,
-    staleTime: 10000, // 10s - orders with products update frequently but realtime handles changes
+    staleTime: 30000, // 30s - realtime handles changes, reduce unnecessary refetches
   });
 
   // Fetch "Hàng Lẻ" comments from facebook_pending_orders
@@ -968,68 +978,97 @@ export default function LiveProducts() {
     }
   }, [isLoading, selectedSession, selectedPhase, allLiveProducts, liveOrders, ordersWithProducts, liveSessions, livePhases, hangLeComments]);
 
-  // Real-time subscriptions for live data updates
+  // Debounced invalidate to batch multiple realtime updates
+  const debouncedInvalidate = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout | null = null;
+      const pending = new Set<string>();
+      
+      return (queryKey: string) => {
+        pending.add(queryKey);
+        
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        timeoutId = setTimeout(() => {
+          pending.forEach(key => {
+            if (key === 'live-sessions') {
+              queryClient.invalidateQueries({ queryKey: ["live-sessions"] });
+            } else if (key === 'live-phases') {
+              queryClient.invalidateQueries({ queryKey: ["live-phases", selectedSession] });
+            } else if (key === 'live-products') {
+              queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase, selectedSession] });
+            } else if (key === 'live-orders') {
+              queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase, selectedSession] });
+              queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase, selectedSession] });
+            }
+          });
+          pending.clear();
+        }, 300); // 300ms debounce
+      };
+    })(),
+    [queryClient, selectedSession, selectedPhase]
+  );
+
+  // Real-time subscriptions with debouncing
   useEffect(() => {
     if (!selectedSession || !selectedPhase) return;
-    const channel = supabase.channel('live-products-changes').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'live_sessions'
-    }, () => {
-      queryClient.invalidateQueries({
-        queryKey: ["live-sessions"]
-      });
-    }).on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'live_phases',
-      filter: `live_session_id=eq.${selectedSession}`
-    }, () => {
-      queryClient.invalidateQueries({
-        queryKey: ["live-phases", selectedSession]
-      });
-    }).on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'live_products',
-      filter: `live_session_id=eq.${selectedSession}`
-    }, () => {
-      queryClient.invalidateQueries({
-        queryKey: ["live-products", selectedPhase, selectedSession]
-      });
-    }).on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'live_orders',
-      filter: `live_session_id=eq.${selectedSession}`
-    }, () => {
-      queryClient.invalidateQueries({
-        queryKey: ["live-orders", selectedPhase, selectedSession]
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["orders-with-products", selectedPhase, selectedSession]
-      });
-    }).subscribe();
+    
+    const channel = supabase
+      .channel('live-products-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_sessions'
+      }, () => {
+        debouncedInvalidate('live-sessions');
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_phases',
+        filter: `live_session_id=eq.${selectedSession}`
+      }, () => {
+        debouncedInvalidate('live-phases');
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_products',
+        filter: `live_session_id=eq.${selectedSession}`
+      }, () => {
+        debouncedInvalidate('live-products');
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_orders',
+        filter: `live_session_id=eq.${selectedSession}`
+      }, () => {
+        debouncedInvalidate('live-orders');
+      })
+      .subscribe();
 
     // Subscribe to broadcast channel for barcode scanned notifications
-    const broadcastChannel = supabase.channel(`live-session-${selectedSession}`).on('broadcast', {
-      event: 'barcode-scanned'
-    }, async (payload: any) => {
-      const {
-        data: currentUserData
-      } = await supabase.auth.getUser();
-      const currentUserId = currentUserData.user?.id;
+    const broadcastChannel = supabase
+      .channel(`live-session-${selectedSession}`)
+      .on('broadcast', {
+        event: 'barcode-scanned'
+      }, async (payload: any) => {
+        const { data: currentUserData } = await supabase.auth.getUser();
+        const currentUserId = currentUserData.user?.id;
 
-      // Chỉ hiện toast nếu KHÔNG phải người quét
-      if (payload.payload.scannedBy !== currentUserId) {
-        toast.success(payload.payload.message);
-      }
-    }).subscribe();
+        // Chỉ hiện toast nếu KHÔNG phải người quét
+        if (payload.payload.scannedBy !== currentUserId) {
+          toast.success(payload.payload.message);
+        }
+      })
+      .subscribe();
+    
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(broadcastChannel);
     };
-  }, [selectedSession, selectedPhase]);
+  }, [selectedSession, selectedPhase, debouncedInvalidate, queryClient]);
 
   // Delete order item mutation (delete single product from order)
   const deleteOrderItemMutation = useMutation({
