@@ -102,6 +102,7 @@ export function EditOrderItemDialog({
       
       return data;
     },
+    enabled: !!phaseId && phaseId !== 'all',
   });
 
   useEffect(() => {
