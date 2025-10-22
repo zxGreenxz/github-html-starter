@@ -24,19 +24,25 @@ export function ImportTPOSVariantsDialog({
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
 
+  // Helper to parse price strings like "320,000" to 320000
+  const parsePrice = (priceStr: string | number): number => {
+    if (typeof priceStr === 'number') return priceStr;
+    // Remove commas, dots, and non-numeric characters except digits
+    const cleaned = priceStr.toString().replace(/[,\.]/g, '').replace(/[^\d]/g, '');
+    return parseInt(cleaned) || 0;
+  };
+
   const downloadTemplate = () => {
     const template = [
       {
         "Id sản phẩm (*)": 122953,
-        "Mã": "LSET1",
         "Tên sản phẩm": "[LSET1] TH SET NGÔI SAO QUẦN SUÔNG XANH",
-        "Giá trị tồn (*)": 0,
+        "Giá biến thể": "320,000",
       },
       {
         "Id sản phẩm (*)": 122954,
-        "Mã": "LSET2",
-        "Tên sản phẩm": "[LSET2] TH SET NGÔI SAO QUẦN SUÔNG ĐỎ",
-        "Giá trị tồn (*)": 5,
+        "Tên sản phẩm": "[LSET2] TH SET 3 MÓN POLO SỌC XANH + CV",
+        "Giá biến thể": "340,000",
       },
     ];
 
@@ -99,87 +105,64 @@ export function ImportTPOSVariantsDialog({
       console.log("📊 Total rows to process:", jsonData.length);
 
       let updatedCount = 0;
-      let insertedCount = 0;
       let skippedCount = 0;
 
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as any;
-        const productCode = row["Mã"]?.toString().trim();
         const variantId = row["Id sản phẩm (*)"];
-        const stockQuantity = row["Giá trị tồn (*)"];
+        const productName = row["Tên sản phẩm"]?.toString().trim();
+        const sellingPrice = row["Giá biến thể"];
 
-        if (!productCode || !variantId) {
-          console.warn(`Bỏ qua dòng ${i + 2}: thiếu Mã hoặc Id sản phẩm`);
+        if (!variantId) {
+          console.warn(`⚠️ Bỏ qua dòng ${i + 2}: Thiếu Id sản phẩm (*)`);
           skippedCount++;
           setProgress(((i + 1) / jsonData.length) * 100);
           continue;
         }
 
-        const updateData: any = {
-          productid_bienthe: parseInt(variantId.toString()),
-        };
-
-        // Only update stock_quantity if provided
-        if (stockQuantity !== undefined && stockQuantity !== null) {
-          updateData.stock_quantity = parseInt(stockQuantity.toString() || "0");
-        }
-
-        // First check if product exists
+        // Find product by productid_bienthe
         const { data: existingProduct } = await supabase
           .from("products")
-          .select("id")
-          .eq("product_code", productCode)
+          .select("id, product_code, product_name")
+          .eq("productid_bienthe", parseInt(variantId.toString()))
           .maybeSingle();
 
         if (!existingProduct) {
-          // INSERT sản phẩm mới
-          const productName = row["Tên sản phẩm"]?.toString().trim();
-          
-          if (!productName) {
-            console.warn(`⚠️ Bỏ qua ${productCode}: Thiếu tên sản phẩm`);
-            skippedCount++;
-            setProgress(((i + 1) / jsonData.length) * 100);
-            continue;
-          }
-
-          const insertData = {
-            product_code: productCode,
-            product_name: productName,
-            productid_bienthe: parseInt(variantId.toString()),
-            stock_quantity: stockQuantity !== undefined && stockQuantity !== null 
-              ? parseInt(stockQuantity.toString() || "0") 
-              : 0,
-            category: "Quần Áo",
-            unit: "Cái",
-          };
-
-          const { error: insertError } = await supabase
-            .from("products")
-            .insert(insertData);
-
-          if (!insertError) {
-            console.log(`✨ Tạo mới ${productCode}: ${productName}`);
-            insertedCount++;
-          } else {
-            console.error(`❌ Lỗi tạo mới ${productCode}:`, insertError);
-            skippedCount++;
-          }
-
+          console.warn(`⚠️ Bỏ qua ID ${variantId}: Không tìm thấy sản phẩm với productid_bienthe=${variantId}`);
+          skippedCount++;
           setProgress(((i + 1) / jsonData.length) * 100);
           continue;
         }
 
-        // Now update
+        // Prepare update data
+        const updateData: any = {};
+
+        // Update selling_price if provided
+        if (sellingPrice !== undefined && sellingPrice !== null) {
+          updateData.selling_price = parsePrice(sellingPrice);
+        }
+
+        // Only update if there's data to update
+        if (Object.keys(updateData).length === 0) {
+          console.warn(`⚠️ Bỏ qua ID ${variantId}: Không có dữ liệu để cập nhật`);
+          skippedCount++;
+          setProgress(((i + 1) / jsonData.length) * 100);
+          continue;
+        }
+
+        // Update the product
         const { error } = await supabase
           .from("products")
           .update(updateData)
-          .eq("product_code", productCode);
+          .eq("id", existingProduct.id);
 
         if (!error) {
-          console.log(`✅ Cập nhật ${productCode}: productid_bienthe = ${variantId}`);
+          const displayName = productName || existingProduct.product_name || existingProduct.product_code;
+          const priceDisplay = sellingPrice ? ` Giá bán = ${new Intl.NumberFormat('vi-VN').format(updateData.selling_price)}đ` : '';
+          console.log(`✅ Cập nhật ${displayName} (ID: ${variantId}):${priceDisplay}`);
           updatedCount++;
         } else {
-          console.error(`❌ Lỗi update ${productCode}:`, error);
+          console.error(`❌ Lỗi update ID ${variantId}:`, error);
           skippedCount++;
         }
 
@@ -188,7 +171,7 @@ export function ImportTPOSVariantsDialog({
 
       toast({
         title: "Import thành công",
-        description: `✨ Tạo mới: ${insertedCount} sản phẩm\n✅ Cập nhật: ${updatedCount} sản phẩm${skippedCount > 0 ? `\n⚠️ Bỏ qua: ${skippedCount} dòng (thiếu dữ liệu)` : ''}`,
+        description: `✅ Cập nhật: ${updatedCount} sản phẩm${skippedCount > 0 ? `\n⚠️ Bỏ qua: ${skippedCount} dòng (không tìm thấy trong DB)` : ''}`,
         duration: 5000,
       });
 
@@ -237,10 +220,10 @@ export function ImportTPOSVariantsDialog({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Cột cần có: <strong>Id sản phẩm (*)</strong>, <strong>Mã</strong>, Tên sản phẩm, <strong>Giá trị tồn (*)</strong>
+              Cột cần có: <strong>Id sản phẩm (*)</strong>, Tên sản phẩm (tùy chọn), <strong>Giá biến thể</strong>
             </p>
             <p className="text-xs text-muted-foreground">
-              Hệ thống sẽ cập nhật <strong>productid_bienthe</strong> và <strong>stock_quantity</strong> dựa trên <strong>Mã sản phẩm</strong>
+              Hệ thống sẽ tìm sản phẩm theo <strong>Id sản phẩm (*)</strong> và cập nhật <strong>selling_price</strong>
             </p>
           </div>
 
