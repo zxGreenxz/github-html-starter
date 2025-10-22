@@ -35,58 +35,56 @@ export async function updateTPOSProductWithVariants(
 
   // Build AttributeLines payload
   const tposAttributeLines = attributeLines.map(line => ({
-    Id: 0,
-    ProductTmplId: tposProductId,
-    AttributeId: line.Attribute.Id,
     Attribute: {
       Id: line.Attribute.Id,
       Name: line.Attribute.Name,
       Code: line.Attribute.Id === 1 ? "SZCh" : line.Attribute.Id === 3 ? "Mau" : "SZNu",
-      Sequence: null,
+      Sequence: line.Attribute.Id === 1 ? 1 : line.Attribute.Id === 3 ? 2 : 3,
       CreateVariant: true
     },
     Values: line.Values.map(v => ({
       Id: v.Id,
       Name: v.Name,
-      Code: null,
+      Code: v.Code,
       Sequence: null,
       AttributeId: line.Attribute.Id,
       AttributeName: line.Attribute.Name,
       PriceExtra: null,
       NameGet: `${line.Attribute.Name}: ${v.Name}`,
       DateCreated: null
-    }))
+    })),
+    AttributeId: line.Attribute.Id
   }));
 
   // Build ProductVariants payload
   const tposVariants = variants.map(v => ({
     Id: 0,
     EAN13: null,
-    DefaultCode: v.DefaultCode,
+    DefaultCode: null,
     NameTemplate: productData.Name,
     NameNoSign: null,
     ProductTmplId: tposProductId,
-    UOMId: existingProduct.UOMId || 1,
+    UOMId: 0,
     UOMName: null,
-    UOMPOId: existingProduct.UOMPOId || 1,
+    UOMPOId: 0,
     QtyAvailable: 0,
     VirtualAvailable: 0,
     OutgoingQty: null,
     IncomingQty: null,
-    NameGet: `[${v.DefaultCode}] ${v.Name}`,
+    NameGet: v.Name,
     POSCategId: null,
     Price: null,
-    Barcode: v.DefaultCode,
+    Barcode: null,
     Image: null,
     ImageUrl: null,
     Thumbnails: [],
     PriceVariant: v.PriceVariant,
     SaleOK: true,
     PurchaseOK: true,
-    DisplayAttributeValues: v.AttributeValues.map(av => `${av.AttributeName}: ${av.Name}`).join(', '),
+    DisplayAttributeValues: null,
     LstPrice: 0,
     Active: true,
-    ListPrice: v.PriceVariant,
+    ListPrice: 0,
     PurchasePrice: null,
     DiscountSale: null,
     DiscountPurchase: null,
@@ -100,7 +98,7 @@ export async function updateTPOSProductWithVariants(
     Description: null,
     LastUpdated: null,
     Type: "product",
-    CategId: existingProduct.CategId || 2,
+    CategId: 0,
     CostMethod: null,
     InvoicePolicy: "order",
     Variant_TeamId: 0,
@@ -114,7 +112,7 @@ export async function updateTPOSProductWithVariants(
     AvailableInPOS: true,
     CompanyId: null,
     IsCombo: null,
-    NameTemplateNoSign: productData.Name,
+    NameTemplateNoSign: null,
     TaxesIds: [],
     StockValue: null,
     SaleValue: null,
@@ -127,23 +125,15 @@ export async function updateTPOSProductWithVariants(
     Product_UOMId: null,
     Tags: null,
     DateCreated: null,
-    InitInventory: null,
-    OrderTag: "",
-    StringExtraProperties: JSON.stringify({
-      OrderTag: null,
-      Thumbnails: []
-    }),
-    CreatedById: existingProduct.CreatedById || null,
-    TaxAmount: null,
+    InitInventory: 0,
+    OrderTag: null,
+    StringExtraProperties: null,
+    CreatedById: null,
     Error: null,
-    UOM: existingProduct.UOM,
-    Categ: existingProduct.Categ,
-    UOMPO: existingProduct.UOMPO,
-    POSCateg: null,
     AttributeValues: v.AttributeValues.map(av => ({
       Id: av.Id,
       Name: av.Name,
-      Code: av.Code || av.Name,
+      Code: null,
       Sequence: null,
       AttributeId: av.AttributeId,
       AttributeName: av.AttributeName,
@@ -162,9 +152,9 @@ export async function updateTPOSProductWithVariants(
 
   // Update product
   onProgress?.(`🚀 Cập nhật ${variants.length} variants lên TPOS...`);
-  const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2`;
+  const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})`;
   const updateResponse = await fetch(updateUrl, {
-    method: 'POST',
+    method: 'PUT',
     headers,
     body: JSON.stringify(updatePayload)
   });

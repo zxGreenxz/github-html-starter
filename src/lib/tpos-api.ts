@@ -1232,8 +1232,9 @@ export async function uploadToTPOS(
         imageBase64 = await imageUrlToBase64(item.product_images[0]);
       }
       
-      // Step 3: Detect attributes
+      // Step 3: Tạo AttributeLines (GIỮ NGUYÊN LOGIC CŨ)
       const detected = detectAttributesFromText(item.variant || '');
+      const attributeLines = createAttributeLines(detected);
       
       if (detected.color && detected.color.length > 0 || detected.sizeText && detected.sizeText.length > 0 || detected.sizeNumber && detected.sizeNumber.length > 0) {
         console.log(`   🎨 Detected attributes:`, {
@@ -1243,52 +1244,9 @@ export async function uploadToTPOS(
         });
       }
       
-      // Check if ONLY numeric size (no color, no text size)
-      const hasSizeNumberOnly = 
-        detected.sizeNumber && detected.sizeNumber.length > 0 &&
-        (!detected.sizeText || detected.sizeText.length === 0) &&
-        (!detected.color || detected.color.length === 0);
-      
-      let createdProduct: any;
-      
-      if (hasSizeNumberOnly) {
-        // ========================================
-        // CASE 1: SIZE SỐ ONLY → 2-step flow (InsertV2 → UpdateV2)
-        // ========================================
-        console.log(`   🔢 [SIZE NUMBER ONLY] Using 2-step flow (InsertV2 → UpdateV2)`);
-        
-        // Step 1: Create BASE product (NO AttributeLines)
-        console.log(`   📦 Step 1: Creating base product without variants...`);
-        createdProduct = await createProductDirectly(item, imageBase64, []);
-        console.log(`   ✅ Base product created: ${createdProduct.Id}`);
-        
-        // Step 2: Create variants using tpos-variant-creator
-        console.log(`   🎨 Step 2: Creating variants with exact SKUs (A prefix)...`);
-        const { createTPOSVariants } = await import('./tpos-variant-creator');
-        
-        try {
-          await createTPOSVariants(
-            createdProduct.Id,
-            item.variant || '',
-            (message) => {
-              console.log(`      📍 ${message}`);
-              onProgress?.(currentStep, totalSteps, message);
-            }
-          );
-          console.log(`   ✅ Variants created successfully with "A" prefix`);
-        } catch (variantError) {
-          console.warn(`   ⚠️ Failed to create variants (base product still exists):`, variantError);
-          // Don't throw - base product is created successfully
-        }
-        
-      } else {
-        // ========================================
-        // CASE 2: CÓ SIZE CHỮ/MÀU → Old logic (InsertV2 with AttributeLines)
-        // ========================================
-        console.log(`   ⚡ Using standard flow (InsertV2 with AttributeLines)`);
-        const attributeLines = createAttributeLines(detected);
-        createdProduct = await createProductDirectly(item, imageBase64, attributeLines);
-      }
+      // Step 4: Tạo sản phẩm trực tiếp
+      console.log(`   ⚡ Creating product on TPOS...`);
+      const createdProduct = await createProductDirectly(item, imageBase64, attributeLines);
       
       console.log(`   ✅ Created: ${createdProduct.Id} - ${createdProduct.Name}`);
       
