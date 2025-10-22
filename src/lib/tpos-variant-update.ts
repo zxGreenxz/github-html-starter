@@ -154,7 +154,7 @@ export async function updateTPOSProductWithVariants(
   onProgress?.(`🚀 Cập nhật ${variants.length} variants lên TPOS...`);
   const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})`;
   const updateResponse = await fetch(updateUrl, {
-    method: "POST",
+    method: "PUT",
     headers,
     body: JSON.stringify(updatePayload),
   });
