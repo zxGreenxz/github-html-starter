@@ -216,6 +216,39 @@ export default function LiveProducts() {
   useEffect(() => {
     localStorage.setItem('liveProducts_autoPrintEnabled', JSON.stringify(isAutoPrintEnabled));
   }, [isAutoPrintEnabled]);
+
+  // Persist comments settings to localStorage
+  useEffect(() => {
+    if (commentsPageId) {
+      localStorage.setItem('liveProducts_commentsPageId', commentsPageId);
+    }
+  }, [commentsPageId]);
+
+  useEffect(() => {
+    if (commentsVideoId) {
+      localStorage.setItem('liveProducts_commentsVideoId', commentsVideoId);
+    }
+  }, [commentsVideoId]);
+
+  useEffect(() => {
+    if (selectedFacebookVideo) {
+      localStorage.setItem('liveProducts_selectedFacebookVideo', JSON.stringify(selectedFacebookVideo));
+    }
+  }, [selectedFacebookVideo]);
+
+  // Handler for video selection
+  const handleVideoChange = (video: FacebookVideo | null) => {
+    setSelectedFacebookVideo(video);
+    setCommentsVideoId(video?.objectId || "");
+    
+    // Dispatch event for other components
+    if (video) {
+      window.dispatchEvent(new CustomEvent('facebook-video-selected', {
+        detail: { videoId: video.objectId, pageId: commentsPageId }
+      }));
+    }
+  };
+
   const productListRef = useRef<HTMLDivElement>(null);
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false);
   const {
@@ -1665,13 +1698,11 @@ export default function LiveProducts() {
 
               <div className="flex gap-2">
                 {activeTab === "products" && <>
-                    {commentsVideoId && <>
-                        <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}>
-                          <MessageSquare className="h-4 w-4" />
-                          Comments
-                          {isCommentsPanelOpen && <Badge variant="secondary" className="ml-1">Đang mở</Badge>}
-                        </Button>
-                      </>}
+                    <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}>
+                      <MessageSquare className="h-4 w-4" />
+                      Comments
+                      {isCommentsPanelOpen && <Badge variant="secondary" className="ml-1">Đang mở</Badge>}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={handleRefreshProducts} disabled={liveProducts.length === 0} className="flex items-center gap-2">
                       <RefreshCw className="h-4 w-4" />
                       Làm mới
@@ -2798,8 +2829,8 @@ export default function LiveProducts() {
         </div>}
       </div>
 
-      {/* Comments Sidebar - inline implementation */}
-      {commentsVideoId && isCommentsPanelOpen && (
+      {/* Comments Sidebar với Video Selection */}
+      {isCommentsPanelOpen && (
         <div className="fixed top-0 right-0 h-full w-[400px] sm:w-[450px] bg-background border-l shadow-lg z-50">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b">
@@ -2815,19 +2846,45 @@ export default function LiveProducts() {
           
           {/* Content */}
           <div className="h-[calc(100vh-65px)] overflow-y-auto">
-            <LiveCommentsPanel 
-              pageId={commentsPageId} 
-              videoId={commentsVideoId} 
-              comments={comments} 
-              ordersData={ordersData} 
-              newCommentIds={newCommentIds} 
-              showOnlyWithOrders={showOnlyWithOrders} 
-              hideNames={hideNames} 
-              isLoading={commentsLoading || isFetchingNextPage} 
-              onLoadMore={() => fetchNextPage()} 
-              hasMore={hasNextPage} 
-              onRefresh={refetchComments} 
-            />
+            {/* Settings collapsible - CHỌN VIDEO */}
+            <div className="p-4 border-b">
+              <CommentsSettingsCollapsible
+                pageId={commentsPageId}
+                videoId={commentsVideoId}
+                isAutoRefresh={isCommentsAutoRefresh}
+                showOnlyWithOrders={showOnlyWithOrders}
+                hideNhiJudyHouse={hideNhiJudyHouse}
+                hideNames={hideNames}
+                onPageIdChange={setCommentsPageId}
+                onVideoChange={handleVideoChange}
+                onAutoRefreshToggle={() => setIsCommentsAutoRefresh(!isCommentsAutoRefresh)}
+                onShowOnlyWithOrdersChange={setShowOnlyWithOrders}
+                onHideNhiJudyHouseChange={setHideNhiJudyHouse}
+                onRefresh={refetchComments}
+              />
+            </div>
+
+            {/* Comments List */}
+            {commentsVideoId ? (
+              <LiveCommentsPanel 
+                pageId={commentsPageId} 
+                videoId={commentsVideoId} 
+                comments={comments} 
+                ordersData={ordersData} 
+                newCommentIds={newCommentIds} 
+                showOnlyWithOrders={showOnlyWithOrders} 
+                hideNames={hideNames} 
+                isLoading={commentsLoading || isFetchingNextPage} 
+                onLoadMore={() => fetchNextPage()} 
+                hasMore={hasNextPage} 
+                onRefresh={refetchComments} 
+              />
+            ) : (
+              <div className="p-8 text-center text-muted-foreground">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Chọn Facebook Page và Video để xem comments</p>
+              </div>
+            )}
           </div>
         </div>
       )}
