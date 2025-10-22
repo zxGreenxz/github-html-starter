@@ -92,7 +92,7 @@ export function SyncTPOSDialog({
         <DialogHeader>
           <DialogTitle>Đồng bộ sản phẩm từ TPOS</DialogTitle>
           <DialogDescription>
-            Cập nhật ảnh và base_product_code từ TPOS cho tất cả sản phẩm
+            Cập nhật ảnh, giá mua, giá bán và base_product_code từ TPOS cho tất cả sản phẩm
           </DialogDescription>
         </DialogHeader>
 
@@ -157,7 +157,7 @@ export function SyncTPOSDialog({
                 <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nhấn "Bắt đầu đồng bộ" để bắt đầu</p>
                 <p className="text-xs mt-2">
-                  Quá trình này sẽ cập nhật ảnh và liên kết biến thể cho tất cả sản phẩm
+                  Quá trình này sẽ cập nhật ảnh, giá mua (StandardPrice), giá bán (ListPrice) và liên kết biến thể cho tất cả sản phẩm
                 </p>
               </div>
             </div>

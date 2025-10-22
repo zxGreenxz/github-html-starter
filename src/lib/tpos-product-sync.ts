@@ -14,6 +14,8 @@ interface TPOSProductResponse {
   Id: number;
   DefaultCode: string;
   ImageUrl: string | null;
+  StandardPrice: number;
+  ListPrice: number;
   ProductVariants: TPOSProductVariant[];
 }
 
@@ -45,7 +47,7 @@ async function fetchTPOSProductDetail(
   bearerToken: string
 ): Promise<TPOSProductResponse | null> {
   try {
-    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants`;
+    const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?$filter=Id eq ${tposProductId}&$expand=ProductVariants`;
     
     const response = await fetch(url, {
       method: "GET",
@@ -57,7 +59,11 @@ async function fetchTPOSProductDetail(
     }
 
     const data = await response.json();
-    return data;
+    const product = data.value?.[0];
+    if (!product) {
+      return null;
+    }
+    return product;
   } catch (error) {
     console.error(`Error fetching TPOS product ${tposProductId}:`, error);
     return null;
@@ -87,15 +93,20 @@ async function syncSingleProduct(
 
     let variantsUpdated = 0;
 
-    // 2. Cập nhật tpos_image_url cho sản phẩm cha
-    if (tposData.ImageUrl) {
+    // 2. Cập nhật tpos_image_url, purchase_price, selling_price cho sản phẩm cha
+    const updateData: any = {};
+    if (tposData.ImageUrl) updateData.tpos_image_url = tposData.ImageUrl;
+    if (tposData.StandardPrice) updateData.purchase_price = tposData.StandardPrice;
+    if (tposData.ListPrice) updateData.selling_price = tposData.ListPrice;
+
+    if (Object.keys(updateData).length > 0) {
       const { error: updateError } = await supabase
         .from("products")
-        .update({ tpos_image_url: tposData.ImageUrl })
+        .update(updateData)
         .eq("id", productId);
 
       if (updateError) {
-        console.error("Error updating tpos_image_url:", updateError);
+        console.error("Error updating product:", updateError);
       }
     }
 
@@ -116,7 +127,7 @@ async function syncSingleProduct(
     return {
       success: true,
       productCode: tposData.DefaultCode,
-      message: `Cập nhật ảnh + ${variantsUpdated} variants`,
+      message: `Cập nhật ảnh + giá + ${variantsUpdated} variants`,
       variantsUpdated,
     };
   } catch (error) {
