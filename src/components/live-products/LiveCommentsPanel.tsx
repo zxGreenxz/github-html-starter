@@ -79,7 +79,6 @@ export function LiveCommentsPanel({
   const [selectedOrderInfo, setSelectedOrderInfo] = useState<TPOSOrder | null>(null);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const processedCommentIds = useRef<Set<string>>(new Set());
   const initialFetchDone = useRef(false);
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(new Set());
@@ -345,26 +344,12 @@ export function LiveCommentsPanel({
 
     console.log(`[LiveCommentsPanel] Found ${newComments.length} new comments out of ${comments.length} total`);
 
-    // Clear previous debounce timer
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-
-    // Debounce for 500ms to prevent rapid fetches
-    debounceTimeoutRef.current = setTimeout(() => {
-      // Fetch only for new comments if we have some, otherwise fetch all
-      fetchPartnerStatusBatch(newComments.length > 0 ? newComments : comments, ordersData);
-      
-      // Mark as done and track processed IDs
-      initialFetchDone.current = true;
-      comments.forEach(c => processedCommentIds.current.add(c.id));
-    }, 500);
-
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
+    // Instant fetch (no debounce) - protection via fetchInProgress lock
+    fetchPartnerStatusBatch(newComments.length > 0 ? newComments : comments, ordersData);
+    
+    // Mark as done and track processed IDs
+    initialFetchDone.current = true;
+    comments.forEach(c => processedCommentIds.current.add(c.id));
   }, [comments, ordersData, fetchPartnerStatusBatch]);
 
   // Reset tracking when video changes (but keep cache)
