@@ -250,17 +250,64 @@ export function QuickAddOrder({
         throw error;
       }
     },
+
+    // ✅ OPTIMISTIC UPDATE: Update UI immediately before backend
+    onMutate: async ({ sessionIndex, commentId }) => {
+      console.log('⚡ [OPTIMISTIC] Adding order immediately to UI...');
+
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['live-orders', phaseId] });
+      await queryClient.cancelQueries({ queryKey: ['live-products', phaseId] });
+      await queryClient.cancelQueries({ queryKey: ['orders-with-products', phaseId] });
+
+      // Snapshot previous state for rollback
+      const previousOrders = queryClient.getQueryData(['live-orders', phaseId]);
+      const previousProducts = queryClient.getQueryData(['live-products', phaseId]);
+      const previousOrdersWithProducts = queryClient.getQueryData(['orders-with-products', phaseId]);
+
+      // ✅ UPDATE UI: Add temporary order to cache
+      queryClient.setQueryData(['live-orders', phaseId], (old: any) => {
+        const newOrder = {
+          id: `temp-${Date.now()}`,
+          session_index: parseInt(sessionIndex),
+          facebook_comment_id: commentId === 'MANUAL_ENTRY' ? null : commentId,
+          live_phase_id: phaseId,
+          live_product_id: productId,
+          quantity: 1,
+          is_optimistic: true,
+        };
+        return [...(old || []), newOrder];
+      });
+
+      // ✅ UPDATE SOLD QUANTITY immediately
+      queryClient.setQueryData(['live-products', phaseId], (old: any) => {
+        return (old || []).map((product: any) =>
+          product.id === productId
+            ? { ...product, sold_quantity: (product.sold_quantity || 0) + 1 }
+            : product
+        );
+      });
+
+      // Show immediate toast
+      toast({
+        title: "⚡ Đang xử lý...",
+        description: `Đã thêm đơn ${sessionIndex} vào UI`,
+      });
+
+      return { previousOrders, previousProducts, previousOrdersWithProducts };
+    },
+    // ✅ SUCCESS: Backend successful, sync with DB
     onSuccess: async ({
       sessionIndex,
       isOversell,
       billData
     }) => {
-      setInputValue('');
+      console.log('✅ [BACKEND] Order added successfully, syncing with DB...');
       
-      // Notify parent component to increment order quantity
+      setInputValue('');
       onOrderAdded?.(1);
       
-      // Force refetch all related queries immediately
+      // Invalidate to refetch and sync with DB (replace temporary order with real one)
       queryClient.invalidateQueries({
         queryKey: ['live-orders', phaseId]
       });
@@ -271,20 +318,6 @@ export function QuickAddOrder({
         queryKey: ['orders-with-products', phaseId]
       });
       queryClient.invalidateQueries({
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
-      });
-
-      // Also refetch queries to ensure UI updates immediately
-      queryClient.refetchQueries({
-        queryKey: ['live-orders', phaseId]
-      });
-      queryClient.refetchQueries({
-        queryKey: ['live-products', phaseId]
-      });
-      queryClient.refetchQueries({
-        queryKey: ['orders-with-products', phaseId]
-      });
-      queryClient.refetchQueries({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
@@ -493,24 +526,34 @@ export function QuickAddOrder({
       }
       const isManualEntry = !billData;
       toast({
-        title: isOversell ? "⚠️ Đơn oversell" : "Thành công",
+        title: isOversell ? "⚠️ Đơn oversell" : "✅ Thành công",
         description: isOversell 
-          ? `Đã thêm đơn ${sessionIndex} (vượt số lượng - đánh dấu đỏ)${isManualEntry ? ' (nhập tay)' : ''}`
-          : `Đã thêm đơn hàng ${sessionIndex}${isManualEntry ? ' (nhập tay)' : ''}`,
+          ? `Đơn ${sessionIndex} đã được thêm (vượt số lượng)${isManualEntry ? ' (nhập tay)' : ''}`
+          : `Đơn hàng ${sessionIndex} đã được lưu${isManualEntry ? ' (nhập tay)' : ''}`,
         variant: isOversell ? "destructive" : "default"
       });
     },
-    onError: (error) => {
-      console.error('❌ Error adding order:', error);
+
+    // ❌ ERROR: Backend failed, rollback UI
+    onError: (error, variables, context) => {
+      console.error('❌ [BACKEND] Error, rolling back UI...', error);
+
+      // Rollback all changes
+      if (context?.previousOrders) {
+        queryClient.setQueryData(['live-orders', phaseId], context.previousOrders);
+      }
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['live-products', phaseId], context.previousProducts);
+      }
+      if (context?.previousOrdersWithProducts) {
+        queryClient.setQueryData(['orders-with-products', phaseId], context.previousOrdersWithProducts);
+      }
+
       toast({
-        title: "Lỗi",
-        description: error instanceof Error ? error.message : "Không thể thêm đơn hàng. Vui lòng thử lại.",
+        title: "❌ Lỗi",
+        description: error instanceof Error ? error.message : "Không thể thêm đơn hàng. Đã hoàn tác.",
         variant: "destructive"
       });
-      // Reset mutation state to unblock UI
-      setTimeout(() => {
-        addOrderMutation.reset();
-      }, 100);
     },
     onSettled: () => {
       // Always reset loading state after mutation completes (success or error)
@@ -574,7 +617,7 @@ export function QuickAddOrder({
       }}>
         <PopoverTrigger asChild>
           <div className="flex-1 relative">
-            <Input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyPress={handleKeyPress} onClick={() => setIsOpen(true)} placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."} className={cn("text-sm h-9", isOutOfStock && "border-red-500")} disabled={addOrderMutation.isPending} />
+            <Input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyPress={handleKeyPress} onClick={() => setIsOpen(true)} placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."} className={cn("text-sm h-9", isOutOfStock && "border-red-500")} />
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-[520px] p-0 z-[100] bg-popover" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()} onMouseLeave={() => setIsOpen(false)} onPointerDownOutside={e => {
@@ -632,7 +675,7 @@ export function QuickAddOrder({
         </PopoverContent>
       </Popover>
       
-      <Button onClick={handleAddOrder} disabled={addOrderMutation.isPending || !inputValue.trim()} size="sm" className="h-9">
+      <Button onClick={handleAddOrder} disabled={!inputValue.trim()} size="sm" className="h-9">
         <Plus className="h-4 w-4" />
       </Button>
     </div>;
