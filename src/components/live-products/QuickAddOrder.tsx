@@ -215,58 +215,63 @@ export function QuickAddOrder({
       sessionIndex: string;
       commentId: string;
     }) => {
-      // Get current product data to check if overselling
-      const {
-        data: product,
-        error: fetchError
-      } = await supabase.from('live_products').select('sold_quantity, prepared_quantity, product_code, product_name').eq('id', productId).single();
-      if (fetchError) throw fetchError;
+      try {
+        // Get current product data to check if overselling
+        const {
+          data: product,
+          error: fetchError
+        } = await supabase.from('live_products').select('sold_quantity, prepared_quantity, product_code, product_name').eq('id', productId).single();
+        if (fetchError) throw fetchError;
 
-      // Get pending order details for bill (null if manual entry)
-      const pendingOrder = commentId !== 'MANUAL_ENTRY' 
-        ? pendingOrders.find(order => order.facebook_comment_id === commentId)
-        : null;
+        // Get pending order details for bill (null if manual entry)
+        const pendingOrder = commentId !== 'MANUAL_ENTRY' 
+          ? pendingOrders.find(order => order.facebook_comment_id === commentId)
+          : null;
 
-      // Check if this order will be an oversell
-      const newSoldQuantity = (product.sold_quantity || 0) + 1;
-      const isOversell = newSoldQuantity > product.prepared_quantity;
+        // Check if this order will be an oversell
+        const newSoldQuantity = (product.sold_quantity || 0) + 1;
+        const isOversell = newSoldQuantity > product.prepared_quantity;
 
-      // Insert new order with oversell flag and comment ID (null if manual entry)
-      const {
-        error: orderError
-      } = await supabase.from('live_orders').insert({
-        session_index: parseInt(sessionIndex),
-        facebook_comment_id: commentId === 'MANUAL_ENTRY' ? null : commentId,
-        tpos_order_id: pendingOrder?.code || null,
-        code_tpos_order_id: pendingOrder?.tpos_order_id || null,
-        live_session_id: sessionId,
-        live_phase_id: phaseId,
-        live_product_id: productId,
-        quantity: 1,
-        is_oversell: isOversell
-      });
-      if (orderError) throw orderError;
+        // Insert new order with oversell flag and comment ID (null if manual entry)
+        const {
+          error: orderError
+        } = await supabase.from('live_orders').insert({
+          session_index: parseInt(sessionIndex),
+          facebook_comment_id: commentId === 'MANUAL_ENTRY' ? null : commentId,
+          tpos_order_id: pendingOrder?.code || null,
+          code_tpos_order_id: pendingOrder?.tpos_order_id || null,
+          live_session_id: sessionId,
+          live_phase_id: phaseId,
+          live_product_id: productId,
+          quantity: 1,
+          is_oversell: isOversell
+        });
+        if (orderError) throw orderError;
 
-      // Update sold quantity
-      const {
-        error: updateError
-      } = await supabase.from('live_products').update({
-        sold_quantity: newSoldQuantity
-      }).eq('id', productId);
-      if (updateError) throw updateError;
-      return {
-        sessionIndex,
-        isOversell,
-        billData: pendingOrder ? {
+        // Update sold quantity
+        const {
+          error: updateError
+        } = await supabase.from('live_products').update({
+          sold_quantity: newSoldQuantity
+        }).eq('id', productId);
+        if (updateError) throw updateError;
+        return {
           sessionIndex,
-          phone: pendingOrder.phone,
-          customerName: pendingOrder.name,
-          productCode: product.product_code,
-          productName: product.product_name,
-          comment: pendingOrder.comment,
-          createdTime: pendingOrder.created_time
-        } : null
-      };
+          isOversell,
+          billData: pendingOrder ? {
+            sessionIndex,
+            phone: pendingOrder.phone,
+            customerName: pendingOrder.name,
+            productCode: product.product_code,
+            productName: product.product_name,
+            comment: pendingOrder.comment,
+            createdTime: pendingOrder.created_time
+          } : null
+        };
+      } catch (error) {
+        console.error('❌ Error in addOrderMutation:', error);
+        throw error;
+      }
     },
     onSuccess: async ({
       sessionIndex,
@@ -516,13 +521,21 @@ export function QuickAddOrder({
         variant: isOversell ? "destructive" : "default"
       });
     },
-    onError: error => {
-      console.error('Error adding order:', error);
+    onError: (error) => {
+      console.error('❌ Error adding order:', error);
       toast({
         title: "Lỗi",
-        description: "Không thể thêm đơn hàng. Vui lòng thử lại.",
+        description: error instanceof Error ? error.message : "Không thể thêm đơn hàng. Vui lòng thử lại.",
         variant: "destructive"
       });
+      // Reset mutation state to unblock UI
+      setTimeout(() => {
+        addOrderMutation.reset();
+      }, 100);
+    },
+    onSettled: () => {
+      // Always reset loading state after mutation completes (success or error)
+      console.log('✅ Order mutation settled');
     }
   });
   const handleHideComment = (e: React.MouseEvent, commentId: string) => {
