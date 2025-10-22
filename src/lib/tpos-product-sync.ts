@@ -145,16 +145,50 @@ export async function syncAllProducts(
     throw new Error("Không tìm thấy TPOS bearer token");
   }
 
-  // 2. Lấy danh sách sản phẩm có tpos_product_id
-  const { data: products, error } = await supabase
-    .from("products")
-    .select("id, product_code, tpos_product_id")
-    .not("tpos_product_id", "is", null)
-    .order("created_at", { ascending: false });
+  // 2. Lấy danh sách sản phẩm có tpos_product_id (với phân trang)
+  let allProducts: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
 
-  if (error) {
-    throw new Error(`Database error: ${error.message}`);
+  onProgress({
+    current: 0,
+    total: 0,
+    success: 0,
+    failed: 0,
+    skipped: 0,
+    logs: ["📊 Đang tải danh sách sản phẩm..."],
+  });
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, product_code, tpos_product_id")
+      .not("tpos_product_id", "is", null)
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+    
+    if (!data || data.length === 0) break;
+    
+    allProducts.push(...data);
+    
+    onProgress({
+      current: 0,
+      total: 0,
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      logs: [`📊 Đã tải ${allProducts.length} sản phẩm...`],
+    });
+    
+    if (data.length < pageSize) break;
+    page++;
   }
+
+  const products = allProducts;
 
   if (!products || products.length === 0) {
     throw new Error("Không có sản phẩm nào cần đồng bộ");
