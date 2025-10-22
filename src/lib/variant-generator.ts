@@ -183,14 +183,42 @@ export function generateSKU(
 ): string {
   let code = baseCode;
 
+  // Kiểm tra nếu chỉ có duy nhất Size Số
+  const hasSizeText = attrs.some(attr => {
+    const attrId = attr.AttributeId;
+    const attrName = attr.AttributeName;
+    return attrId === 1 || attrName === "Size Chữ";
+  });
+
+  const hasColor = attrs.some(attr => {
+    const attrId = attr.AttributeId;
+    const attrName = attr.AttributeName;
+    return attrId === 3 || attrName === "Màu";
+  });
+
+  const hasSizeNumber = attrs.some(attr => {
+    const attrId = attr.AttributeId;
+    const attrName = attr.AttributeName;
+    return attrId === 4 || attrName === "Size Số";
+  });
+
+  // Điều kiện: Chỉ có Size Số (không có Size Chữ, không có Màu)
+  const isSizeNumberOnly = hasSizeNumber && !hasSizeText && !hasColor;
+
   // Duyệt theo thứ tự tự nhiên của attrs
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
 
-    // Nếu là số thì giữ nguyên, nếu là chữ thì lấy ký tự đầu viết hoa
+    // Nếu là số thì xử lý đặc biệt
     if (/^\d+$/.test(attrCode)) {
-      code += attrCode;
+      // Thêm chữ "A" nếu chỉ có Size Số đơn biến thể
+      if (isSizeNumberOnly) {
+        code += "A" + attrCode;
+      } else {
+        code += attrCode;
+      }
     } else {
+      // Nếu là chữ thì lấy ký tự đầu viết hoa
       code += attrCode.charAt(0).toUpperCase();
     }
   }
