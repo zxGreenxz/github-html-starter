@@ -33,15 +33,6 @@ export async function updateTPOSProductWithVariants(
 
   const existingProduct = await getResponse.json();
 
-  // Filter existing active variants
-  const existingVariants = (existingProduct.ProductVariants || [])
-    .filter((v: any) => v.Active && v.Id > 0)
-    .map((v: any) => ({
-      ...v,
-      NameTemplate: productData.Name,
-      ProductTmplId: tposProductId
-    }));
-
   // Build AttributeLines payload
   const tposAttributeLines = attributeLines.map(line => ({
     Attribute: {
@@ -142,7 +133,7 @@ export async function updateTPOSProductWithVariants(
     AttributeValues: v.AttributeValues.map(av => ({
       Id: av.Id,
       Name: av.Name,
-      Code: av.Code || av.Name,
+      Code: null,
       Sequence: null,
       AttributeId: av.AttributeId,
       AttributeName: av.AttributeName,
@@ -156,30 +147,14 @@ export async function updateTPOSProductWithVariants(
   const updatePayload = {
     ...existingProduct,
     AttributeLines: tposAttributeLines,
-    ProductVariants: [
-      ...existingVariants,
-      ...tposVariants
-    ],
-    UOM: existingProduct.UOM,
-    UOMPO: existingProduct.UOMPO,
-    Categ: existingProduct.Categ,
-    POSCateg: existingProduct.POSCateg || null,
-    Taxes: existingProduct.Taxes || [],
-    SupplierTaxes: existingProduct.SupplierTaxes || [],
-    Product_Teams: existingProduct.Product_Teams || [],
-    Images: existingProduct.Images || [],
-    UOMView: existingProduct.UOMView || null,
-    Distributor: existingProduct.Distributor || null,
-    Importer: existingProduct.Importer || null,
-    Producer: existingProduct.Producer || null,
-    OriginCountry: existingProduct.OriginCountry || null
+    ProductVariants: tposVariants
   };
 
   // Update product
   onProgress?.(`🚀 Cập nhật ${variants.length} variants lên TPOS...`);
-  const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2`;
+  const updateUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})`;
   const updateResponse = await fetch(updateUrl, {
-    method: 'POST',
+    method: 'PUT',
     headers,
     body: JSON.stringify(updatePayload)
   });
