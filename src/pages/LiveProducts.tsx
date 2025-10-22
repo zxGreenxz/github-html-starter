@@ -18,17 +18,15 @@ import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadL
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
-import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload, Printer } from "lucide-react";
+import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload, Printer, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CommentsSettingsCollapsible } from "@/components/live-products/CommentsSettingsCollapsible";
 import { LiveCommentsPanel } from "@/components/live-products/LiveCommentsPanel";
-import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { useFacebookComments } from "@/hooks/use-facebook-comments";
 import type { FacebookVideo } from "@/types/facebook";
 import { toast } from "sonner";
@@ -218,10 +216,7 @@ export default function LiveProducts() {
     localStorage.setItem('liveProducts_autoPrintEnabled', JSON.stringify(isAutoPrintEnabled));
   }, [isAutoPrintEnabled]);
   const productListRef = useRef<HTMLDivElement>(null);
-  const {
-    isCommentsOpen: isCommentsPanelOpen,
-    setIsCommentsOpen: setIsCommentsPanelOpen
-  } = useCommentsSidebar();
+  const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false);
   const {
     comments,
     ordersData,
@@ -234,7 +229,7 @@ export default function LiveProducts() {
   } = useFacebookComments({
     pageId: commentsPageId,
     videoId: commentsVideoId,
-    isAutoRefresh: isCommentsAutoRefresh
+    isAutoRefresh: isCommentsAutoRefresh && isCommentsPanelOpen
   });
   const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false);
   const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
@@ -2655,9 +2650,38 @@ export default function LiveProducts() {
         </div>}
       </div>
 
-      {/* Comments Sidebar - outside content wrapper */}
-      {commentsVideoId && <CommentsSidebar isOpen={isCommentsPanelOpen} onClose={() => setIsCommentsPanelOpen(false)}>
-          <LiveCommentsPanel pageId={commentsPageId} videoId={commentsVideoId} comments={comments} ordersData={ordersData} newCommentIds={newCommentIds} showOnlyWithOrders={showOnlyWithOrders} hideNames={hideNames} isLoading={commentsLoading || isFetchingNextPage} onLoadMore={() => fetchNextPage()} hasMore={hasNextPage} onRefresh={refetchComments} />
-        </CommentsSidebar>}
+      {/* Comments Sidebar - inline implementation */}
+      {commentsVideoId && isCommentsPanelOpen && (
+        <div className="fixed top-0 right-0 h-full w-[400px] sm:w-[450px] bg-background border-l shadow-lg z-50">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-lg font-semibold">Facebook Comments</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCommentsPanelOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Content */}
+          <div className="h-[calc(100vh-65px)] overflow-y-auto">
+            <LiveCommentsPanel 
+              pageId={commentsPageId} 
+              videoId={commentsVideoId} 
+              comments={comments} 
+              ordersData={ordersData} 
+              newCommentIds={newCommentIds} 
+              showOnlyWithOrders={showOnlyWithOrders} 
+              hideNames={hideNames} 
+              isLoading={commentsLoading || isFetchingNextPage} 
+              onLoadMore={() => fetchNextPage()} 
+              hasMore={hasNextPage} 
+              onRefresh={refetchComments} 
+            />
+          </div>
+        </div>
+      )}
     </div>;
 }

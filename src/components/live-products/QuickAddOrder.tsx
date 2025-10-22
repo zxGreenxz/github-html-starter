@@ -74,7 +74,7 @@ export function QuickAddOrder({
       if (error) throw error;
       return data;
     },
-    enabled: !!phaseId
+    enabled: !!phaseId && phaseId !== 'all'
   });
 
   // Fetch existing orders and count usage per comment

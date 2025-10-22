@@ -2,24 +2,14 @@ import { SidebarProvider, useSidebar, SidebarTrigger } from "@/components/ui/sid
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { PrintQueueMonitor } from "@/components/print-queue/PrintQueueMonitor";
-import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 interface LayoutProps {
   children: React.ReactNode;
 }
 function LayoutContent({ children }: LayoutProps) {
-  const { setOpen: setNavSidebarOpen } = useSidebar();
-  const { isCommentsOpen } = useCommentsSidebar();
   const isMobile = useIsMobile();
   
-  // Auto-close navigation sidebar when comments sidebar opens
-  useEffect(() => {
-    if (isCommentsOpen) {
-      setNavSidebarOpen(false);
-    }
-  }, [isCommentsOpen, setNavSidebarOpen]);
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
