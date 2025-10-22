@@ -315,6 +315,9 @@ export default function LiveProducts() {
   } = useQuery({
     queryKey: ["live-sessions"],
     queryFn: async () => {
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching live-sessions...");
+      
       const {
         data,
         error
@@ -322,8 +325,11 @@ export default function LiveProducts() {
         ascending: false
       });
       if (error) throw error;
+      
+      console.log(`✅ [PERF] live-sessions fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
       return data as LiveSession[];
-    }
+    },
+    staleTime: 60000, // 60s - sessions rarely change
   });
 
   // Fetch live phases for selected session
@@ -332,6 +338,9 @@ export default function LiveProducts() {
   } = useQuery({
     queryKey: ["live-phases", selectedSession],
     queryFn: async () => {
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching live-phases...");
+      
       if (!selectedSession) return [];
       const {
         data,
@@ -342,9 +351,12 @@ export default function LiveProducts() {
         ascending: true
       });
       if (error) throw error;
+      
+      console.log(`✅ [PERF] live-phases fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
       return data as LivePhase[];
     },
-    enabled: !!selectedSession
+    enabled: !!selectedSession,
+    staleTime: 30000, // 30s - phases change infrequently, realtime handles updates
   });
 
   // Fetch live products for selected phase (or all phases if "all" selected)
@@ -353,6 +365,9 @@ export default function LiveProducts() {
   } = useQuery({
     queryKey: ["live-products", selectedPhase, selectedSession],
     queryFn: async () => {
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching live-products...");
+      
       if (!selectedPhase) return [];
       if (selectedPhase === "all") {
         // Fetch all products for the session
@@ -395,6 +410,8 @@ export default function LiveProducts() {
         }, {} as Record<string, LiveProduct & {
           earliest_created_at?: string;
         }>);
+        
+        console.log(`✅ [PERF] live-products fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
         return Object.values(aggregated).map(({
           earliest_created_at,
           ...product
@@ -412,10 +429,13 @@ export default function LiveProducts() {
           ascending: true
         });
         if (error) throw error;
+        
+        console.log(`✅ [PERF] live-products fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
         return data as LiveProduct[];
       }
     },
-    enabled: !!selectedPhase && !!selectedSession
+    enabled: !!selectedPhase && !!selectedSession,
+    staleTime: 10000, // 10s - products update frequently but realtime handles changes
   });
 
   // Fetch product details from products table for images
@@ -435,6 +455,7 @@ export default function LiveProducts() {
       return data || [];
     },
     enabled: allLiveProducts.length > 0,
+    staleTime: 60000, // 60s - product images rarely change
   });
 
   // Create a map for quick lookup
@@ -591,23 +612,35 @@ export default function LiveProducts() {
           }
         }
 
-        // 6. Thực hiện batch operations
-        if (toInsert.length > 0) {
-          const {
-            error: insertError
-          } = await supabase.from("live_products").insert(toInsert);
-          if (insertError) throw insertError;
-        }
-        if (toUpdate.length > 0) {
-          for (const update of toUpdate) {
-            const {
-              error: updateError
-            } = await supabase.from("live_products").update({
-              created_at: update.created_at
-            }).eq("id", update.id);
-            if (updateError) throw updateError;
+        // ✅ 6. Thực hiện batch operations IN PARALLEL
+        const perfStart = performance.now();
+        console.log("⚡ [PERF] Barcode: batch operations starting...", {
+          toInsert: toInsert.length,
+          toUpdate: toUpdate.length
+        });
+        
+        await Promise.all([
+          // Insert all new products
+          toInsert.length > 0 
+            ? supabase.from("live_products").insert(toInsert)
+            : Promise.resolve({ error: null }),
+          
+          // Update all existing products IN PARALLEL
+          ...toUpdate.map(update => 
+            supabase
+              .from("live_products")
+              .update({ created_at: update.created_at })
+              .eq("id", update.id)
+          )
+        ]).then(results => {
+          // Check for errors
+          const errors = results.filter(r => r.error);
+          if (errors.length > 0) {
+            throw errors[0].error;
           }
-        }
+        });
+        
+        console.log(`✅ [PERF] Barcode: batch operations done in ${(performance.now() - perfStart).toFixed(0)}ms`);
 
         // 7. Toast thông báo với format mới
         const insertedCount = toInsert.length;
@@ -684,6 +717,9 @@ export default function LiveProducts() {
   } = useQuery({
     queryKey: ["live-orders", selectedPhase, selectedSession],
     queryFn: async () => {
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching live-orders...");
+      
       if (!selectedPhase) return [];
       if (selectedPhase === "all") {
         // Fetch all orders for the session
@@ -694,6 +730,8 @@ export default function LiveProducts() {
           ascending: false
         });
         if (error) throw error;
+        
+        console.log(`✅ [PERF] live-orders fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
         return data as LiveOrder[];
       } else {
         const {
@@ -703,10 +741,13 @@ export default function LiveProducts() {
           ascending: false
         });
         if (error) throw error;
+        
+        console.log(`✅ [PERF] live-orders fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
         return data as LiveOrder[];
       }
     },
-    enabled: !!selectedPhase && !!selectedSession
+    enabled: !!selectedPhase && !!selectedSession,
+    staleTime: 10000, // 10s - orders update frequently but realtime handles changes
   });
 
   // Fetch orders with product details for selected phase (or all phases if "all" selected)
@@ -715,28 +756,68 @@ export default function LiveProducts() {
   } = useQuery({
     queryKey: ["orders-with-products", selectedPhase, selectedSession],
     queryFn: async () => {
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching orders-with-products (PARALLEL)...");
+      
       if (!selectedPhase) return [];
       
-      // First, fetch all orders
-      let ordersQuery = supabase
-        .from("live_orders")
-        .select(`
-          *,
-          live_products (
-            product_code,
-            product_name
-          )
-        `);
+      // ✅ OPTIMIZATION: Fetch orders and comments IN PARALLEL with Promise.all
+      const [ordersData, commentsData] = await Promise.all([
+        // Query 1: Fetch orders with product info
+        (async () => {
+          let ordersQuery = supabase
+            .from("live_orders")
+            .select(`
+              *,
+              live_products (
+                product_code,
+                product_name
+              )
+            `);
+          
+          if (selectedPhase === "all") {
+            ordersQuery = ordersQuery.eq("live_session_id", selectedSession);
+          } else {
+            ordersQuery = ordersQuery.eq("live_phase_id", selectedPhase);
+          }
+          
+          const { data, error } = await ordersQuery;
+          if (error) throw error;
+          return data || [];
+        })(),
+        
+        // Query 2: Fetch ALL comments for this phase/session (in parallel!)
+        (async () => {
+          // First get all facebook_comment_ids to know what to fetch
+          let commentIdsQuery = supabase
+            .from("live_orders")
+            .select("facebook_comment_id");
+          
+          if (selectedPhase === "all") {
+            commentIdsQuery = commentIdsQuery.eq("live_session_id", selectedSession);
+          } else {
+            commentIdsQuery = commentIdsQuery.eq("live_phase_id", selectedPhase);
+          }
+          
+          const { data: orderCommentIds } = await commentIdsQuery;
+          const commentIds = (orderCommentIds || [])
+            .map(o => o.facebook_comment_id)
+            .filter(Boolean) as string[];
+          
+          if (commentIds.length === 0) return [];
+          
+          const { data, error } = await supabase
+            .from('facebook_pending_orders')
+            .select('facebook_comment_id, comment, created_time')
+            .in('facebook_comment_id', commentIds);
+          
+          if (error) throw error;
+          return data || [];
+        })()
+      ]);
       
-      if (selectedPhase === "all") {
-        ordersQuery = ordersQuery.eq("live_session_id", selectedSession);
-      } else {
-        ordersQuery = ordersQuery.eq("live_phase_id", selectedPhase);
-      }
+      console.log(`✅ [PERF] orders-with-products fetched in ${(performance.now() - perfStart).toFixed(0)}ms (parallel!)`);
       
-      const { data: ordersData, error: ordersError } = await ordersQuery;
-      
-      if (ordersError) throw ordersError;
       if (!ordersData || ordersData.length === 0) return [];
       
       // Sort orders by session_index numerically (ascending)
@@ -744,30 +825,16 @@ export default function LiveProducts() {
         return a.session_index - b.session_index;
       });
       
-      // Collect all facebook_comment_ids
-      const commentIds = sortedOrdersData
-        .map(order => order.facebook_comment_id)
-        .filter(Boolean) as string[];
-      
-      // Fetch comments if there are any
-      let commentsMap = new Map<string, { comment: string; created_time: string }>();
-      if (commentIds.length > 0) {
-        const { data: commentsData } = await supabase
-          .from('facebook_pending_orders')
-          .select('facebook_comment_id, comment, created_time')
-          .in('facebook_comment_id', commentIds);
-        
-        if (commentsData) {
-          commentsData.forEach(item => {
-            if (item.facebook_comment_id) {
-              commentsMap.set(item.facebook_comment_id, {
-                comment: item.comment || "",
-                created_time: item.created_time || ""
-              });
-            }
+      // Create comments map
+      const commentsMap = new Map<string, { comment: string; created_time: string }>();
+      commentsData.forEach(item => {
+        if (item.facebook_comment_id) {
+          commentsMap.set(item.facebook_comment_id, {
+            comment: item.comment || "",
+            created_time: item.created_time || ""
           });
         }
-      }
+      });
       
       // Merge data
       return sortedOrdersData.map(order => {
@@ -784,7 +851,8 @@ export default function LiveProducts() {
         };
       }) as OrderWithProduct[];
     },
-    enabled: !!selectedPhase && !!selectedSession
+    enabled: !!selectedPhase && !!selectedSession,
+    staleTime: 10000, // 10s - orders with products update frequently but realtime handles changes
   });
 
   // Fetch "Hàng Lẻ" comments from facebook_pending_orders
@@ -849,6 +917,7 @@ export default function LiveProducts() {
       return data || [];
     },
     enabled: true,
+    staleTime: 5000, // 5s - comments change frequently
   });
 
   // State for managing product codes for hang le comments
@@ -893,6 +962,33 @@ export default function LiveProducts() {
       toast.error(`Lỗi: ${error.message}`);
     }
   });
+
+  // ✅ PERFORMANCE MONITORING: Track total page load time
+  useEffect(() => {
+    const loadStart = performance.now();
+    console.log("📊 [PERF MONITOR] LiveProducts page load started");
+    
+    // Check if all queries are done loading
+    const allQueriesLoaded = !isLoading && 
+      !!selectedSession && 
+      !!selectedPhase &&
+      allLiveProducts !== undefined &&
+      liveOrders !== undefined &&
+      ordersWithProducts !== undefined;
+    
+    if (allQueriesLoaded) {
+      const loadTime = performance.now() - loadStart;
+      console.log(`✅ [PERF MONITOR] All queries loaded in ${loadTime.toFixed(0)}ms`);
+      console.log(`📊 [PERF SUMMARY] Data loaded:`, {
+        sessions: liveSessions.length,
+        phases: livePhases.length,
+        products: allLiveProducts.length,
+        orders: liveOrders.length,
+        ordersWithProducts: ordersWithProducts.length,
+        hangLeComments: hangLeComments.length
+      });
+    }
+  }, [isLoading, selectedSession, selectedPhase, allLiveProducts, liveOrders, ordersWithProducts, liveSessions, livePhases, hangLeComments]);
 
   // Real-time subscriptions for live data updates
   useEffect(() => {
