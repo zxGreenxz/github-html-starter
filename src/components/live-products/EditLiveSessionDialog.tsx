@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -25,11 +25,28 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { CalendarIcon, Loader2, Video } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+interface FacebookVideo {
+  objectId: string;
+  title: string;
+  statusLive: number;
+  countComment: number;
+  countReaction: number;
+  thumbnail: { url: string };
+}
 
 interface LiveSession {
   id: string;
@@ -38,6 +55,7 @@ interface LiveSession {
   status: string;
   notes?: string;
   created_at: string;
+  facebook_post_id?: string;
 }
 
 interface EditLiveSessionDialogProps {
@@ -50,10 +68,12 @@ interface FormData {
   session_date: Date;
   supplier_name: string;
   notes?: string;
+  facebook_post_id?: string;
 }
 
 export function EditLiveSessionDialog({ open, onOpenChange, session }: EditLiveSessionDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedPageId, setSelectedPageId] = useState<string>('');
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -61,7 +81,48 @@ export function EditLiveSessionDialog({ open, onOpenChange, session }: EditLiveS
       session_date: new Date(),
       supplier_name: "",
       notes: "",
+      facebook_post_id: "",
     },
+  });
+
+  // Fetch Facebook Pages
+  const { data: facebookPages } = useQuery({
+    queryKey: ['facebook-pages'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('facebook_pages')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  // Fetch Facebook Videos when page is selected
+  const { data: facebookVideos = [], isLoading: videosLoading } = useQuery({
+    queryKey: ['facebook-videos-for-edit', selectedPageId],
+    queryFn: async () => {
+      if (!selectedPageId) return [];
+      
+      const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${selectedPageId}&limit=10`;
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${authSession?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch videos');
+      
+      const result = await response.json();
+      return (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
+    },
+    enabled: !!selectedPageId && open,
   });
 
   // Update form when session changes
@@ -71,6 +132,7 @@ export function EditLiveSessionDialog({ open, onOpenChange, session }: EditLiveS
         session_date: new Date(session.session_date),
         supplier_name: session.supplier_name,
         notes: session.notes || "",
+        facebook_post_id: session.facebook_post_id || "",
       });
     }
   }, [session, form]);
@@ -85,6 +147,7 @@ export function EditLiveSessionDialog({ open, onOpenChange, session }: EditLiveS
           session_date: format(data.session_date, "yyyy-MM-dd"),
           supplier_name: data.supplier_name.trim(),
           notes: data.notes?.trim() || null,
+          facebook_post_id: data.facebook_post_id || null,
         })
         .eq("id", session.id);
       
@@ -179,6 +242,105 @@ export function EditLiveSessionDialog({ open, onOpenChange, session }: EditLiveS
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2">
+              <FormLabel>Facebook Page (Tùy chọn)</FormLabel>
+              <Select value={selectedPageId} onValueChange={setSelectedPageId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn page để load videos" />
+                </SelectTrigger>
+                <SelectContent>
+                  {facebookPages?.map(page => (
+                    <SelectItem key={page.id} value={page.page_id}>
+                      {page.page_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedPageId && (
+              <FormField
+                control={form.control}
+                name="facebook_post_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Video className="h-4 w-4" />
+                      Facebook Video
+                      {facebookVideos.find(v => v.statusLive === 1) && (
+                        <Badge variant="destructive" className="text-xs">🔴 LIVE</Badge>
+                      )}
+                    </FormLabel>
+                    
+                    {videosLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Đang tải videos...
+                      </div>
+                    ) : (
+                      <>
+                        <Select 
+                          value={field.value || ''} 
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn video (hoặc nhập ID thủ công)" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {facebookVideos.map(video => (
+                              <SelectItem 
+                                key={video.objectId} 
+                                value={video.objectId}
+                                className="py-2"
+                              >
+                                <div className="flex items-start gap-2">
+                                  {video.statusLive === 1 && (
+                                    <Badge variant="destructive" className="text-xs shrink-0">
+                                      🔴 LIVE
+                                    </Badge>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-sm line-clamp-1">
+                                      {video.title}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {video.countComment || 0} comments • {video.countReaction || 0} reactions
+                                    </div>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        <FormControl>
+                          <Input
+                            placeholder="Hoặc nhập Video ID thủ công (objectId)"
+                            {...field}
+                            className="mt-2"
+                          />
+                        </FormControl>
+                        
+                        {field.value && (
+                          <div className="p-3 bg-muted rounded-md text-sm mt-2">
+                            <div className="font-medium">Video ID:</div>
+                            <code className="text-xs break-all">{field.value}</code>
+                            
+                            {facebookVideos.find(v => v.objectId === field.value) && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {facebookVideos.find(v => v.objectId === field.value)!.title}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

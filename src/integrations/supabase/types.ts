@@ -587,6 +587,7 @@ export type Database = {
         Row: {
           created_at: string
           end_date: string | null
+          facebook_post_id: string | null
           id: string
           notes: string | null
           session_date: string
@@ -599,6 +600,7 @@ export type Database = {
         Insert: {
           created_at?: string
           end_date?: string | null
+          facebook_post_id?: string | null
           id?: string
           notes?: string | null
           session_date?: string
@@ -611,6 +613,7 @@ export type Database = {
         Update: {
           created_at?: string
           end_date?: string | null
+          facebook_post_id?: string | null
           id?: string
           notes?: string | null
           session_date?: string

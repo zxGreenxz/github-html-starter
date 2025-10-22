@@ -77,6 +77,30 @@ export function QuickAddOrder({
     enabled: !!phaseId && phaseId !== 'all'
   });
 
+  // Fetch facebook_post_id from live_session
+  const { data: sessionData } = useQuery({
+    queryKey: ['live-session', productId],
+    queryFn: async () => {
+      const { data: productData, error: productError } = await supabase
+        .from('live_products')
+        .select('live_session_id')
+        .eq('id', productId)
+        .single();
+      
+      if (productError) throw productError;
+
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('live_sessions')
+        .select('facebook_post_id, supplier_name')
+        .eq('id', productData.live_session_id)
+        .single();
+      
+      if (sessionError) throw sessionError;
+      return sessionData;
+    },
+    enabled: !!productId
+  });
+
   // Fetch existing orders and count usage per comment
   const {
     data: existingOrders = []
@@ -97,21 +121,30 @@ export function QuickAddOrder({
   const {
     data: pendingOrders = []
   } = useQuery({
-    queryKey: ['facebook-pending-orders', phaseData?.phase_date],
+    queryKey: ['facebook-pending-orders', phaseData?.phase_date, sessionData?.facebook_post_id],
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
+      
       let query: any = supabase
         .from('facebook_pending_orders')
         .select('*, order_count');
       
-      // Removed filter to support records without comment_type (backward compatibility)
-      // query = query.eq('comment_type', 'hang_dat');
-      query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
-      query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
+      // PRIORITY: Filter by facebook_post_id if available
+      if (sessionData?.facebook_post_id) {
+        console.log('🎯 [QUICK ADD] Filtering by facebook_post_id:', sessionData.facebook_post_id);
+        query = query.eq('facebook_post_id', sessionData.facebook_post_id);
+      } else {
+        // FALLBACK: Filter by date (backward compatibility)
+        console.warn('⚠️ [QUICK ADD] No facebook_post_id, filtering by date');
+        query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
+        query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
+      }
+      
       query = query.order('created_time', { ascending: false });
       
       const { data, error } = await query;
       if (error) throw error;
+      
       return (data || []) as PendingOrder[];
     },
     enabled: !!phaseData?.phase_date
@@ -318,7 +351,7 @@ export function QuickAddOrder({
         queryKey: ['orders-with-products', phaseId]
       });
       queryClient.invalidateQueries({
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date, sessionData?.facebook_post_id]
       });
 
       // Auto-print bill using saved printer configuration (if enabled)
@@ -611,7 +644,7 @@ export function QuickAddOrder({
         if (open && phaseData?.phase_date) {
           console.log('🔄 [QUICK ADD] Refetching facebook_pending_orders for phase_date:', phaseData.phase_date);
           queryClient.invalidateQueries({
-            queryKey: ['facebook-pending-orders', phaseData.phase_date]
+            queryKey: ['facebook-pending-orders', phaseData.phase_date, sessionData?.facebook_post_id]
           });
         }
       }}>
