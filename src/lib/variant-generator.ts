@@ -187,9 +187,9 @@ export function generateSKU(
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
 
-    // Nếu là số thì giữ nguyên, nếu là chữ thì lấy ký tự đầu viết hoa
+    // Nếu là số thì thêm "A" trước số, nếu là chữ thì lấy ký tự đầu viết hoa
     if (/^\d+$/.test(attrCode)) {
-      code += attrCode;
+      code += 'A' + attrCode;
     } else {
       code += attrCode.charAt(0).toUpperCase();
     }
