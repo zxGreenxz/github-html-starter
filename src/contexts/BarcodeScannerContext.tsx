@@ -89,7 +89,19 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
 
       // Sync to database if session context provided
       if (sessionId && pageId) {
-        await saveBarcodeToDatabase(variantBarcodes, sessionId, pageId);
+        try {
+          await saveBarcodeToDatabase(variantBarcodes, sessionId, pageId);
+        } catch (error) {
+          console.error('Failed to save variants to database:', error);
+          window.dispatchEvent(
+            new CustomEvent('barcode-save-error', {
+              detail: {
+                code: barcode.code,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }
+            })
+          );
+        }
       }
     } else {
       // Single product - add normally
@@ -101,7 +113,19 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
 
       // Sync to database if session context provided
       if (sessionId && pageId) {
-        await saveBarcodeToDatabase([barcode], sessionId, pageId);
+        try {
+          await saveBarcodeToDatabase([barcode], sessionId, pageId);
+        } catch (error) {
+          console.error('Failed to save barcode to database:', error);
+          window.dispatchEvent(
+            new CustomEvent('barcode-save-error', {
+              detail: {
+                code: barcode.code,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }
+            })
+          );
+        }
       }
     }
   };
@@ -113,7 +137,10 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   ) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.warn('⚠️ No user found, skipping database save');
+        return;
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -121,25 +148,74 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
         .eq('user_id', user.id)
         .maybeSingle();
 
+      console.log('💾 Saving barcodes to database:', {
+        sessionId,
+        pageId,
+        userId: user.id,
+        barcodeCount: barcodes.length
+      });
+
       for (const barcode of barcodes) {
-        await supabase
+        // Fetch full product details for variant and base_product_code
+        let variant = null;
+        let base_product_code = null;
+        
+        if (barcode.productInfo?.id) {
+          const { data: product } = await supabase
+            .from('products')
+            .select('variant, base_product_code')
+            .eq('id', barcode.productInfo.id)
+            .maybeSingle();
+          
+          if (product) {
+            variant = product.variant;
+            base_product_code = product.base_product_code;
+          }
+        }
+
+        const insertData = {
+          session_id: sessionId,
+          page_id: pageId,
+          user_id: user.id,
+          user_name: profile?.display_name || 'Unknown',
+          product_code: barcode.code,
+          product_name: barcode.productInfo?.name || null,
+          variant: variant,
+          base_product_code: base_product_code,
+          image_url: barcode.productInfo?.image_url || null,
+        };
+
+        console.log('📝 Inserting barcode:', insertData);
+
+        const { data, error } = await supabase
           .from('scanned_barcodes_session')
-          .insert({
-            session_id: sessionId,
-            page_id: pageId,
-            user_id: user.id,
-            user_name: profile?.display_name || 'Unknown',
-            product_code: barcode.code,
-            product_name: barcode.productInfo?.name,
-            image_url: barcode.productInfo?.image_url,
-          })
+          .insert(insertData)
           .select();
+
+        if (error) {
+          // 23505 = unique constraint violation (duplicate)
+          if (error.code === '23505') {
+            console.log('ℹ️ Duplicate barcode, skipping:', barcode.code);
+            continue;
+          }
+          
+          // Other errors - log and throw
+          console.error('❌ Error saving barcode:', {
+            error,
+            barcode: insertData
+          });
+          
+          // Show toast for non-duplicate errors
+          throw new Error(`Database error: ${error.message}`);
+        }
+
+        console.log('✅ Barcode saved successfully:', data);
       }
     } catch (error: any) {
-      // Ignore duplicate errors (23505 = unique constraint violation)
-      if (error?.code !== '23505') {
-        console.error('Error saving barcode to database:', error);
-      }
+      console.error('💥 Fatal error in saveBarcodeToDatabase:', error);
+      
+      // Re-throw to let caller handle
+      throw error;
     }
   };
 

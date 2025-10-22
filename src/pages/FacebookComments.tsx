@@ -63,6 +63,24 @@ const FacebookComments = () => {
     };
   }, [selectedVideo, toast]);
 
+  // Listen to barcode save errors
+  useEffect(() => {
+    const handleBarcodeSaveError = (event: CustomEvent) => {
+      const { code, error } = event.detail;
+      
+      toast({
+        title: "⚠️ Lỗi lưu barcode",
+        description: `Không thể lưu ${code}: ${error}`,
+        variant: "destructive",
+      });
+    };
+
+    window.addEventListener('barcode-save-error' as any, handleBarcodeSaveError as any);
+    return () => {
+      window.removeEventListener('barcode-save-error' as any, handleBarcodeSaveError as any);
+    };
+  }, [toast]);
+
   // Handle barcode scanning with variants
   useEffect(() => {
     const handleBarcodeScanned = async (event: CustomEvent) => {
