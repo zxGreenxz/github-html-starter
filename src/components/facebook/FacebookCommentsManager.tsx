@@ -380,6 +380,80 @@ export function FacebookCommentsManager({
     enabled: !!pageId,
   });
 
+  // ============================================================================
+  // PERIODIC VIDEO STATUS CHECK (Every 15 minutes)
+  // ============================================================================
+
+  useEffect(() => {
+    if (!selectedVideo || !pageId) return;
+    
+    const checkVideoStatus = async () => {
+      console.log('[15min Check] 🔍 Checking video live status...');
+      
+      // Re-fetch videos list to get updated status
+      const { data: updatedVideos } = await refetchVideos();
+      
+      // Find current video in updated list
+      const updatedVideo = updatedVideos?.find(v => v.objectId === selectedVideo.objectId);
+      
+      if (!updatedVideo) {
+        console.log('[15min Check] ⚠️ Video not found in updated list');
+        return;
+      }
+      
+      console.log('[15min Check] Current:', {
+        title: selectedVideo.title,
+        statusLive: selectedVideo.statusLive,
+        countComment: selectedVideo.countComment
+      });
+      
+      console.log('[15min Check] Updated:', {
+        title: updatedVideo.title,
+        statusLive: updatedVideo.statusLive,
+        countComment: updatedVideo.countComment
+      });
+      
+      // Check if video stopped being live
+      if (selectedVideo.statusLive === 1 && updatedVideo.statusLive === 0) {
+        console.log('[15min Check] 🔴 Video is NO LONGER live!');
+        
+        // Update selected video with new data
+        setSelectedVideo(updatedVideo);
+        
+        // Show toast notification
+        toast({
+          title: "📹 Video đã kết thúc live",
+          description: `"${updatedVideo.title}" đã ngừng phát trực tiếp`,
+        });
+      } else if (updatedVideo.statusLive === 1) {
+        console.log('[15min Check] ✅ Video is STILL live');
+        // Update video data (comment count, reactions, etc.)
+        setSelectedVideo(updatedVideo);
+      } else {
+        console.log('[15min Check] ℹ️ Video was not live');
+      }
+    };
+    
+    // Check immediately if video is currently live
+    if (selectedVideo.statusLive === 1) {
+      console.log('[15min Check] 🚀 Running initial check for live video');
+      checkVideoStatus();
+    }
+    
+    // Set up interval to check every 15 minutes (900000ms)
+    const interval = setInterval(() => {
+      console.log('[15min Check] ⏰ 15 minutes elapsed, checking status...');
+      checkVideoStatus();
+    }, 15 * 60 * 1000);
+    
+    console.log('[15min Check] ✓ Periodic check initialized (every 15 minutes)');
+    
+    return () => {
+      console.log('[15min Check] 🧹 Cleanup: clearing interval');
+      clearInterval(interval);
+    };
+  }, [selectedVideo?.objectId, selectedVideo?.statusLive, pageId, refetchVideos, toast, setSelectedVideo]);
+
   // Fetch comments with infinite scroll
   const {
     data: commentsData,
