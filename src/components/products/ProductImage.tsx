@@ -3,6 +3,7 @@ import { ImageIcon, Loader2 } from "lucide-react";
 import { fetchAndSaveTPOSImage, getProductImageUrl, getParentImageUrl } from "@/lib/tpos-image-loader";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useImageBlob } from "@/hooks/use-image-blob";
 
 interface ProductImageProps {
   productId: string;
@@ -66,8 +67,11 @@ export function ProductImage({
     }
   }, [productId, productCode, productImages, tposImageUrl, tposProductId, parentImageUrl]);
 
+  // Convert to blob for CORS-free interaction
+  const displayUrl = useImageBlob(imageUrl);
+
   const handleMouseEnter = () => {
-    if (!imgRef.current || !imageUrl) return;
+    if (!imgRef.current || !displayUrl) return;
     
     const rect = imgRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
@@ -96,11 +100,11 @@ export function ProductImage({
   };
 
   const handleImageClick = async () => {
-    if (!imageUrl) return;
+    if (!displayUrl) return;
     
     try {
-      // Try to fetch image as blob to bypass CORS
-      const response = await fetch(imageUrl);
+      // Fetch image as blob (displayUrl might already be blob URL)
+      const response = await fetch(displayUrl);
       if (!response.ok) throw new Error("Failed to fetch image");
       
       const blob = await response.blob();
@@ -148,7 +152,7 @@ export function ProductImage({
       
       // Fallback: Copy image URL to clipboard if image copy fails
       try {
-        await navigator.clipboard.writeText(imageUrl);
+        await navigator.clipboard.writeText(displayUrl);
         toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
       } catch (urlError) {
         toast.error("Không thể copy. Vui lòng thử lại.");
@@ -164,7 +168,7 @@ export function ProductImage({
     );
   }
 
-  if (!imageUrl) {
+  if (!displayUrl) {
     return (
       <div className="w-10 h-10 flex items-center justify-center bg-muted rounded">
         <ImageIcon className="h-4 w-4 text-muted-foreground" />
@@ -176,7 +180,7 @@ export function ProductImage({
     <div className="relative inline-block">
       <img
         ref={imgRef}
-        src={imageUrl}
+        src={displayUrl}
         alt={productCode}
         className="w-10 h-10 object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80"
         onMouseEnter={handleMouseEnter}
@@ -201,7 +205,7 @@ export function ProductImage({
           }}
         >
           <img
-            src={imageUrl}
+            src={displayUrl}
             alt={productCode}
             className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
           />
