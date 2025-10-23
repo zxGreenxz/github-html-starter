@@ -133,6 +133,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         throw updateError;
       }
 
+      // STEP 4: Update formData.variant trong React state
+      setFormData(prev => ({
+        ...prev,
+        variant: data.variantText
+      }));
+
       toast({
         title: "✅ Thành công",
         description: `Đã tạo lại ${newVariants.length} biến thể mới`,
