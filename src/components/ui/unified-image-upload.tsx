@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { UploadCloud, X, Loader2, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/image-utils";
+import { compressImageAsync } from "@/lib/image-worker";
 import { Progress } from "@/components/ui/progress";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -63,10 +64,15 @@ export function UnifiedImageUpload({
     try {
       let fileToUpload = file;
       
-      // Auto compress if file > threshold
+      // Auto compress if file > threshold (async for better performance)
       if (file.size > compressThreshold * 1024 * 1024) {
-        setUploadProgress(25);
-        fileToUpload = await compressImage(file, maxSizeMB, 1920, 1920);
+        fileToUpload = await compressImageAsync(
+          file, 
+          maxSizeMB, 
+          1920, 
+          1920,
+          (progress) => setUploadProgress(progress * 0.5)
+        );
         setUploadProgress(50);
       } else {
         setUploadProgress(30);
@@ -230,10 +236,15 @@ export function UnifiedImageUpload({
   };
 
   useEffect(() => {
+    // Only attach listener when component is active
+    if (!isHovered && !containerRef.current?.contains(document.activeElement)) {
+      return;
+    }
+    
     const handlePasteEvent = (e: ClipboardEvent) => handlePaste(e);
     document.addEventListener('paste', handlePasteEvent);
     return () => document.removeEventListener('paste', handlePasteEvent);
-  }, [handlePaste]);
+  }, [handlePaste, isHovered]);
 
   return (
     <div>
