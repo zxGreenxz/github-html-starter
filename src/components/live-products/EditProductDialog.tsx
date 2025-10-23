@@ -25,6 +25,7 @@ interface EditProductDialogProps {
     live_session_id?: string;
     image_url?: string;
   } | null;
+  onSuccess?: (productId: string) => void;
 }
 
 interface VariantData {
@@ -39,7 +40,7 @@ interface FormData {
   variants: VariantData[];
 }
 
-export function EditProductDialog({ open, onOpenChange, product }: EditProductDialogProps) {
+export function EditProductDialog({ open, onOpenChange, product, onSuccess }: EditProductDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
@@ -203,6 +204,9 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
         title: "Thành công",
         description: "Đã cập nhật sản phẩm và biến thể thành công",
       });
+      if (product?.id && onSuccess) {
+        onSuccess(product.id);
+      }
       onOpenChange(false);
       setIsSubmitting(false);
     },

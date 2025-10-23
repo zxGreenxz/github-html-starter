@@ -186,6 +186,9 @@ export default function LiveProducts() {
     return localStorage.getItem('liveProducts_activeTab') || "products";
   });
 
+  // Track product updates with timestamps (for sorting)
+  const [productUpdates, setProductUpdates] = useState<Record<string, number>>({});
+
   // Auto-print toggle state - persist in localStorage
   const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState(() => {
     const saved = localStorage.getItem('liveProducts_autoPrintEnabled');
@@ -222,6 +225,7 @@ export default function LiveProducts() {
 
   // Helper function to increment order quantities when an order is added
   const handleOrderAdded = (productId: string, quantity: number) => {
+    setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }));
     setOrderQuantities(prev => ({
       ...prev,
       [productId]: (prev[productId] || 0) + quantity
@@ -262,7 +266,8 @@ export default function LiveProducts() {
       }).eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      setProductUpdates(prev => ({ ...prev, [variables.productId]: Date.now() }));
       queryClient.invalidateQueries({
         queryKey: ["live-products", selectedPhase, selectedSession]
       });
@@ -692,6 +697,21 @@ export default function LiveProducts() {
     localStorage.setItem('liveProducts_activeTab', activeTab);
   }, [activeTab]);
 
+  // Clear old product updates when session changes (keep only last 24h)
+  useEffect(() => {
+    if (!selectedSession) return;
+    
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    
+    setProductUpdates(prev => {
+      const filtered = Object.entries(prev)
+        .filter(([_, timestamp]) => timestamp > oneDayAgo)
+        .reduce((acc, [id, ts]) => ({ ...acc, [id]: ts }), {});
+      return filtered;
+    });
+  }, [selectedSession]);
+
   // Helper function to get color based on copy status
   const getCopyStatusColor = (copyCount: number, soldQuantity: number) => {
     if (copyCount < soldQuantity) return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950";
@@ -1100,7 +1120,8 @@ export default function LiveProducts() {
       } = await supabase.from("live_orders").delete().eq("id", orderId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      setProductUpdates(prev => ({ ...prev, [variables.productId]: Date.now() }));
       queryClient.invalidateQueries({
         queryKey: ["live-orders", selectedPhase]
       });
@@ -1133,7 +1154,12 @@ export default function LiveProducts() {
       } = await supabase.from("live_products").delete().eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, productId) => {
+      setProductUpdates(prev => {
+        const newUpdates = { ...prev };
+        delete newUpdates[productId]; // Remove deleted product from tracking
+        return newUpdates;
+      });
       queryClient.invalidateQueries({
         queryKey: ["live-products", selectedPhase]
       });
@@ -1470,7 +1496,8 @@ export default function LiveProducts() {
       }).eq('id', productId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, productId) => {
+      setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }));
       queryClient.invalidateQueries({
         queryKey: ['live-products']
       });
@@ -1757,11 +1784,18 @@ export default function LiveProducts() {
                           base_product_code?: string | null;
                         }>);
 
-                        // Sort groups by earliest created_at (newest first)
+                        // Sort groups by latest update timestamp or earliest created_at (newest first)
                         const sortedGroups = Object.values(productGroups).sort((a, b) => {
-                          const timeA = new Date(a.earliest_created_at || 0).getTime();
-                          const timeB = new Date(b.earliest_created_at || 0).getTime();
-                          return timeB - timeA; // Descending: newest first
+                          // Get latest update timestamp for any product in the group
+                          const latestUpdateA = Math.max(
+                            ...a.products.map(p => productUpdates[p.id] || 0),
+                            new Date(a.earliest_created_at || 0).getTime()
+                          );
+                          const latestUpdateB = Math.max(
+                            ...b.products.map(p => productUpdates[p.id] || 0),
+                            new Date(b.earliest_created_at || 0).getTime()
+                          );
+                          return latestUpdateB - latestUpdateA; // Descending: newest first
                         });
                         return sortedGroups.flatMap(group => {
                           // Sort products within group by variant name first, then by created_at
@@ -1966,11 +2000,11 @@ export default function LiveProducts() {
                       // Use memoized filtered products
                       const filteredProducts = filteredLiveProducts;
 
-                      // Sort by created_at (newest first)
+                      // Sort by latest update timestamp or created_at (newest first)
                       const sortedProducts = [...filteredProducts].sort((a, b) => {
-                        const timeA = new Date(a.created_at || 0).getTime();
-                        const timeB = new Date(b.created_at || 0).getTime();
-                        return timeB - timeA;
+                        const timeA = productUpdates[a.id] || new Date(a.created_at || 0).getTime();
+                        const timeB = productUpdates[b.id] || new Date(b.created_at || 0).getTime();
+                        return timeB - timeA; // Descending: newest first
                       });
                       return sortedProducts.map(product => {
                         const productDetail = productsDetailsMap.get(product.product_code);
@@ -2776,7 +2810,12 @@ export default function LiveProducts() {
 
       <SelectProductFromInventoryDialog open={isSelectFromInventoryOpen} onOpenChange={setIsSelectFromInventoryOpen} phaseId={selectedPhase} sessionId={selectedSession} />
 
-      <EditProductDialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen} product={editingProduct} />
+      <EditProductDialog 
+        open={isEditProductOpen} 
+        onOpenChange={setIsEditProductOpen} 
+        product={editingProduct} 
+        onSuccess={(productId) => setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }))}
+      />
 
       <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
 
