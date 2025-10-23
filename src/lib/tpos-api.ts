@@ -210,6 +210,219 @@ interface TPOSProduct {
   Active: boolean;
 }
 
+// =====================================================
+// TPOS VARIANT SYNC FUNCTIONS (NEW)
+// =====================================================
+
+interface TPOSVariantSyncResult {
+  parentInfo: {
+    ListPrice: number;
+    QtyAvailable: number;
+    VirtualAvailable: number;
+  };
+  variants: Array<{
+    Id: number;
+    DefaultCode: string;
+    ListPrice: number;
+    QtyAvailable: number;
+    VirtualAvailable: number;
+  }>;
+}
+
+interface SyncResult {
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+/**
+ * Helper function to normalize product code (remove brackets, trim, uppercase)
+ */
+function normalizeProductCode(code: string): string {
+  return code.replace(/[\[\]]/g, '').trim().toUpperCase();
+}
+
+/**
+ * B1: Fetch tpos_product_id from TPOS by product code
+ */
+export async function fetchTPOSProductTemplateId(productCode: string): Promise<number | null> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
+    }
+
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(productCode)}`;
+    
+    console.log(`🔍 Fetching TPOS template ID for: ${productCode}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(token),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TPOS API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.value && data.value.length > 0) {
+      console.log(`✅ Found template ID: ${data.value[0].Id}`);
+      return data.value[0].Id;
+    }
+
+    console.log(`❌ Template not found for: ${productCode}`);
+    return null;
+  }, 'tpos');
+}
+
+/**
+ * B2: Fetch product variants from TPOS
+ */
+export async function fetchTPOSProductVariants(tposProductId: number): Promise<TPOSVariantSyncResult> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
+    }
+
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+    
+    console.log(`📦 Fetching variants for TPOS ID: ${tposProductId}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(token),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TPOS API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return {
+      parentInfo: {
+        ListPrice: data.ListPrice || 0,
+        QtyAvailable: data.QtyAvailable || 0,
+        VirtualAvailable: data.VirtualAvailable || 0
+      },
+      variants: (data.ProductVariants || []).map((v: any) => ({
+        Id: v.Id,
+        DefaultCode: v.DefaultCode,
+        ListPrice: v.ListPrice || 0,
+        QtyAvailable: v.QtyAvailable || 0,
+        VirtualAvailable: v.VirtualAvailable || 0
+      }))
+    };
+  }, 'tpos');
+}
+
+/**
+ * Main function: Sync variants from TPOS to local database
+ */
+export async function syncVariantsFromTPOS(parentProductCode: string): Promise<SyncResult> {
+  const result: SyncResult = { updated: 0, skipped: 0, errors: [] };
+  
+  try {
+    // Step 1: Get parent product from database
+    const { data: parentProduct, error: parentError } = await supabase
+      .from("products")
+      .select("id, product_code, tpos_product_id")
+      .eq("product_code", parentProductCode)
+      .single();
+    
+    if (parentError || !parentProduct) {
+      throw new Error("Parent product not found");
+    }
+
+    // Step 2: Fetch tpos_product_id if missing
+    let tposProductId = parentProduct.tpos_product_id;
+    
+    if (!tposProductId) {
+      console.log("🔍 Fetching tpos_product_id from TPOS...");
+      tposProductId = await fetchTPOSProductTemplateId(parentProductCode);
+      
+      if (!tposProductId) {
+        throw new Error("Sản phẩm cha chưa có trên TPOS. Vui lòng upload lên TPOS trước.");
+      }
+      
+      // Update parent product with tpos_product_id
+      await supabase
+        .from("products")
+        .update({ tpos_product_id: tposProductId })
+        .eq("id", parentProduct.id);
+    }
+
+    // Step 3: Fetch variants from TPOS
+    console.log("📦 Fetching variants from TPOS...");
+    const tposData = await fetchTPOSProductVariants(tposProductId);
+    
+    if (tposData.variants.length === 0) {
+      result.skipped = 1;
+      return result;
+    }
+
+    // Step 4: Fetch local variants
+    const { data: localVariants, error: variantsError } = await supabase
+      .from("products")
+      .select("id, product_code, productid_bienthe")
+      .eq("base_product_code", parentProductCode)
+      .neq("product_code", parentProductCode);
+    
+    if (variantsError) throw variantsError;
+    
+    if (!localVariants || localVariants.length === 0) {
+      result.skipped = 1;
+      return result;
+    }
+
+    // Step 5: Build mapping
+    const tposVariantsMap = new Map(
+      tposData.variants.map(v => [normalizeProductCode(v.DefaultCode), v])
+    );
+
+    // Step 6: Update each local variant
+    for (const localVariant of localVariants) {
+      const normalizedCode = normalizeProductCode(localVariant.product_code);
+      const tposVariant = tposVariantsMap.get(normalizedCode);
+      
+      if (!tposVariant) {
+        result.errors.push(`Variant ${localVariant.product_code} not found on TPOS`);
+        result.skipped++;
+        continue;
+      }
+
+      const { error: updateError } = await supabase
+        .from("products")
+        .update({
+          selling_price: tposVariant.ListPrice,
+          stock_quantity: tposVariant.QtyAvailable,
+          productid_bienthe: tposVariant.Id,
+          virtual_available: tposVariant.VirtualAvailable
+        })
+        .eq("id", localVariant.id);
+      
+      if (updateError) {
+        result.errors.push(`Failed to update ${localVariant.product_code}: ${updateError.message}`);
+        result.skipped++;
+      } else {
+        result.updated++;
+      }
+    }
+
+    return result;
+  } catch (error: any) {
+    result.errors.push(error.message);
+    return result;
+  }
+}
+
 interface TPOSProductSearchResult {
   Id: number;
   Name: string;

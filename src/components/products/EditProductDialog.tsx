@@ -10,9 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { GeneratedVariant } from "@/lib/variant-generator";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
+import { syncVariantsFromTPOS } from "@/lib/tpos-api";
 
 interface Product {
   id: string;
@@ -27,6 +28,9 @@ interface Product {
   stock_quantity: number;
   supplier_name?: string;
   base_product_code?: string | null;
+  tpos_product_id?: number | null;
+  productid_bienthe?: number | null;
+  virtual_available?: number | null;
 }
 
 interface EditProductDialogProps {
@@ -43,6 +47,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const [activeTab, setActiveTab] = useState("price");
   const [childProducts, setChildProducts] = useState<Product[]>([]);
   const [isLoadingChildren, setIsLoadingChildren] = useState(false);
+  const [isSyncingTPOS, setIsSyncingTPOS] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -116,6 +122,73 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
     fetchChildProducts();
   }, [product, open]);
+
+  // Auto-sync variants from TPOS when switching to "variants" tab
+  useEffect(() => {
+    const autoSyncFromTPOS = async () => {
+      // Only run if:
+      // 1. Active tab is "variants"
+      // 2. Dialog is open
+      // 3. Product is a parent
+      // 4. Not already syncing
+      if (
+        activeTab !== "variants" ||
+        !open ||
+        !product ||
+        product.base_product_code !== product.product_code ||
+        isSyncingTPOS
+      ) {
+        return;
+      }
+
+      setIsSyncingTPOS(true);
+      console.log("🔄 Auto-syncing variants from TPOS...");
+
+      try {
+        const result = await syncVariantsFromTPOS(product.product_code);
+        
+        if (result.updated > 0) {
+          setLastSyncTime(new Date());
+          toast({
+            title: "✅ Đồng bộ thành công",
+            description: `Đã cập nhật ${result.updated} biến thể từ TPOS`,
+          });
+        } else if (result.skipped > 0 && result.errors.length === 0) {
+          toast({
+            title: "ℹ️ Không có biến thể",
+            description: "Sản phẩm này chưa có biến thể trên TPOS",
+          });
+        }
+
+        if (result.errors.length > 0) {
+          console.error("Sync errors:", result.errors);
+        }
+
+        // Refresh child products list
+        const { data: refreshedChildren } = await supabase
+          .from("products")
+          .select("*")
+          .eq("base_product_code", product.product_code)
+          .neq("product_code", product.product_code)
+          .order("product_code", { ascending: true });
+
+        if (refreshedChildren) {
+          setChildProducts(refreshedChildren);
+        }
+      } catch (error: any) {
+        console.error("Auto-sync error:", error);
+        toast({
+          title: "⚠️ Lỗi đồng bộ",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsSyncingTPOS(false);
+      }
+    };
+
+    autoSyncFromTPOS();
+  }, [activeTab, open, product, isSyncingTPOS]);
 
   const handleVariantTextGenerated = (variantText: string) => {
     setFormData({ ...formData, variant: variantText });
@@ -369,6 +442,23 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
             {/* TAB 2: Biến thể */}
             <TabsContent value="variants" className="space-y-6 mt-4">
+              {/* Sync Status Indicator */}
+              {isSyncingTPOS && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <div className="flex items-center gap-2 text-blue-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm font-medium">Đang đồng bộ từ TPOS...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Last Sync Time */}
+              {lastSyncTime && !isSyncingTPOS && (
+                <div className="text-xs text-muted-foreground text-right">
+                  Đã đồng bộ lúc: {lastSyncTime.toLocaleTimeString('vi-VN')}
+                </div>
+              )}
+
               {/* Section 1: Thuộc tính */}
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-muted-foreground">Thuộc tính</h3>
@@ -421,8 +511,10 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                           <TableRow>
                             <TableHead className="w-16">STT</TableHead>
                             <TableHead>Tên</TableHead>
-                            <TableHead className="w-32 text-right">Giá</TableHead>
+                            <TableHead className="w-32 text-right">Giá bán</TableHead>
                             <TableHead className="w-24 text-right">Tồn kho</TableHead>
+                            <TableHead className="w-24 text-right">Tồn ảo</TableHead>
+                            <TableHead className="w-20 text-right text-xs">TPOS</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -444,6 +536,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                               </TableCell>
                               <TableCell className="text-right">
                                 {child.stock_quantity || 0}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">
+                                {child.virtual_available || 0}
+                              </TableCell>
+                              <TableCell className="text-right text-xs text-muted-foreground">
+                                {child.productid_bienthe || '-'}
                               </TableCell>
                             </TableRow>
                           ))}
