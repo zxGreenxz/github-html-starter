@@ -622,7 +622,11 @@ async function updateExistingProductVariants(
       ...cleanData,
       ListPrice: baseProduct.selling_price || 0,      // ✅ Sync giá bán MỚI từ DB
       PurchasePrice: baseProduct.purchase_price || 0, // ✅ Sync giá mua MỚI từ DB
-      ProductVariants: previewData.value,             // ✅ Variants từ preview (TPOS tự sync giá)
+      ProductVariants: previewData.value.map((variant: any) => ({
+        ...variant,              // ✅ Giữ TẤT CẢ thông tin khác
+        ListPrice: null,         // ✅ Clear để inherit từ cha
+        PurchasePrice: null      // ✅ Clear để inherit từ cha
+      })),
       AttributeLines: attributeLines,
       Version: existingData.Version || 0
     };
