@@ -101,19 +101,30 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       }
 
       // STEP 2: Tạo variants mới
-      const newVariants = data.variants.map(v => ({
-        product_code: v.DefaultCode,
-        product_name: v.Name,
-        variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
-        base_product_code: product.product_code,
-        selling_price: parseFloat(formData.selling_price) || 0,
-        purchase_price: parseFloat(formData.purchase_price) || 0,
-        stock_quantity: 0,
-        unit: formData.unit || 'Cái',
-        category: formData.category || null,
-        supplier_name: formData.supplier_name || null,
-        tpos_product_id: null,
-      }));
+      const newVariants = data.variants.map(v => {
+        let finalProductCode = v.DefaultCode;
+
+        // Logic đặc biệt: Nếu CHỈ có 1 attribute là "Size Số" → thêm chữ "A"
+        if (data.attributeLines.length === 1 && data.attributeLines[0].attributeId === 4) {
+          const baseCode = product.product_code;
+          const sizeNumber = v.AttributeValues?.[0]?.Name || '';
+          finalProductCode = `${baseCode}A${sizeNumber}`;
+        }
+
+        return {
+          product_code: finalProductCode,
+          product_name: v.Name,
+          variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+          base_product_code: product.product_code,
+          selling_price: parseFloat(formData.selling_price) || 0,
+          purchase_price: parseFloat(formData.purchase_price) || 0,
+          stock_quantity: 0,
+          unit: formData.unit || 'Cái',
+          category: formData.category || null,
+          supplier_name: formData.supplier_name || null,
+          tpos_product_id: null,
+        };
+      });
 
       const { error: insertError } = await supabase
         .from("products")
