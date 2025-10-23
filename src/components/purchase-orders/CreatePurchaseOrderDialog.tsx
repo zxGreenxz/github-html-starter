@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,6 +133,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
+  const [enabledCodeEditing, setEnabledCodeEditing] = useState<Set<number>>(new Set());
+  const [validationDialogState, setValidationDialogState] = useState<{
+    open: boolean;
+    itemIndex: number;
+    productCode: string;
+    gap: number;
+    maxCode: string;
+  } | null>(null);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -175,14 +184,24 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
-      // Only auto-generate if user hasn't manually focused on the product_code field
-      if (item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)) {
+      // Only auto-generate if user hasn't manually focused on the product_code field AND checkbox is unchecked
+      if (
+        item.product_name.trim() && 
+        !item.product_code.trim() && 
+        !manualProductCodes.has(index) &&
+        !enabledCodeEditing.has(index)
+      ) {
         try {
           const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
           const code = await generateProductCodeFromMax(item.product_name, tempItems);
           setItems(prev => {
             const newItems = [...prev];
-            if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
+            if (
+              newItems[index] && 
+              !newItems[index].product_code.trim() && 
+              !manualProductCodes.has(index) &&
+              !enabledCodeEditing.has(index)
+            ) {
               newItems[index] = { ...newItems[index], product_code: code };
             }
             return newItems;
@@ -192,7 +211,65 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
     });
-  }, [debouncedProductNames, manualProductCodes]);
+  }, [debouncedProductNames, manualProductCodes, enabledCodeEditing]);
+
+  // Validation: Check if product code gap > 10
+  const validateProductCodeGap = async (productCode: string, itemIndex: number) => {
+    if (!productCode.trim()) return;
+    
+    try {
+      // Extract category and number from code
+      const category = productCode.match(/^[NP]/)?.[0] as 'N' | 'P';
+      if (!category) return;
+      
+      const numberMatch = productCode.match(/\d+$/);
+      if (!numberMatch) return;
+      
+      const currentNumber = parseInt(numberMatch[0], 10);
+      
+      // Get max from 3 sources
+      const { getMaxNumberFromItems, getMaxNumberFromProducts, getMaxNumberFromPurchaseOrderItems } = await import("@/lib/product-code-generator");
+      
+      const maxFromForm = getMaxNumberFromItems(
+        items.map(i => ({ product_code: i.product_code })),
+        category
+      );
+      
+      const maxFromProducts = await getMaxNumberFromProducts(category);
+      const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
+      
+      const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders);
+      const gap = currentNumber - maxNumber;
+      
+      // Show dialog if gap > 10
+      if (gap > 10) {
+        const maxCode = `${category}${maxNumber.toString().padStart(4, '0')}`;
+        setValidationDialogState({
+          open: true,
+          itemIndex,
+          productCode,
+          gap,
+          maxCode
+        });
+      }
+    } catch (error) {
+      console.error("Error validating product code:", error);
+    }
+  };
+
+  // Debounced validation trigger
+  const debouncedProductCodes = useDebounce(
+    items.map((item, idx) => enabledCodeEditing.has(idx) ? item.product_code : '').join('|'),
+    500
+  );
+
+  useEffect(() => {
+    items.forEach((item, index) => {
+      if (enabledCodeEditing.has(index) && item.product_code.trim()) {
+        validateProductCodeGap(item.product_code, index);
+      }
+    });
+  }, [debouncedProductCodes]);
 
 
   const saveDraftMutation = useMutation({
@@ -1137,14 +1214,34 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                         />
                       </TableCell>
             <TableCell>
+              <div className="flex items-start gap-1 mb-1">
+                <Label className="text-xs text-muted-foreground">Mã SP</Label>
+                <Checkbox
+                  checked={enabledCodeEditing.has(index)}
+                  onCheckedChange={(checked) => {
+                    setEnabledCodeEditing(prev => {
+                      const newSet = new Set(prev);
+                      if (checked) {
+                        newSet.add(index);
+                        setManualProductCodes(prevManual => new Set(prevManual).add(index));
+                      } else {
+                        newSet.delete(index);
+                      }
+                      return newSet;
+                    });
+                  }}
+                  className="h-3 w-3 mt-0.5"
+                />
+              </div>
               <Input
                 placeholder="Mã SP"
                 value={item.product_code}
                 onChange={(e) => updateItem(index, "product_code", e.target.value)}
-                onFocus={() => {
-                  setManualProductCodes(prev => new Set(prev).add(index));
-                }}
-                className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs"
+                disabled={!enabledCodeEditing.has(index)}
+                className={cn(
+                  "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs",
+                  !enabledCodeEditing.has(index) && "bg-muted cursor-not-allowed opacity-60"
+                )}
                 maxLength={10}
               />
             </TableCell>
@@ -1438,6 +1535,55 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }}
         />
       )}
+
+      <AlertDialog 
+        open={validationDialogState?.open ?? false} 
+        onOpenChange={(open) => {
+          if (!open) setValidationDialogState(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Xác nhận mã sản phẩm</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Mã sản phẩm <span className="font-semibold text-foreground">{validationDialogState?.productCode}</span> chênh lệch{" "}
+                <span className="font-bold text-destructive">{validationDialogState?.gap}</span> so với mã cao nhất hiện tại.
+              </p>
+              <p className="text-sm">
+                Mã cao nhất: <span className="font-mono font-semibold text-foreground">{validationDialogState?.maxCode}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Việc sử dụng mã chênh lệch lớn có thể gây khó khăn trong quản lý. Bạn có chắc muốn tiếp tục?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                if (validationDialogState) {
+                  setItems(prev => {
+                    const newItems = [...prev];
+                    if (newItems[validationDialogState.itemIndex]) {
+                      newItems[validationDialogState.itemIndex] = {
+                        ...newItems[validationDialogState.itemIndex],
+                        product_code: ''
+                      };
+                    }
+                    return newItems;
+                  });
+                }
+                setValidationDialogState(null);
+              }}
+            >
+              Sửa lại
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => setValidationDialogState(null)}>
+              Tiếp tục
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
