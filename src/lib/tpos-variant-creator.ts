@@ -133,6 +133,15 @@ function matchExactAttribute(text: string, result: SelectedAttributes): boolean 
   return false;
 }
 
+/**
+ * Helper: Auto-detect attribute type based on values
+ */
+function detectAttributeType(values: string[]): 1 | 3 | 4 {
+  if (values.every(v => /^\d+$/.test(v))) return 4; // Size Số
+  if (values.every(v => v.length <= 4 && /^[A-Z]+$/i.test(v))) return 1; // Size Chữ
+  return 3; // Màu
+}
+
 export function parseVariantToAttributes(variant: string): SelectedAttributes {
   const result: SelectedAttributes = {};
   
@@ -140,13 +149,70 @@ export function parseVariantToAttributes(variant: string): SelectedAttributes {
     return result;
   }
   
-  // Step 0: Detect delimiter strategy
-  const hasComma = variant.includes(',');
+  const trimmed = variant.trim();
+  
+  // ✅ STRATEGY A: NEW FORMAT with parentheses "(S | M) (31 | 30) (ĐỎ | ĐEN)"
+  const groupPattern = /\(([^)]+)\)/g;
+  const groups: string[] = [];
+  let match;
+  
+  while ((match = groupPattern.exec(trimmed)) !== null) {
+    groups.push(match[1]);
+  }
+  
+  if (groups.length > 0) {
+    console.log(`🔍 Parsing variant: "${variant}" (Strategy: PARENTHESES)`);
+    
+    for (const group of groups) {
+      const values = group.split('|').map(v => v.trim()).filter(v => v.length > 0);
+      if (values.length === 0) continue;
+      
+      const detectedType = detectAttributeType(values);
+      
+      if (detectedType === 4) {
+        // Size Số
+        if (!result.sizeNumber) result.sizeNumber = [];
+        for (const val of values) {
+          const sizeNumber = TPOS_ATTRIBUTES.sizeNumber.find(s => s.Name === val);
+          if (sizeNumber && !result.sizeNumber.find(s => s.Id === sizeNumber.Id)) {
+            result.sizeNumber.push(sizeNumber);
+          }
+        }
+      } else if (detectedType === 1) {
+        // Size Chữ
+        if (!result.sizeText) result.sizeText = [];
+        for (const val of values) {
+          const sizeText = TPOS_ATTRIBUTES.sizeText.find(
+            s => s.Name.toLowerCase() === val.toLowerCase()
+          );
+          if (sizeText && !result.sizeText.find(s => s.Id === sizeText.Id)) {
+            result.sizeText.push(sizeText);
+          }
+        }
+      } else {
+        // Màu
+        if (!result.color) result.color = [];
+        for (const val of values) {
+          const color = TPOS_ATTRIBUTES.color.find(
+            c => c.Name.toLowerCase() === val.toLowerCase()
+          );
+          if (color && !result.color.find(c => c.Id === color.Id)) {
+            result.color.push(color);
+          }
+        }
+      }
+    }
+    
+    console.log(`   Result:`, result);
+    return result;
+  }
+  
+  // ✅ STRATEGY B: Comma-delimited → exact match for each part
+  const hasComma = trimmed.includes(',');
   
   if (hasComma) {
-    // STRATEGY A: Comma-delimited → exact match for each part
     console.log(`🔍 Parsing variant: "${variant}" (Strategy: COMMA)`);
-    const parts = variant.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    const parts = trimmed.split(',').map(p => p.trim()).filter(p => p.length > 0);
     
     for (const part of parts) {
       matchExactAttribute(part, result);
@@ -156,12 +222,11 @@ export function parseVariantToAttributes(variant: string): SelectedAttributes {
     return result;
   }
   
-  // STRATEGY B: No comma → use multi-word matching (original logic)
+  // ✅ STRATEGY C: No comma → use multi-word matching (original logic)
   console.log(`🔍 Parsing variant: "${variant}" (Strategy: SPACE/MULTI-WORD)`);
   
   // Step 1: Normalize input - trim, replace separators with space (exclude comma)
-  const normalized = variant
-    .trim()
+  const normalized = trimmed
     .replace(/[-/]/g, ' ')       // Replace -, / with space (NOT comma)
     .replace(/\s+/g, ' ');       // Multiple spaces → single space
   

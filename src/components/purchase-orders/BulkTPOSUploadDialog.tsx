@@ -152,10 +152,126 @@ export function BulkTPOSUploadDialog({
     }
   };
 
+  // Helper: Auto-detect attribute type
+  const detectAttributeType = (values: string[]): number => {
+    if (values.every(v => /^\d+$/.test(v))) return 4; // Size Số
+    if (values.every(v => v.length <= 4 && /^[A-Z]+$/i.test(v))) return 1; // Size Chữ
+    return 3; // Màu
+  };
+
   const parseVariantString = (variantStr: string): AttributeLine[] => {
     if (!variantStr || variantStr.trim() === '') return [];
     
-    const parts = variantStr.split(',').map(s => s.trim().toUpperCase());
+    const trimmed = variantStr.trim();
+    
+    // ✅ NEW FORMAT: "(S | M) (31 | 30 | 2) (ĐỎ | ĐEN | NÂU)"
+    const groupPattern = /\(([^)]+)\)/g;
+    const groups: string[] = [];
+    let match;
+    
+    while ((match = groupPattern.exec(trimmed)) !== null) {
+      groups.push(match[1]);
+    }
+    
+    if (groups.length > 0) {
+      const attributeLines: AttributeLine[] = [];
+      
+      for (const group of groups) {
+        const values = group.split('|').map(v => v.trim()).filter(v => v.length > 0);
+        if (values.length === 0) continue;
+        
+        const detectedAttributeId = detectAttributeType(values);
+        
+        if (detectedAttributeId === 4) {
+          // Size Số
+          const line: AttributeLine = {
+            Attribute: { Id: 4, Name: "Size Số", Code: "SZNu", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 4
+          };
+          
+          for (const val of values) {
+            const match = availableAttributes.sizeNumber.values.find(v => v.Name === val);
+            if (match) {
+              line.Values.push({
+                Id: match.Id,
+                Name: match.Name,
+                Code: match.Code,
+                Sequence: match.Sequence,
+                AttributeId: 4,
+                AttributeName: "Size Số",
+                PriceExtra: null,
+                NameGet: `Size Số: ${match.Name}`,
+                DateCreated: null
+              });
+            }
+          }
+          
+          if (line.Values.length > 0) attributeLines.push(line);
+        } else if (detectedAttributeId === 1) {
+          // Size Chữ
+          const line: AttributeLine = {
+            Attribute: { Id: 1, Name: "Size Chữ", Code: "SZCh", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 1
+          };
+          
+          for (const val of values) {
+            const match = availableAttributes.sizeText.values.find(
+              v => v.Name.toUpperCase() === val.toUpperCase()
+            );
+            if (match) {
+              line.Values.push({
+                Id: match.Id,
+                Name: match.Name,
+                Code: match.Code,
+                Sequence: match.Sequence,
+                AttributeId: 1,
+                AttributeName: "Size Chữ",
+                PriceExtra: null,
+                NameGet: `Size Chữ: ${match.Name}`,
+                DateCreated: null
+              });
+            }
+          }
+          
+          if (line.Values.length > 0) attributeLines.push(line);
+        } else {
+          // Màu
+          const line: AttributeLine = {
+            Attribute: { Id: 3, Name: "Màu", Code: "Mau", Sequence: null, CreateVariant: true },
+            Values: [],
+            AttributeId: 3
+          };
+          
+          for (const val of values) {
+            const match = availableAttributes.color.values.find(
+              v => v.Name.toUpperCase() === val.toUpperCase()
+            );
+            if (match) {
+              line.Values.push({
+                Id: match.Id,
+                Name: match.Name,
+                Code: match.Code,
+                Sequence: match.Sequence,
+                AttributeId: 3,
+                AttributeName: "Màu",
+                PriceExtra: null,
+                NameGet: `Màu: ${match.Name}`,
+                DateCreated: null
+              });
+            }
+          }
+          
+          if (line.Values.length > 0) attributeLines.push(line);
+        }
+      }
+      
+      return attributeLines;
+    }
+    
+    // ✅ FALLBACK: Old comma-separated format
+    const parts = trimmed.split(',').map(s => s.trim().toUpperCase());
     const attributeLines: AttributeLine[] = [];
     
     for (const part of parts) {
