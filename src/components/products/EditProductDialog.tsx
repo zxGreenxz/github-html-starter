@@ -9,6 +9,7 @@ import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
 import { Sparkles } from "lucide-react";
+import { GeneratedVariant } from "@/lib/variant-generator";
 
 interface Product {
   id: string;
@@ -76,6 +77,80 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const handleVariantTextGenerated = (variantText: string) => {
     setFormData({ ...formData, variant: variantText });
     setShowVariantGenerator(false);
+  };
+
+  const handleVariantsRegenerated = async (data: {
+    variants: GeneratedVariant[];
+    variantText: string;
+    attributeLines: any[];
+  }) => {
+    if (!product) return;
+
+    setIsSubmitting(true);
+
+    try {
+      // STEP 1: Xóa tất cả variants cũ
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .eq("base_product_code", product.product_code)
+        .neq("product_code", product.product_code);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // STEP 2: Tạo variants mới
+      const newVariants = data.variants.map(v => ({
+        product_code: v.DefaultCode,
+        product_name: v.Name,
+        variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+        base_product_code: product.product_code,
+        selling_price: parseFloat(formData.selling_price) || 0,
+        purchase_price: parseFloat(formData.purchase_price) || 0,
+        stock_quantity: 0,
+        unit: formData.unit || 'Cái',
+        category: formData.category || null,
+        supplier_name: formData.supplier_name || null,
+        tpos_product_id: null,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("products")
+        .insert(newVariants);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // STEP 3: Update variant string của parent product
+      const { error: updateError } = await supabase
+        .from("products")
+        .update({ variant: data.variantText })
+        .eq("id", product.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast({
+        title: "✅ Thành công",
+        description: `Đã tạo lại ${newVariants.length} biến thể mới`,
+      });
+
+      setShowVariantGenerator(false);
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Error regenerating variants:", error);
+      toast({
+        title: "❌ Lỗi",
+        description: error.message || "Không thể tạo lại biến thể",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -313,7 +388,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
             selling_price: parseFloat(formData.selling_price) || 0,
             purchase_price: parseFloat(formData.purchase_price) || 0,
           }}
-          onVariantTextGenerated={handleVariantTextGenerated}
+          onVariantsRegenerated={handleVariantsRegenerated}
         />
       )}
     </Dialog>

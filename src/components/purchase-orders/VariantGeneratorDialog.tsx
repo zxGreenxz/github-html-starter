@@ -55,6 +55,12 @@ interface VariantGeneratorDialogProps {
   }) => void;
   // Old behavior: Just generate variant text (for EditPurchaseOrderDialog)
   onVariantTextGenerated?: (variantText: string) => void;
+  // Regenerate behavior: Delete old variants and create new ones (for Products)
+  onVariantsRegenerated?: (data: {
+    variants: any[];
+    variantText: string;
+    attributeLines: AttributeLine[];
+  }) => void;
 }
 
 const ATTRIBUTES = [
@@ -68,7 +74,8 @@ export function VariantGeneratorDialog({
   onOpenChange,
   currentItem,
   onVariantsGenerated,
-  onVariantTextGenerated
+  onVariantTextGenerated,
+  onVariantsRegenerated
 }: VariantGeneratorDialogProps) {
   const { toast } = useToast();
   const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
@@ -243,13 +250,59 @@ export function VariantGeneratorDialog({
       return;
     }
 
+    // Generate variant text first (common for all paths)
+    const variantText = attributeLines
+      .map(line => `(${line.values.join(' | ')})`)
+      .join(' ');
+
     // Check which callback to use
     if (onVariantTextGenerated) {
-      // Old behavior: Just generate variant text with new format (Value1 | Value2) (Value3 | Value4)
-      const variantText = attributeLines
-        .map(line => `(${line.values.join(' | ')})`)
-        .join(' ');
+      // Just update variant text (for PurchaseOrders)
       onVariantTextGenerated(variantText);
+    } else if (onVariantsRegenerated) {
+      // Regenerate all variants (for Products)
+      // Convert AttributeLine[] → TPOSAttributeLine[]
+      const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
+        const attribute = ATTRIBUTES.find(a => a.id === line.attributeId);
+        if (!attribute) return null;
+
+        const values: TPOSAttributeValue[] = line.values
+          .map(valueName => {
+            const value = TPOS_ATTRIBUTES[attribute.key].find(v => v.Name === valueName);
+            return value ? {
+              ...value,
+              AttributeId: line.attributeId,
+              AttributeName: line.attributeName
+            } : null;
+          })
+          .filter(Boolean) as TPOSAttributeValue[];
+
+        return {
+          Attribute: {
+            Id: line.attributeId,
+            Name: line.attributeName
+          },
+          Values: values
+        };
+      }).filter(Boolean) as TPOSAttributeLine[];
+
+      // Prepare ProductData
+      const productData: ProductData = {
+        Id: 0,
+        Name: currentItem.product_name.trim().toUpperCase(),
+        DefaultCode: currentItem.product_code.trim().toUpperCase(),
+        ListPrice: Number(currentItem.selling_price || 0) * 1000
+      };
+
+      // Generate variants using variant-generator.ts
+      const generatedVariants = generateVariants(productData, tposAttributeLines);
+
+      // Return data for parent to handle
+      onVariantsRegenerated({
+        variants: generatedVariants,
+        variantText: variantText,
+        attributeLines: attributeLines
+      });
     } else if (onVariantsGenerated) {
       // New behavior: Generate full variant products using variant-generator.ts
       // ✅ STEP 1: Convert AttributeLine[] → TPOSAttributeLine[] (giữ nguyên thứ tự người dùng chọn)
