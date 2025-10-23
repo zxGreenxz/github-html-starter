@@ -641,6 +641,90 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
             </div>
           </div>
 
+          {/* ===== PREVIEW SECTION ===== */}
+          <div className="space-y-2 pb-4 border-b">
+            <h3 className="text-sm font-semibold text-muted-foreground">Preview Sản Phẩm</h3>
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-16">Hình ảnh</TableHead>
+                    <TableHead>Mã SP</TableHead>
+                    <TableHead>Tên sản phẩm</TableHead>
+                    <TableHead>Variant</TableHead>
+                    <TableHead>Base</TableHead>
+                    <TableHead className="text-right">Giá bán</TableHead>
+                    <TableHead className="text-right">Giá mua</TableHead>
+                    <TableHead className="text-right">Tồn kho</TableHead>
+                    <TableHead>Nhóm</TableHead>
+                    <TableHead>NCC</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    {/* Hình ảnh */}
+                    <TableCell>
+                      <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
+                        📷
+                      </div>
+                    </TableCell>
+                    
+                    {/* Mã SP */}
+                    <TableCell className="font-medium">
+                      {product?.product_code || "-"}
+                    </TableCell>
+                    
+                    {/* Tên sản phẩm */}
+                    <TableCell>
+                      {formData.product_name || "-"}
+                    </TableCell>
+                    
+                    {/* Variant */}
+                    <TableCell className="text-muted-foreground">
+                      {formData.variant ? formatVariantForDisplay(formData.variant) : "-"}
+                    </TableCell>
+                    
+                    {/* Base */}
+                    <TableCell className="text-muted-foreground">
+                      {formData.base_product_code || "-"}
+                    </TableCell>
+                    
+                    {/* Giá bán */}
+                    <TableCell className="text-right">
+                      {formData.selling_price 
+                        ? parseFloat(formData.selling_price).toLocaleString('vi-VN') + ' đ'
+                        : "0 đ"
+                      }
+                    </TableCell>
+                    
+                    {/* Giá mua */}
+                    <TableCell className="text-right">
+                      {formData.purchase_price 
+                        ? parseFloat(formData.purchase_price).toLocaleString('vi-VN') + ' đ'
+                        : "0 đ"
+                      }
+                    </TableCell>
+                    
+                    {/* Tồn kho */}
+                    <TableCell className="text-right">
+                      {formData.stock_quantity || "0"}
+                    </TableCell>
+                    
+                    {/* Nhóm */}
+                    <TableCell className="text-muted-foreground">
+                      {formData.category || "-"}
+                    </TableCell>
+                    
+                    {/* NCC */}
+                    <TableCell>
+                      {formData.supplier_name || "-"}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
           {/* ===== PHẦN DƯỚI: Tabs ===== */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
