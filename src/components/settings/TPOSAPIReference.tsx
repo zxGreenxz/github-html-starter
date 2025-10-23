@@ -346,6 +346,455 @@ export const TPOSAPIReference = () => {
           }
         ]
       }
+    },
+    // ========== Facebook & LiveCampaign APIs ==========
+    {
+      id: "facebook-comments",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/api/facebook-graph/comment",
+      title: "Facebook Comments - Lấy comments từ Facebook",
+      description: "Fetch comments của một Facebook post thông qua TPOS proxy",
+      file: "supabase/functions/facebook-comments/index.ts",
+      lines: "86-95",
+      purpose: "Lấy danh sách comments từ Facebook Graph API để hiển thị và xử lý đơn hàng trong hệ thống",
+      headers: {
+        "Authorization": "Bearer {facebook_bearer_token}",
+        "accept": "application/json",
+        "tposappversion": "5.9.10.1"
+      },
+      queryParams: {
+        "pageid": "{page_id}",
+        "facebook_type": "Page",
+        "postId": "{post_id}",
+        "limit": "500",
+        "order": "reverse_chronological"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "data": [
+          {
+            "id": "123456789_987654321",
+            "message": "Đặt [N152] size M",
+            "from": {
+              "id": "987654321",
+              "name": "Nguyễn Văn A"
+            },
+            "created_time": "2025-10-23T08:30:00+0000"
+          }
+        ],
+        "paging": {
+          "cursors": { "before": "...", "after": "..." }
+        }
+      }
+    },
+    {
+      id: "facebook-livevideo",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/api/facebook-graph/livevideo",
+      title: "Facebook LiveVideo - Lấy danh sách live videos",
+      description: "Fetch danh sách live videos từ Facebook page",
+      file: "supabase/functions/facebook-livevideo/index.ts",
+      lines: "75-85",
+      purpose: "Lấy danh sách live videos từ Facebook page để user chọn và tạo live session",
+      headers: {
+        "Authorization": "Bearer {facebook_bearer_token}",
+        "accept": "application/json",
+        "tposappversion": "5.9.10.1"
+      },
+      queryParams: {
+        "pageid": "{page_id}",
+        "limit": "25",
+        "facebook_Type": "Page"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "data": [
+          {
+            "id": "123456789",
+            "title": "Live bán hàng ngày 23/10",
+            "description": "Flash sale cuối tuần",
+            "created_time": "2025-10-23T14:00:00+0000",
+            "status": "LIVE"
+          }
+        ]
+      }
+    },
+    {
+      id: "save-facebook-posts",
+      method: "POST",
+      endpoint: "https://tomato.tpos.vn/rest/v1.0/facebookpost/save_posts",
+      title: "Save Facebook Posts - Tạo LiveCampaign",
+      description: "Tạo LiveCampaign mới cho Facebook post trên TPOS",
+      file: "supabase/functions/create-tpos-order-from-comment/index.ts",
+      lines: "213-227",
+      purpose: "Tạo LiveCampaign trên TPOS để tracking đơn hàng từ Facebook post",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      requestPayload: {
+        "PostIds": ["123456789_987654321"],
+        "TeamId": 1
+      },
+      responsePayload: {
+        "success": true,
+        "message": "LiveCampaign created successfully"
+      }
+    },
+    {
+      id: "get-saved-posts",
+      method: "POST",
+      endpoint: "https://tomato.tpos.vn/rest/v1.0/facebookpost/get_saved_by_ids",
+      title: "Get Saved Posts - Lấy LiveCampaignId",
+      description: "Lấy LiveCampaignId đã tồn tại cho Facebook post",
+      file: "supabase/functions/create-tpos-order-from-comment/index.ts",
+      lines: "254-268",
+      purpose: "Kiểm tra xem post đã có LiveCampaign chưa, nếu có thì lấy ID để tạo đơn",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      requestPayload: {
+        "PostIds": ["123456789_987654321"],
+        "TeamId": 1
+      },
+      responsePayload: [
+        {
+          "Id": 12345,
+          "PostId": "123456789_987654321",
+          "TeamId": 1
+        }
+      ]
+    },
+    {
+      id: "orders-by-postid",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetOrdersByPostId",
+      title: "GetOrdersByPostId - Lấy orders từ Facebook post",
+      description: "Fetch tất cả orders liên quan đến một Facebook post",
+      file: "supabase/functions/fetch-facebook-orders/index.ts",
+      lines: "46-58",
+      purpose: "Lấy danh sách đơn hàng đã tạo từ Facebook post để đồng bộ về hệ thống",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "PostId": "{facebook_post_id}",
+        "$top": "500",
+        "$orderby": "DateCreated desc",
+        "$count": "true"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "@odata.count": 15,
+        "value": [
+          {
+            "Id": 12345,
+            "Name": "SO0001",
+            "DateCreated": "2025-10-23T10:30:00Z",
+            "TotalAmount": 400000,
+            "FacebookPostId": "123456789_987654321",
+            "FacebookCommentId": "987654321_111111111"
+          }
+        ]
+      }
+    },
+    // ========== Partner (Customer) APIs ==========
+    {
+      id: "partner-search",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/Partner/ODataService.GetViewV2",
+      title: "Partner Search - Tìm kiếm khách hàng",
+      description: "Tìm kiếm khách hàng theo điều kiện filter",
+      file: "supabase/functions/check-tpos-credentials/index.ts",
+      lines: "75-85",
+      purpose: "Tìm kiếm khách hàng trong TPOS để validate credentials hoặc tìm customer info",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "$top": "10",
+        "$filter": "contains(Phone, '0901234567')",
+        "$orderby": "DateCreated desc"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "value": [
+          {
+            "Id": 456,
+            "Name": "Nguyễn Văn A",
+            "Phone": "0901234567",
+            "Email": "nguyenvana@example.com",
+            "Active": true
+          }
+        ]
+      }
+    },
+    {
+      id: "partner-detail",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/Partner({idkh})",
+      title: "Partner Detail - Lấy chi tiết khách hàng",
+      description: "Lấy thông tin đầy đủ của khách hàng bao gồm địa chỉ, số điện thoại, categories",
+      file: "supabase/functions/fetch-tpos-customer-detail/index.ts",
+      lines: "77-90",
+      purpose: "Fetch thông tin chi tiết khách hàng để điền vào form đơn hàng hoặc import vào hệ thống",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "$expand": "PurchaseCurrency,Categories,AccountPayable,AccountReceivable,StockCustomer,StockSupplier,Title,PropertyProductPricelist,PropertySupplierPaymentTerm,PropertyPaymentTerm,Addresses,Phones"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "Id": 456,
+        "Name": "Nguyễn Văn A",
+        "Phone": "0901234567",
+        "Email": "nguyenvana@example.com",
+        "Active": true,
+        "Addresses": [
+          {
+            "Id": 1,
+            "Street": "123 Nguyễn Huệ",
+            "City": "TP.HCM",
+            "Type": "delivery"
+          }
+        ],
+        "Phones": [
+          { "Id": 1, "Phone": "0901234567" }
+        ]
+      }
+    },
+    // ========== Product & Variant APIs ==========
+    {
+      id: "product-search",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2",
+      title: "Product Search - Tìm kiếm variant/product",
+      description: "Tìm kiếm variant hoặc product theo DefaultCode (khác với ProductTemplate)",
+      file: "supabase/functions/create-tpos-order-from-comment/index.ts",
+      lines: "839-855",
+      purpose: "Tìm kiếm variant cụ thể để lấy ProductId khi tạo đơn hàng",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "Active": "true",
+        "DefaultCode": "{variant_code}",
+        "$top": "1",
+        "$orderby": "DateCreated desc"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "value": [
+          {
+            "Id": 234567,
+            "Name": "Áo thun nam basic - Đen - M",
+            "DefaultCode": "ATN001-DEN-M",
+            "ListPrice": 200000,
+            "Active": true
+          }
+        ]
+      }
+    },
+    {
+      id: "product-detail",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/Product({productId})",
+      title: "Product Detail - Lấy chi tiết variant",
+      description: "Lấy thông tin đầy đủ của variant/product bao gồm attributes",
+      file: "src/components/settings/TPOSVariantLookup.tsx",
+      lines: "87-95",
+      purpose: "Lấy chi tiết variant để hiển thị thông tin đầy đủ trong tool lookup",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "$expand": "UOM,Categ,UOMPO,POSCateg,AttributeValues"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "Id": 234567,
+        "Name": "Áo thun nam basic - Đen - M",
+        "DefaultCode": "ATN001-DEN-M",
+        "ListPrice": 200000,
+        "AttributeValues": [
+          { "Id": 123, "Name": "Đen" },
+          { "Id": 456, "Name": "M" }
+        ]
+      }
+    },
+    {
+      id: "product-template-detail",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/ProductTemplate({templateId})",
+      title: "ProductTemplate Detail - Lấy chi tiết ProductTemplate",
+      description: "Lấy thông tin đầy đủ của ProductTemplate bao gồm tất cả variants",
+      file: "src/components/settings/TPOSManagerNew.tsx",
+      lines: "345-360",
+      purpose: "Lấy chi tiết ProductTemplate để sync variants về hệ thống",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "$expand": "UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "Id": 107831,
+        "Name": "Áo thun nam basic",
+        "DefaultCode": "ATN001",
+        "ProductVariants": [
+          {
+            "Id": 234567,
+            "DefaultCode": "ATN001-DEN-M",
+            "Name": "Áo thun nam basic - Đen - M",
+            "ListPrice": 200000
+          }
+        ]
+      }
+    },
+    {
+      id: "product-template-search",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2",
+      title: "ProductTemplate Search - Tìm kiếm ProductTemplate",
+      description: "Tìm kiếm ProductTemplate theo DefaultCode để lấy template info",
+      file: "src/components/purchase-orders/BulkTPOSUploadDialog.tsx",
+      lines: "575-590",
+      purpose: "Tìm ProductTemplate khi upload bulk để check xem sản phẩm đã tồn tại chưa",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "Active": "true",
+        "DefaultCode": "{product_code}",
+        "$top": "1"
+      },
+      requestPayload: null,
+      responsePayload: {
+        "value": [
+          {
+            "Id": 107831,
+            "Name": "Áo thun nam basic",
+            "DefaultCode": "ATN001",
+            "Active": true
+          }
+        ]
+      }
+    },
+    // ========== CRM & Order Creation ==========
+    {
+      id: "crm-teams",
+      method: "GET",
+      endpoint: "https://tomato.tpos.vn/odata/CRMTeam/ODataService.GetAllFacebook",
+      title: "CRM Teams - Lấy danh sách CRM Teams",
+      description: "Lấy tất cả CRM Teams có kết nối Facebook",
+      file: "supabase/functions/fetch-crm-teams/index.ts",
+      lines: "59-68",
+      purpose: "Lấy danh sách CRM Teams để user chọn khi tạo LiveCampaign hoặc đơn hàng",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "$expand": "Childs"
+      },
+      requestPayload: null,
+      responsePayload: [
+        {
+          "Id": 1,
+          "Name": "Sale Team 1",
+          "FacebookPageId": "123456789",
+          "Childs": []
+        }
+      ]
+    },
+    {
+      id: "order-create",
+      method: "POST",
+      endpoint: "https://tomato.tpos.vn/odata/SaleOnline_Order",
+      title: "Create Order - Tạo đơn hàng từ Facebook",
+      description: "Tạo đơn hàng mới từ Facebook comment với đầy đủ thông tin",
+      file: "supabase/functions/create-tpos-order-from-comment/index.ts",
+      lines: "425-500",
+      purpose: "Tạo đơn hàng trên TPOS từ Facebook comment với LiveCampaignId và Facebook fields",
+      headers: {
+        "Authorization": "Bearer {bearer_token}",
+        "Content-Type": "application/json"
+      },
+      queryParams: {
+        "IsIncrease": "True",
+        "$expand": "Details,User,Partner($expand=Addresses)"
+      },
+      requestPayload: {
+        "CRMTeamId": 1,
+        "LiveCampaignId": 12345,
+        "FacebookPageId": "123456789",
+        "FacebookPostId": "123456789_987654321",
+        "FacebookCommentId": "987654321_111111111",
+        "FacebookUserId": "987654321",
+        "FacebookUserName": "Nguyễn Văn A",
+        "SessionIndex": "LIVE001",
+        "PartnerId": 456,
+        "Details": [
+          {
+            "ProductId": 234567,
+            "ProductName": "Áo thun nam basic - Đen - M",
+            "Quantity": 1,
+            "Price": 200000,
+            "UOMId": 1
+          }
+        ]
+      },
+      responsePayload: {
+        "Id": 12345,
+        "Name": "SO0001",
+        "DateCreated": "2025-10-23T10:30:00Z",
+        "State": "draft",
+        "Partner": {
+          "Id": 456,
+          "Name": "Nguyễn Văn A"
+        },
+        "Details": [
+          {
+            "Id": 67890,
+            "ProductId": 234567,
+            "Quantity": 1
+          }
+        ]
+      }
+    },
+    // ========== Authentication ==========
+    {
+      id: "token-refresh",
+      method: "POST",
+      endpoint: "https://tomato.tpos.vn/token",
+      title: "Token Refresh - Làm mới TPOS access token",
+      description: "Làm mới TPOS bearer token khi token cũ hết hạn",
+      file: "supabase/functions/refresh-tpos-token/index.ts",
+      lines: "45-58",
+      purpose: "Refresh TPOS token để duy trì kết nối với TPOS API",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      requestPayload: {
+        "grant_type": "password",
+        "username": "{tpos_username}",
+        "password": "{tpos_password}"
+      },
+      responsePayload: {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer",
+        "expires_in": 86400
+      }
     }
   ];
 
@@ -371,7 +820,7 @@ export const TPOSAPIReference = () => {
             TPOS API Reference Documentation
           </CardTitle>
           <CardDescription>
-            Tài liệu tham khảo các API endpoint của TPOS đang được sử dụng trong hệ thống
+            Tài liệu đầy đủ 20 API endpoints của TPOS đang được sử dụng trong hệ thống, bao gồm Facebook, Products, Orders, Partners, và Authentication
           </CardDescription>
         </CardHeader>
         <CardContent>
