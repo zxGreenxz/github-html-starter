@@ -1113,57 +1113,62 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between pr-10">
-          <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
-          <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">
-                <RotateCcw className="w-4 h-4" />
-                Clear
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Xóa toàn bộ dữ liệu?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Bạn có chắc muốn xóa toàn bộ dữ liệu đã nhập? Hành động này không thể hoàn tác.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Hủy</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {
-                  resetForm();
-                  setShowClearConfirm(false);
-                }}>
-                  Xóa
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </DialogHeader>
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-hidden flex flex-col">
+        {/* Sticky Header Section */}
+        <div className="sticky top-0 bg-background z-10 border-b pb-3">
+          <DialogHeader className="flex flex-row items-center justify-between pr-10 pb-3">
+            <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
+            <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">
+                  <RotateCcw className="w-4 h-4" />
+                  Clear
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Xóa toàn bộ dữ liệu?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bạn có chắc muốn xóa toàn bộ dữ liệu đã nhập? Hành động này không thể hoàn tác.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Hủy</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                    resetForm();
+                    setShowClearConfirm(false);
+                  }}>
+                    Xóa
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </DialogHeader>
 
-        {/* Action Bar - Sticky at top */}
-        <div className="flex gap-2 justify-end border-b pb-3 mb-4 sticky top-0 bg-background z-10 pt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
-          </Button>
-          <Button 
-            variant="secondary"
-            onClick={() => saveDraftMutation.mutate()}
-            disabled={saveDraftMutation.isPending}
-          >
-            {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
-          </Button>
-          <Button 
-            onClick={() => createOrderMutation.mutate()}
-            disabled={createOrderMutation.isPending}
-          >
-            {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
-          </Button>
+          {/* Action Bar */}
+          <div className="flex gap-2 justify-end pt-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Hủy
+            </Button>
+            <Button 
+              variant="secondary"
+              onClick={() => saveDraftMutation.mutate()}
+              disabled={saveDraftMutation.isPending}
+            >
+              {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
+            </Button>
+            <Button 
+              onClick={() => createOrderMutation.mutate()}
+              disabled={createOrderMutation.isPending}
+            >
+              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="space-y-6 p-6">
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="supplier">Nhà cung cấp *</Label>
@@ -1546,6 +1551,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
           </div>
         </div>
+      </div>
       </DialogContent>
 
       <SelectProductDialog
