@@ -433,43 +433,13 @@ export default function LiveProducts() {
       
       const productCodes = [...new Set(allLiveProducts.map(p => p.product_code))];
       
-      // Step 1: Fetch all products
-      const { data: products, error } = await supabase
+      const { data, error } = await supabase
         .from("products")
         .select("product_code, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .in("product_code", productCodes);
       
       if (error) throw error;
-      if (!products) return [];
-      
-      // Step 2: Find all unique base_product_codes (parents) for variants without tpos_image_url
-      const baseProductCodes = [...new Set(
-        products
-          .filter(p => !p.tpos_image_url && p.base_product_code && p.base_product_code !== p.product_code)
-          .map(p => p.base_product_code)
-      )];
-      
-      // Step 3: Fetch parent tpos_image_urls if needed
-      if (baseProductCodes.length > 0) {
-        const { data: parents } = await supabase
-          .from("products")
-          .select("product_code, tpos_image_url")
-          .in("product_code", baseProductCodes);
-        
-        const parentMap = new Map(
-          (parents || []).map(p => [p.product_code, p.tpos_image_url])
-        );
-        
-        // Step 4: Merge parent tpos_image_url into children
-        return products.map(product => ({
-          ...product,
-          tpos_image_url: product.tpos_image_url || 
-                          (product.base_product_code ? parentMap.get(product.base_product_code) : null) ||
-                          null
-        }));
-      }
-      
-      return products;
+      return data || [];
     },
     enabled: allLiveProducts.length > 0,
     staleTime: 60000, // 60s - product images rarely change
@@ -1841,15 +1811,7 @@ export default function LiveProducts() {
                                     toast.error("Sản phẩm chưa có hình ảnh");
                                     return;
                                   }
-                                  const productDetail = productsDetailsMap.get(product.product_code);
-                                  await generateOrderImage(
-                                    product.image_url, 
-                                    product.variant || "", 
-                                    qty, 
-                                    product.product_name,
-                                    product.product_code,
-                                    productDetail?.base_product_code
-                                  );
+                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
@@ -2041,15 +2003,7 @@ export default function LiveProducts() {
                                 toast.error("Sản phẩm chưa có hình ảnh");
                                 return;
                               }
-                              const productDetail = productsDetailsMap.get(product.product_code);
-                              await generateOrderImage(
-                                product.image_url, 
-                                product.variant || "", 
-                                qty, 
-                                product.product_name,
-                                product.product_code,
-                                productDetail?.base_product_code
-                              );
+                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty

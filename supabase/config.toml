@@ -1,8 +1,5 @@
 project_id = "xneoovjmwhzzphwlwojc"
 
-[functions.bulk-migrate-tpos-images]
-verify_jwt = false
-
 [functions.fetch-facebook-orders]
 verify_jwt = false
 
@@ -10,7 +7,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.refresh-tpos-token]
-verify_jwt = false
-
-[functions.migrate-tpos-image]
 verify_jwt = false

@@ -1,105 +1,26 @@
 import { toast } from "sonner";
 import { getVariantName } from "@/lib/variant-utils";
-import { supabase } from "@/integrations/supabase/client";
-
-/**
- * Migrate TPOS image to Supabase Storage and update database
- */
-async function migrateTPOSImageToSupabase(
-  imageUrl: string,
-  productCode: string,
-  baseProductCode?: string | null
-): Promise<string | null> {
-  try {
-    console.log(`Attempting to migrate TPOS image for ${productCode}`);
-    
-    const { data, error } = await supabase.functions.invoke('migrate-tpos-image', {
-      body: {
-        imageUrl,
-        productCode,
-        baseProductCode
-      }
-    });
-
-    if (error) throw error;
-    
-    if (data?.newImageUrl) {
-      console.log(`Successfully migrated to: ${data.newImageUrl}`);
-      return data.newImageUrl;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Failed to migrate TPOS image:', error);
-    return null;
-  }
-}
 
 export const generateOrderImage = async (
   imageUrl: string,
   variant: string,
   quantity: number,
-  productName: string,
-  productCode?: string,
-  baseProductCode?: string | null
+  productName: string
 ): Promise<void> => {
-  let blobUrl: string | null = null;
-  
   try {
-    // Step 1: Convert to blob URL if it's a TPOS URL (to bypass CORS)
-    let imageToUse = imageUrl;
-    
-    const isTPOSUrl = imageUrl.includes('s3.me-south-1.') || 
-                      imageUrl.includes('tpos.') || 
-                      imageUrl.includes('api.tpos.vn');
-    
-    if (isTPOSUrl) {
-      try {
-        const response = await fetch(imageUrl);
-        if (!response.ok) throw new Error("Failed to fetch image");
-        
-        const blob = await response.blob();
-        blobUrl = URL.createObjectURL(blob);
-        imageToUse = blobUrl;
-      } catch (fetchError) {
-        console.error("CORS error detected with TPOS image:", fetchError);
-        
-        // Attempt to migrate image to Supabase
-        if (productCode) {
-          toast.info("Đang chuyển ảnh sang Supabase...");
-          const newImageUrl = await migrateTPOSImageToSupabase(
-            imageUrl, 
-            productCode,
-            baseProductCode
-          );
-          
-          if (newImageUrl) {
-            toast.success("Đã chuyển ảnh thành công! Vui lòng thử lại.");
-            return;
-          }
-        }
-        
-        toast.error("Không thể tải hình ảnh từ TPOS");
-        return;
-      }
-    }
-
-    // Step 2: Create a canvas
+    // Create a canvas
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Could not get canvas context");
 
     // Load the image
     const img = new Image();
-    // Only set crossOrigin for non-blob URLs
-    if (!imageToUse.startsWith('blob:')) {
-      img.crossOrigin = "anonymous";
-    }
+    img.crossOrigin = "anonymous";
     
     await new Promise((resolve, reject) => {
       img.onload = resolve;
       img.onerror = reject;
-      img.src = imageToUse;
+      img.src = imageUrl;
     });
 
     // Calculate dimensions: image takes 2/3, text takes 1/3
@@ -171,10 +92,5 @@ export const generateOrderImage = async (
   } catch (error) {
     console.error("Error generating order image:", error);
     toast.error("Không thể tạo hình order. Vui lòng thử lại.");
-  } finally {
-    // Cleanup blob URL if created
-    if (blobUrl) {
-      URL.revokeObjectURL(blobUrl);
-    }
   }
 };
