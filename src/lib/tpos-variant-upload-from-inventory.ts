@@ -261,6 +261,15 @@ function generateSKU(
 ): string {
   let code = baseCode;
   
+  // 🆕 TRƯỜNG HỢP ĐẶC BIỆT: Nếu chỉ có 1 attribute và là "Size Số"
+  const isSingleSizeNumber = 
+    attrs.length === 1 && 
+    (attrs[0].AttributeName === "Size Số" || attrs[0].AttributeId === 4);
+  
+  if (isSingleSizeNumber) {
+    code += 'A';  // ✅ Thêm "A" trước số (e.g., "TEST3213A37")
+  }
+  
   // Duyệt theo thứ tự tự nhiên (KHÔNG SORT)
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
