@@ -895,8 +895,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Hủy
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Đang lưu..." : "Cập nhật"}
+            <Button type="submit" disabled={true}>
+              Cập nhật
             </Button>
           </div>
         </form>
