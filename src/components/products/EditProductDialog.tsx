@@ -17,6 +17,7 @@ import { syncVariantsFromTPOS } from "@/lib/tpos-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
+import { uploadTPOSFromInventoryVariants } from "@/lib/tpos-variant-upload-from-inventory";
 
 interface Product {
   id: string;
@@ -57,6 +58,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     missingInTPOS: string[];
   } | null>(null);
   const [hasRunSync, setHasRunSync] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -544,6 +546,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       const updatedSellingPrice = parseFloat(formData.selling_price) || 0;
       const updatedPurchasePrice = parseFloat(formData.purchase_price) || 0;
 
+      // STEP 1: Update local DB
       const { error } = await supabase
         .from("products")
         .update({
@@ -562,7 +565,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
       if (error) throw error;
 
-      // Nếu đây là parent product, cập nhật giá cho variants có giá = 0
+      // STEP 2: Cập nhật giá cho child variants có giá = 0 (nếu là parent)
       const isParentProduct = product.base_product_code === product.product_code;
       if (isParentProduct && product.product_code) {
         await supabase
@@ -576,30 +579,54 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           .update({ purchase_price: updatedPurchasePrice })
           .eq("base_product_code", product.product_code)
           .eq("purchase_price", 0);
+      }
 
-        // Sync to TPOS if parent product
-        await syncProductToTPOS(
-          product,
-          childProducts,
-          updatedSellingPrice,
-          updatedPurchasePrice
+      // STEP 3: Upload lên TPOS (cho cả parent và child)
+      setUploadProgress('Đang upload lên TPOS...');
+      const baseCode = formData.base_product_code || product.product_code;
+      
+      try {
+        const uploadResult = await uploadTPOSFromInventoryVariants(
+          baseCode,
+          (message) => {
+            setUploadProgress(message);
+          }
         );
+
+        if (uploadResult.success) {
+          toast({
+            title: "✅ Hoàn tất",
+            description: `Đã cập nhật và đồng bộ ${uploadResult.variantsUploaded || 0} variants lên TPOS`,
+          });
+        } else {
+          // Upload failed nhưng local DB đã update
+          toast({
+            title: "⚠️ Cảnh báo",
+            description: "Đã cập nhật local nhưng không thể đồng bộ TPOS: " + (uploadResult.error || "Unknown error"),
+            variant: "default",
+          });
+        }
+      } catch (uploadError: any) {
+        console.error("Upload to TPOS error:", uploadError);
+        toast({
+          title: "⚠️ Cảnh báo",
+          description: "Đã cập nhật local nhưng không thể đồng bộ TPOS: " + uploadError.message,
+          variant: "default",
+        });
       }
 
       setIsSubmitting(false);
-      toast({
-        title: "Thành công",
-        description: "Đã cập nhật sản phẩm và đồng bộ TPOS",
-      });
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
       setIsSubmitting(false);
       toast({
-        title: "Lỗi",
+        title: "❌ Lỗi",
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setUploadProgress('');
     }
   };
 
@@ -724,6 +751,15 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               </Table>
             </div>
           </div>
+
+          {/* Upload Progress */}
+          {uploadProgress && (
+            <Alert className="mb-4">
+              <AlertDescription className="text-sm">
+                ⏳ {uploadProgress}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* ===== PHẦN DƯỚI: Tabs ===== */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
