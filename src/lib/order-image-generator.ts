@@ -1,11 +1,47 @@
 import { toast } from "sonner";
 import { getVariantName } from "@/lib/variant-utils";
+import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * Migrate TPOS image to Supabase Storage and update database
+ */
+async function migrateTPOSImageToSupabase(
+  imageUrl: string,
+  productCode: string,
+  baseProductCode?: string | null
+): Promise<string | null> {
+  try {
+    console.log(`Attempting to migrate TPOS image for ${productCode}`);
+    
+    const { data, error } = await supabase.functions.invoke('migrate-tpos-image', {
+      body: {
+        imageUrl,
+        productCode,
+        baseProductCode
+      }
+    });
+
+    if (error) throw error;
+    
+    if (data?.newImageUrl) {
+      console.log(`Successfully migrated to: ${data.newImageUrl}`);
+      return data.newImageUrl;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Failed to migrate TPOS image:', error);
+    return null;
+  }
+}
 
 export const generateOrderImage = async (
   imageUrl: string,
   variant: string,
   quantity: number,
-  productName: string
+  productName: string,
+  productCode?: string,
+  baseProductCode?: string | null
 ): Promise<void> => {
   let blobUrl: string | null = null;
   
@@ -26,7 +62,23 @@ export const generateOrderImage = async (
         blobUrl = URL.createObjectURL(blob);
         imageToUse = blobUrl;
       } catch (fetchError) {
-        console.error("Error fetching TPOS image:", fetchError);
+        console.error("CORS error detected with TPOS image:", fetchError);
+        
+        // Attempt to migrate image to Supabase
+        if (productCode) {
+          toast.info("Đang chuyển ảnh sang Supabase...");
+          const newImageUrl = await migrateTPOSImageToSupabase(
+            imageUrl, 
+            productCode,
+            baseProductCode
+          );
+          
+          if (newImageUrl) {
+            toast.success("Đã chuyển ảnh thành công! Vui lòng thử lại.");
+            return;
+          }
+        }
+        
         toast.error("Không thể tải hình ảnh từ TPOS");
         return;
       }

@@ -1841,7 +1841,15 @@ export default function LiveProducts() {
                                     toast.error("Sản phẩm chưa có hình ảnh");
                                     return;
                                   }
-                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                                  const productDetail = productsDetailsMap.get(product.product_code);
+                                  await generateOrderImage(
+                                    product.image_url, 
+                                    product.variant || "", 
+                                    qty, 
+                                    product.product_name,
+                                    product.product_code,
+                                    productDetail?.base_product_code
+                                  );
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
@@ -2033,7 +2041,15 @@ export default function LiveProducts() {
                                 toast.error("Sản phẩm chưa có hình ảnh");
                                 return;
                               }
-                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                              const productDetail = productsDetailsMap.get(product.product_code);
+                              await generateOrderImage(
+                                product.image_url, 
+                                product.variant || "", 
+                                qty, 
+                                product.product_name,
+                                product.product_code,
+                                productDetail?.base_product_code
+                              );
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty

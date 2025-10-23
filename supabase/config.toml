@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.refresh-tpos-token]
 verify_jwt = false
+
+[functions.migrate-tpos-image]
+verify_jwt = false
