@@ -620,7 +620,9 @@ async function updateExistingProductVariants(
     
     const savePayload = {
       ...cleanData,
-      ProductVariants: previewData.value,
+      ListPrice: baseProduct.selling_price || 0,      // ✅ Sync giá bán MỚI từ DB
+      PurchasePrice: baseProduct.purchase_price || 0, // ✅ Sync giá mua MỚI từ DB
+      ProductVariants: previewData.value,             // ✅ Variants từ preview (TPOS tự sync giá)
       AttributeLines: attributeLines,
       Version: existingData.Version || 0
     };
