@@ -183,6 +183,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   // Load items when existingItems change
   useEffect(() => {
+    if (!open) return;
+    
     if (existingItems && existingItems.length > 0) {
       setItems(existingItems.map(item => ({
         id: item.id,
@@ -205,8 +207,8 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         _tempProductImages: item.product_images || [],
         _tempPriceImages: item.price_images || [],
       })));
-    } else if (open && existingItems) {
-      // If no existing items, add one empty row
+    } else if (existingItems !== undefined) {
+      // Query completed but no items, start with one empty row
       setItems([{
         product_code: "",
         product_name: "",
