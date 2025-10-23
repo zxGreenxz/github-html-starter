@@ -96,14 +96,17 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
       const viewportHeight = window.innerHeight;
       const zoomedHeight = 600;
       
+      // Calculate position for zoom
       let top = rect.top;
       
+      // If zoom would overflow bottom, adjust upward
       if (rect.top + zoomedHeight > viewportHeight) {
-        top = rect.bottom - zoomedHeight;
+        top = viewportHeight - zoomedHeight - 10;
       }
       
-      if (top < 0) {
-        top = rect.top;
+      // Ensure zoom doesn't overflow top
+      if (top < 10) {
+        top = 10;
       }
       
       setZoomPosition({
@@ -157,7 +160,6 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
             maxHeight: '600px',
             opacity: isZoomImageLoaded ? 1 : 0
           }}
-          onMouseEnter={handleMouseLeave}
         >
           {isZoomImageLoaded ? (
             <img

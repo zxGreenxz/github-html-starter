@@ -104,12 +104,23 @@ export function ProductImage({
       const viewportHeight = window.innerHeight;
       const zoomedHeight = 600;
       
-      const wouldOverflowBottom = rect.top + zoomedHeight > viewportHeight;
-      const wouldOverflowTop = rect.bottom - zoomedHeight < 0;
-      
+      // Default: align top of zoom with top of thumbnail
       let top = 0;
-      if (wouldOverflowBottom && !wouldOverflowTop) {
-        top = -(zoomedHeight - rect.height);
+      
+      // Check if zoom would overflow viewport bottom
+      const wouldOverflowBottom = rect.top + zoomedHeight > viewportHeight;
+      
+      // If overflow bottom, shift zoom up
+      if (wouldOverflowBottom) {
+        // Calculate how much to shift up to fit in viewport
+        const overflowAmount = (rect.top + zoomedHeight) - viewportHeight;
+        top = -overflowAmount - 10; // -10px for padding from bottom
+        
+        // But don't shift so far up that zoom goes above viewport top
+        const minTop = -rect.top + 10; // Keep 10px from top
+        if (top < minTop) {
+          top = minTop;
+        }
       }
       
       setZoomPosition({ top, left: 0 });
