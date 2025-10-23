@@ -892,19 +892,34 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       }
 
       // ✅ 2. Insert variant products vào kho
-      const variantProductsData = variants.map(v => ({
-        product_code: v.product_code,
-        product_name: v.product_name,
-        base_product_code: parentItem.product_code.trim().toUpperCase(),
-        variant: v.variant.toUpperCase(),
-        purchase_price: Number(v.purchase_price || 0) * 1000,
-        selling_price: Number(v.selling_price || 0) * 1000,
-        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-        product_images: v.product_images || [],
-        price_images: v.price_images || [],
-        stock_quantity: 0,
-        unit: 'Cái'
-      }));
+      // Check if only Size Số (attributeId = 4)
+      const hasOnlySizeNumber = attributeLines.length === 1 && 
+        attributeLines[0].attributeId === 4;
+
+      const variantProductsData = variants.map(v => {
+        let finalProductCode = v.product_code;
+        
+        // If only Size Số → Add "A" between base code and number
+        if (hasOnlySizeNumber) {
+          const baseCode = parentItem.product_code.trim().toUpperCase();
+          const sizeNumber = v.variant.toUpperCase();
+          finalProductCode = `${baseCode}A${sizeNumber}`;
+        }
+
+        return {
+          product_code: finalProductCode,
+          product_name: v.product_name,
+          base_product_code: parentItem.product_code.trim().toUpperCase(),
+          variant: v.variant.toUpperCase(),
+          purchase_price: Number(v.purchase_price || 0) * 1000,
+          selling_price: Number(v.selling_price || 0) * 1000,
+          supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
+          product_images: v.product_images || [],
+          price_images: v.price_images || [],
+          stock_quantity: 0,
+          unit: 'Cái'
+        };
+      });
 
       const { error: variantsError } = await supabase
         .from("products")
