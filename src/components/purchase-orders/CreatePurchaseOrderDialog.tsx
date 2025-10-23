@@ -1143,6 +1143,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </AlertDialog>
         </DialogHeader>
 
+        {/* Action Bar - Sticky at top */}
+        <div className="flex gap-2 justify-end border-b pb-3 mb-4 sticky top-0 bg-background z-10 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Hủy
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={() => saveDraftMutation.mutate()}
+            disabled={saveDraftMutation.isPending}
+          >
+            {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
+          </Button>
+          <Button 
+            onClick={() => createOrderMutation.mutate()}
+            disabled={createOrderMutation.isPending}
+          >
+            {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+          </Button>
+        </div>
+
         <div className="space-y-6">
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
@@ -1524,25 +1544,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 <span>{formatVND(finalAmount * 1000)}</span>
               </div>
             </div>
-          </div>
-
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Hủy
-            </Button>
-            <Button 
-              variant="secondary"
-              onClick={() => saveDraftMutation.mutate()}
-              disabled={saveDraftMutation.isPending}
-            >
-              {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
-            </Button>
-            <Button 
-              onClick={() => createOrderMutation.mutate()}
-              disabled={createOrderMutation.isPending}
-            >
-              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
-            </Button>
           </div>
         </div>
       </DialogContent>
