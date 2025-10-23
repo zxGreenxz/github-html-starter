@@ -80,35 +80,72 @@ export function VariantGeneratorDialog({
   // Parse variant string to attribute lines when dialog opens
   useEffect(() => {
     if (open && currentItem.variant) {
-      const variantArray = currentItem.variant
-        .split(',')
-        .map(v => v.trim())
-        .filter(v => v.length > 0);
-      
+      // Extract all groups in parentheses: "(S | M | L) (Đỏ | Xanh)" → ["S | M | L", "Đỏ | Xanh"]
+      const groupRegex = /\(([^)]+)\)/g;
+      const groups: string[] = [];
+      let match;
+      while ((match = groupRegex.exec(currentItem.variant)) !== null) {
+        groups.push(match[1]);
+      }
+
+      // If no groups found, try splitting by pipe directly (fallback for "S | M | L" without parentheses)
+      if (groups.length === 0 && currentItem.variant.includes('|')) {
+        groups.push(currentItem.variant);
+      }
+
+      // Parse each group into values
       const lines: AttributeLine[] = [];
       
-      ATTRIBUTES.forEach(attr => {
-        const values: string[] = [];
-        
-        variantArray.forEach(variant => {
-          const match = TPOS_ATTRIBUTES[attr.key].find(
-            item => item.Name.toUpperCase() === variant.toUpperCase()
-          );
-          if (match) {
-            values.push(match.Name);
+      groups.forEach(group => {
+        // Split by pipe and clean up
+        const values = group
+          .split('|')
+          .map(v => v.trim())
+          .filter(v => v.length > 0);
+
+        if (values.length === 0) return;
+
+        // Try to detect which attribute this group belongs to
+        let detectedAttributeId: number | null = null;
+        let detectedAttributeName: string | null = null;
+        const matchedValues: string[] = [];
+
+        // Check each attribute type
+        for (const attr of ATTRIBUTES) {
+          const matches: string[] = [];
+          
+          values.forEach(value => {
+            const match = TPOS_ATTRIBUTES[attr.key].find(
+              item => item.Name.toUpperCase() === value.toUpperCase()
+            );
+            if (match) {
+              matches.push(match.Name);
+            }
+          });
+
+          // If we found matches, this is the attribute
+          if (matches.length > 0) {
+            detectedAttributeId = attr.id;
+            detectedAttributeName = attr.name;
+            matchedValues.push(...matches);
+            break; // Stop after first match
           }
-        });
-        
-        if (values.length > 0) {
+        }
+
+        // Add to lines if we detected an attribute
+        if (detectedAttributeId && detectedAttributeName && matchedValues.length > 0) {
           lines.push({
-            attributeId: attr.id,
-            attributeName: attr.name,
-            values
+            attributeId: detectedAttributeId,
+            attributeName: detectedAttributeName,
+            values: matchedValues
           });
         }
       });
-      
+
       setAttributeLines(lines);
+    } else if (open) {
+      // Reset when opening without variant
+      setAttributeLines([]);
     }
   }, [open, currentItem.variant]);
 
