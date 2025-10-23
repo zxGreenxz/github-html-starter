@@ -17,6 +17,7 @@ import { syncVariantsFromTPOS } from "@/lib/tpos-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
+import { buildAttributeLines } from "@/lib/tpos-insertv2-builder";
 
 interface Product {
   id: string;
@@ -403,52 +404,96 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
       const existingProduct = await getResponse.json();
 
-      // B3: Build payload với OVERWRITE variants
+      // B3: Build AttributeLines from variants
+      const tposProductItems = variants.map(v => ({
+        id: v.id,
+        product_code: v.product_code,
+        base_product_code: v.base_product_code || parentProduct.product_code,
+        product_name: v.product_name,
+        variant: v.variant,
+        quantity: 1,
+        unit_price: v.purchase_price,
+        selling_price: v.selling_price,
+        product_images: null,
+        price_images: null,
+        purchase_order_id: "",
+        supplier_name: v.supplier_name || parentProduct.supplier_name || "",
+      }));
+
+      const attributeLines = buildAttributeLines(tposProductItems);
+
+      // B4: Build payload với OVERWRITE variants
       const variantTemplate = existingProduct.ProductVariants?.[0] || {};
 
       // Build ProductVariants hoàn toàn từ local data
-      const newProductVariants = variants.map((localVariant) => ({
-        Id: 0,
-        DefaultCode: localVariant.product_code,
-        NameTemplate: parentProduct.product_name,
-        Name: localVariant.product_name,
-        NameGet: `[${localVariant.product_code}] ${localVariant.product_name}`,
-        ListPrice: localVariant.selling_price || listPrice,
-        PurchasePrice: localVariant.purchase_price || purchasePrice,
-        StandardPrice: localVariant.purchase_price || purchasePrice,
-        PriceVariant: localVariant.selling_price || listPrice,
-        LstPrice: 0,
-        DiscountSale: null,
-        DiscountPurchase: null,
-        OldPrice: null,
-        IsDiscount: false,
-        EAN13: null,
-        Barcode: localVariant.barcode || localVariant.product_code,
-        QtyAvailable: 0,
-        VirtualAvailable: 0,
-        OutgoingQty: null,
-        IncomingQty: null,
-        ProductTmplId: tposProductId,
-        Type: "product",
-        SaleOK: true,
-        PurchaseOK: true,
-        Active: true,
-        AvailableInPOS: true,
-        InvoicePolicy: "order",
-        PurchaseMethod: "receive",
-        Tracking: variantTemplate.Tracking || null,
-        UOMId: variantTemplate.UOMId || 1,
-        UOMName: variantTemplate.UOMName || null,
-        UOMPOId: variantTemplate.UOMPOId || 1,
-        UOM: variantTemplate.UOM || null,
-        UOMPO: variantTemplate.UOMPO || null,
-        CategId: variantTemplate.CategId || 2,
-        CategName: variantTemplate.CategName || null,
-        Categ: variantTemplate.Categ || null,
-        POSCategId: variantTemplate.POSCategId || null,
-        POSCateg: variantTemplate.POSCateg || null,
-        AttributeValues: variantTemplate.AttributeValues || [],
-        DisplayAttributeValues: variantTemplate.DisplayAttributeValues || null,
+      const newProductVariants = variants.map((localVariant) => {
+        const variantText = localVariant.variant || "";
+        
+        // Build NameGet: [CODE] PARENT_NAME (VARIANT_TEXT)
+        const nameGet = variantText 
+          ? `[${localVariant.product_code}] ${parentProduct.product_name} (${variantText})`
+          : `[${localVariant.product_code}] ${parentProduct.product_name}`;
+        
+        // Build Name: PARENT_NAME (VARIANT_TEXT)
+        const name = variantText 
+          ? `${parentProduct.product_name} (${variantText})`
+          : parentProduct.product_name;
+
+        // Find matching AttributeValues from attributeLines
+        const attributeValues: any[] = [];
+        if (variantText && attributeLines.length > 0) {
+          for (const line of attributeLines) {
+            const matchingValue = line.Values.find((v: any) => 
+              variantText.includes(v.Name)
+            );
+            if (matchingValue) {
+              attributeValues.push(matchingValue);
+            }
+          }
+        }
+
+        return {
+          Id: 0,
+          DefaultCode: localVariant.product_code,
+          NameTemplate: parentProduct.product_name,
+          Name: name,
+          NameGet: nameGet,
+          ListPrice: localVariant.selling_price || listPrice,
+          PurchasePrice: localVariant.purchase_price || purchasePrice,
+          StandardPrice: localVariant.purchase_price || purchasePrice,
+          PriceVariant: localVariant.selling_price || listPrice,
+          LstPrice: 0,
+          DiscountSale: null,
+          DiscountPurchase: null,
+          OldPrice: null,
+          IsDiscount: false,
+          EAN13: null,
+          Barcode: localVariant.barcode || localVariant.product_code,
+          QtyAvailable: 0,
+          VirtualAvailable: 0,
+          OutgoingQty: null,
+          IncomingQty: null,
+          ProductTmplId: tposProductId,
+          Type: "product",
+          SaleOK: true,
+          PurchaseOK: true,
+          Active: true,
+          AvailableInPOS: true,
+          InvoicePolicy: "order",
+          PurchaseMethod: "receive",
+          Tracking: variantTemplate.Tracking || null,
+          UOMId: variantTemplate.UOMId || 1,
+          UOMName: variantTemplate.UOMName || null,
+          UOMPOId: variantTemplate.UOMPOId || 1,
+          UOM: variantTemplate.UOM || null,
+          UOMPO: variantTemplate.UOMPO || null,
+          CategId: variantTemplate.CategId || 2,
+          CategName: variantTemplate.CategName || null,
+          Categ: variantTemplate.Categ || null,
+          POSCategId: variantTemplate.POSCategId || null,
+          POSCateg: variantTemplate.POSCateg || null,
+          AttributeValues: attributeValues,
+          DisplayAttributeValues: attributeValues.map(av => `${av.AttributeName}: ${av.Name}`).join(", ") || null,
         Weight: 0,
         Volume: null,
         Version: 0,
@@ -486,14 +531,16 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         TaxAmount: null,
         Price: null,
         Error: null,
-      }));
+      };
+      });
 
-      // Build final payload
+      // Build final payload with AttributeLines
       const updatedPayload = {
         ...existingProduct,
         ListPrice: listPrice,
         PurchasePrice: purchasePrice,
         StandardPrice: purchasePrice,
+        AttributeLines: attributeLines,
         ProductVariants: newProductVariants,
       };
 
@@ -513,7 +560,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         throw new Error(`TPOS UpdateV2 failed: ${errorText.substring(0, 200)}`);
       }
 
-      console.log("✅ Đã đồng bộ thành công lên TPOS (overwrite variants)");
+      console.log("✅ Đã đồng bộ thành công lên TPOS với AttributeLines và NameGet chính xác");
     } catch (error: any) {
       console.error("❌ Lỗi khi sync TPOS:", error);
       toast({
