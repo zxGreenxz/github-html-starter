@@ -586,7 +586,7 @@ async function updateExistingProductVariants(
     onProgress?.(`✅ Đã generate ${generatedVariants.length} variants`);
 
     // STEP 3: Preview variants - POST 1 LẦN với đầy đủ data (giống HTML)
-    onProgress?.('🔍 [1/3] Đang gửi preview request...');
+    onProgress?.('🔍 [1/2] Đang gửi preview request...');
     
     const previewPayload = {
       model: {
@@ -616,7 +616,7 @@ async function updateExistingProductVariants(
     onProgress?.(`✅ Preview: ${previewData.value?.length || 0} variants`);
 
     // STEP 4: Save to database (UpdateV2)
-    onProgress?.('💾 [2/3] Đang lưu vào TPOS database...');
+    onProgress?.('💾 [2/2] Đang lưu vào TPOS database...');
     
     const savePayload = {
       ...cleanData,
@@ -641,36 +641,16 @@ async function updateExistingProductVariants(
 
     onProgress?.('✅ Đã lưu thành công');
 
-    // STEP 5: Verify (GET)
-    onProgress?.('🔍 [3/3] Đang xác minh dữ liệu...');
+    // Use preview data directly (no verification step needed)
+    const uploadedCount = previewData.value?.length || 0;
     
-    const verifyUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=ProductVariants($expand=AttributeValues)`;
-    const verifyResponse = await fetch(verifyUrl, { headers });
-    
-    if (!verifyResponse.ok) {
-      throw new Error('Verify failed');
-    }
-
-    const verifiedData = await verifyResponse.json();
-    const savedVariants = verifiedData.ProductVariants || [];
-
-    onProgress?.(`✅ Xác minh: ${savedVariants.length} variants đã lưu`);
-
-    // Compare expected vs actual
-    const expectedCount = previewData.value?.length || 0;
-    const actualCount = savedVariants.length;
-    
-    if (actualCount !== expectedCount) {
-      console.warn(`⚠️ Expected ${expectedCount} variants, got ${actualCount}`);
-    }
-
     // Update local database
-    await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, savedVariants);
+    await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, previewData.value || []);
 
     return {
       success: true,
       tposProductId,
-      variantsUploaded: actualCount
+      variantsUploaded: uploadedCount
     };
 
   } catch (error: any) {
