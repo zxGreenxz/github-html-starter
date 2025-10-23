@@ -807,9 +807,9 @@ export default function LiveProducts() {
       
       if (!ordersData || ordersData.length === 0) return [];
       
-      // Sort orders by session_index numerically (ascending)
+      // Sort orders by created_at (oldest first)
       const sortedOrdersData = [...ordersData].sort((a, b) => {
-        return a.session_index - b.session_index;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
       
       // Create comments map
