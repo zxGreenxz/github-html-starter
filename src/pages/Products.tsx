@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Download, RefreshCw } from "lucide-react";
+import { Package, Download, RefreshCw, Upload } from "lucide-react";
 import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { ImportProductsDialog } from "@/components/products/ImportProductsDialog
 import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
 import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
 import { SyncVariantsDialog } from "@/components/products/SyncVariantsDialog";
+import { BulkMigrateTPOSImagesDialog } from "@/components/products/BulkMigrateTPOSImagesDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -34,6 +35,7 @@ export default function Products() {
   const [isImportVariantsDialogOpen, setIsImportVariantsDialogOpen] = useState(false);
   const [isSyncTPOSDialogOpen, setIsSyncTPOSDialogOpen] = useState(false);
   const [isSyncVariantsDialogOpen, setIsSyncVariantsDialogOpen] = useState(false);
+  const [isMigrateTPOSDialogOpen, setIsMigrateTPOSDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -220,6 +222,15 @@ export default function Products() {
                 {isAdmin && (
                   <div className={`flex gap-2 ${isMobile ? "w-full flex-wrap" : ""}`}>
                     <Button
+                      onClick={() => setIsMigrateTPOSDialogOpen(true)}
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {isMobile ? "TPOS→SB" : "Chuyển Ảnh TPOS"}
+                    </Button>
+                    <Button
                       onClick={() => setIsImportDialogOpen(true)}
                       variant="outline"
                       size={isMobile ? "sm" : "default"}
@@ -339,6 +350,11 @@ export default function Products() {
           open={isSyncVariantsDialogOpen}
           onOpenChange={setIsSyncVariantsDialogOpen}
           onSuccess={refetch}
+        />
+        
+        <BulkMigrateTPOSImagesDialog
+          open={isMigrateTPOSDialogOpen}
+          onOpenChange={setIsMigrateTPOSDialogOpen}
         />
       </div>
     </div>
