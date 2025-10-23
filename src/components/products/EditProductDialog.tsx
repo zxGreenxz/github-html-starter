@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,13 +10,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
-import { Sparkles, Loader2, AlertCircle, Info } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Info, X } from "lucide-react";
 import { GeneratedVariant } from "@/lib/variant-generator";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import { syncVariantsFromTPOS } from "@/lib/tpos-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
+import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
+import { TPOS_ATTRIBUTE_IDS } from "@/lib/tpos-variant-attributes-compat";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Product {
   id: string;
@@ -57,6 +61,14 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     missingInTPOS: string[];
   } | null>(null);
   const [hasRunSync, setHasRunSync] = useState(false);
+  
+  // TPOS Edit States
+  const [tposProductData, setTposProductData] = useState<any>(null);
+  const [tposAttributeLines, setTposAttributeLines] = useState<any[]>([]);
+  const [showTPOSEditModal, setShowTPOSEditModal] = useState(false);
+  const [tposAttributeTab, setTposAttributeTab] = useState<"sizeText" | "color" | "sizeNumber">("sizeText");
+  const [isLoadingTPOS, setIsLoadingTPOS] = useState(false);
+  
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -237,8 +249,329 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       setHasRunSync(false);
       setSyncDiscrepancy(null);
       setLastSyncTime(null);
+      setTposProductData(null);
+      setTposAttributeLines([]);
     }
   }, [open]);
+
+  // ========== TPOS HELPER FUNCTIONS ==========
+  
+  const reconstructAttributeLines = (variants: any[]) => {
+    if (!variants || variants.length === 0) return [];
+
+    const attributeMap: Record<number, any> = {};
+
+    variants.forEach((variant) => {
+      if (variant.AttributeValues && variant.AttributeValues.length > 0) {
+        variant.AttributeValues.forEach((attrValue: any) => {
+          const attrId = attrValue.AttributeId;
+
+          if (!attributeMap[attrId]) {
+            attributeMap[attrId] = {
+              Attribute: {
+                Id: attrId,
+                Name: attrValue.AttributeName,
+                Code: null,
+                Sequence: null,
+                CreateVariant: true,
+              },
+              Values: [],
+              AttributeId: attrId,
+            };
+          }
+
+          const existingValue = attributeMap[attrId].Values.find(
+            (v: any) => v.Id === attrValue.Id
+          );
+          if (!existingValue) {
+            attributeMap[attrId].Values.push({
+              Id: attrValue.Id,
+              Name: attrValue.Name,
+              Code: attrValue.Code,
+              Sequence: attrValue.Sequence,
+              AttributeId: attrValue.AttributeId,
+              AttributeName: attrValue.AttributeName,
+              PriceExtra: null,
+              NameGet: attrValue.NameGet,
+              DateCreated: attrValue.DateCreated,
+            });
+          }
+        });
+      }
+    });
+
+    const attributeLines = Object.values(attributeMap);
+    attributeLines.forEach((line: any) => {
+      line.Values.sort((a: any, b: any) => {
+        if (a.Sequence !== null && b.Sequence !== null) {
+          return a.Sequence - b.Sequence;
+        }
+        return 0;
+      });
+    });
+
+    return attributeLines;
+  };
+
+  const generateVariantsFromAttributes = (
+    productName: string,
+    listPrice: number,
+    attributeLines: any[],
+    imageBase64?: string
+  ) => {
+    if (!attributeLines || attributeLines.length === 0) return [];
+
+    const combinations: any[][] = [];
+
+    function getCombinations(lines: any[], current: any[] = [], index = 0) {
+      if (index === lines.length) {
+        combinations.push([...current]);
+        return;
+      }
+      const line = lines[index];
+      for (const value of line.Values) {
+        current.push(value);
+        getCombinations(lines, current, index + 1);
+        current.pop();
+      }
+    }
+
+    getCombinations(attributeLines);
+
+    return combinations.map((attrs) => {
+      const variantName = attrs.map((a) => a.Name).join(", ");
+      return {
+        Id: 0,
+        DefaultCode: null,
+        NameTemplate: productName,
+        ProductTmplId: tposProductData?.Id || 0,
+        UOMId: 1,
+        UOMPOId: 1,
+        QtyAvailable: 0,
+        NameGet: `${productName} (${variantName})`,
+        Image: imageBase64,
+        PriceVariant: listPrice,
+        SaleOK: true,
+        PurchaseOK: true,
+        StandardPrice: listPrice,
+        Active: true,
+        Type: "product",
+        CategId: 2,
+        InvoicePolicy: "order",
+        Name: `${productName} (${variantName})`,
+        AvailableInPOS: true,
+        AttributeValues: attrs.map((a) => ({
+          Id: a.Id,
+          Name: a.Name,
+          AttributeId: a.AttributeId,
+          AttributeName: a.AttributeName,
+          NameGet: a.NameGet,
+        })),
+      };
+    });
+  };
+
+  const addTPOSAttributeValue = (type: keyof typeof TPOS_ATTRIBUTES, valueId: number) => {
+    const attrValues = TPOS_ATTRIBUTES[type];
+    const selectedValue = attrValues.find(v => v.Id === valueId);
+    if (!selectedValue) return;
+
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
+    
+    const attributeName = type === 'sizeText' ? "Size Chữ" 
+      : type === 'color' ? "Màu" 
+      : "Size Số";
+
+    const attributeCode = type === 'sizeText' ? 'SZCh' 
+      : type === 'color' ? 'Mau' 
+      : 'SZNu';
+
+    setTposAttributeLines(prev => {
+      const updated = [...prev];
+      let attrLine = updated.find(line => line.AttributeId === attributeId);
+      
+      if (!attrLine) {
+        attrLine = {
+          Attribute: {
+            Id: attributeId,
+            Name: attributeName,
+            Code: attributeCode,
+            Sequence: null,
+            CreateVariant: true,
+          },
+          Values: [],
+          AttributeId: attributeId,
+        };
+        updated.push(attrLine);
+      }
+
+      if (attrLine.Values.find((v: any) => v.Id === valueId)) {
+        toast({ variant: "destructive", title: "Giá trị đã tồn tại" });
+        return prev;
+      }
+
+      attrLine.Values.push({
+        Id: selectedValue.Id,
+        Name: selectedValue.Name,
+        Code: selectedValue.Code,
+        Sequence: selectedValue.Sequence,
+        AttributeId: attributeId,
+        AttributeName: attributeName,
+        PriceExtra: null,
+        NameGet: `${attributeName}: ${selectedValue.Name}`,
+        DateCreated: null,
+      });
+
+      return updated;
+    });
+  };
+
+  const removeTPOSAttributeValue = (type: keyof typeof TPOS_ATTRIBUTES, valueId: number) => {
+    const attributeId = type === 'sizeText' ? TPOS_ATTRIBUTE_IDS.SIZE_TEXT 
+      : type === 'color' ? TPOS_ATTRIBUTE_IDS.COLOR 
+      : TPOS_ATTRIBUTE_IDS.SIZE_NUMBER;
+    
+    setTposAttributeLines(prev => {
+      const updated = prev.map(line => {
+        if (line.AttributeId === attributeId) {
+          return {
+            ...line,
+            Values: line.Values.filter((v: any) => v.Id !== valueId)
+          };
+        }
+        return line;
+      }).filter(line => line.Values.length > 0);
+      
+      return updated;
+    });
+  };
+
+  const handleSaveTPOSAttributeLines = () => {
+    if (!tposProductData) return;
+
+    const newVariants = generateVariantsFromAttributes(
+      tposProductData.Name,
+      tposProductData.ListPrice || 0,
+      tposAttributeLines,
+      tposProductData.Image
+    );
+
+    setTposProductData({
+      ...tposProductData,
+      AttributeLines: tposAttributeLines,
+      ProductVariants: newVariants
+    });
+
+    setShowTPOSEditModal(false);
+    toast({
+      title: "✅ Thành công",
+      description: `Đã tạo ${newVariants.length} variants mới`
+    });
+  };
+
+  const fetchTPOSProductData = async () => {
+    if (!product?.tpos_product_id) return;
+    
+    setIsLoadingTPOS(true);
+    try {
+      const token = await getActiveTPOSToken();
+      if (!token) {
+        toast({
+          variant: "destructive",
+          title: "❌ Lỗi",
+          description: "Không có TPOS token"
+        });
+        return;
+      }
+      
+      const url = `https://tomato.tpos.vn/odata/ProductTemplate(${product.tpos_product_id})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+      
+      const response = await fetch(url, { headers: getTPOSHeaders(token) });
+      
+      if (!response.ok) {
+        throw new Error("Không tìm thấy sản phẩm TPOS");
+      }
+      
+      const data = await response.json();
+      setTposProductData(data);
+      
+      // Load AttributeLines
+      if (data.AttributeLines && data.AttributeLines.length > 0) {
+        setTposAttributeLines(JSON.parse(JSON.stringify(data.AttributeLines)));
+      } else if (data.ProductVariants && data.ProductVariants.length > 0) {
+        const reconstructed = reconstructAttributeLines(data.ProductVariants);
+        setTposAttributeLines(reconstructed);
+        toast({
+          title: "ℹ️ Thông báo",
+          description: "Đã tái tạo AttributeLines từ variants hiện có"
+        });
+      }
+      
+      toast({
+        title: "✅ Đã tải TPOS",
+        description: `${data.Name} (${data.ProductVariants?.length || 0} variants)`
+      });
+    } catch (error: any) {
+      console.error("Fetch TPOS error:", error);
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: error.message || "Không thể tải dữ liệu TPOS"
+      });
+    } finally {
+      setIsLoadingTPOS(false);
+    }
+  };
+
+  const submitTPOSUpdate = async () => {
+    if (!tposProductData) return;
+    
+    setIsSubmitting(true);
+    try {
+      const token = await getActiveTPOSToken();
+      if (!token) {
+        throw new Error("Không có TPOS token");
+      }
+      
+      const response = await fetch(
+        "https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2",
+        {
+          method: "POST",
+          headers: getTPOSHeaders(token),
+          body: JSON.stringify(tposProductData)
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Update failed: ${errorText.substring(0, 200)}`);
+      }
+      
+      toast({
+        title: "🎉 Thành công",
+        description: "Đã cập nhật sản phẩm lên TPOS"
+      });
+      
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: error.message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Fetch TPOS data when dialog opens and switches to tpos tab
+  useEffect(() => {
+    if (open && activeTab === "tpos" && product?.tpos_product_id && !tposProductData) {
+      fetchTPOSProductData();
+    }
+  }, [open, activeTab, product?.tpos_product_id]);
 
   const handleVariantTextGenerated = (variantText: string) => {
     setFormData({ ...formData, variant: variantText });
@@ -643,9 +976,10 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
           {/* ===== PHẦN DƯỚI: Tabs ===== */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="price">Giá</TabsTrigger>
               <TabsTrigger value="variants">Biến thể</TabsTrigger>
+              <TabsTrigger value="tpos">TPOS Sync</TabsTrigger>
               <TabsTrigger value="general">Thông tin chung</TabsTrigger>
             </TabsList>
 
@@ -825,7 +1159,100 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               )}
             </TabsContent>
 
-            {/* TAB 3: Thông tin chung */}
+            {/* TAB 3: TPOS Sync */}
+            <TabsContent value="tpos" className="space-y-4 mt-4">
+              {isLoadingTPOS ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <span>Đang tải dữ liệu TPOS...</span>
+                </div>
+              ) : tposProductData ? (
+                <div className="space-y-4">
+                  {/* TPOS Product Info */}
+                  <Alert>
+                    <AlertTitle>Sản phẩm TPOS</AlertTitle>
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <div><strong>ID:</strong> {tposProductData.Id}</div>
+                        <div><strong>Mã:</strong> {tposProductData.DefaultCode}</div>
+                        <div><strong>Tên:</strong> {tposProductData.Name}</div>
+                        <div><strong>Variants:</strong> {tposProductData.ProductVariants?.length || 0}</div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  
+                  {/* Edit Variants Button */}
+                  <Button 
+                    onClick={() => setShowTPOSEditModal(true)}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    📝 Chỉnh Sửa Biến Thể TPOS
+                  </Button>
+                  
+                  {/* Variants List */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">Danh sách variants ({tposProductData.ProductVariants?.length || 0})</h3>
+                    <ScrollArea className="h-[300px] border rounded-md">
+                      <div className="p-4 space-y-3">
+                        {tposProductData.ProductVariants?.map((variant: any, index: number) => (
+                          <div key={variant.Id || index} className="border p-3 rounded bg-muted/50">
+                            <p className="font-bold text-sm mb-2">{variant.Name}</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Giá Bán</Label>
+                                <Input
+                                  type="number"
+                                  value={variant.PriceVariant || 0}
+                                  onChange={(e) => {
+                                    const updated = {...tposProductData};
+                                    updated.ProductVariants[index].PriceVariant = parseFloat(e.target.value) || 0;
+                                    setTposProductData(updated);
+                                  }}
+                                  className="h-8"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Giá Mua</Label>
+                                <Input
+                                  type="number"
+                                  value={variant.StandardPrice || 0}
+                                  onChange={(e) => {
+                                    const updated = {...tposProductData};
+                                    updated.ProductVariants[index].StandardPrice = parseFloat(e.target.value) || 0;
+                                    setTposProductData(updated);
+                                  }}
+                                  className="h-8"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                  
+                  {/* Submit Button */}
+                  <Button 
+                    onClick={submitTPOSUpdate}
+                    disabled={isSubmitting}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {isSubmitting ? "⏳ Đang cập nhật..." : "💾 Cập Nhật Lên TPOS"}
+                  </Button>
+                </div>
+              ) : (
+                <Alert>
+                  <AlertDescription>
+                    {product?.tpos_product_id 
+                      ? "Nhấn vào tab này để tải dữ liệu TPOS" 
+                      : "Sản phẩm chưa có TPOS Product ID"}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </TabsContent>
+
+            {/* TAB 4: Thông tin chung */}
             <TabsContent value="general" className="space-y-4 mt-4">
               <div>
                 <Label htmlFor="unit">Đơn vị</Label>
@@ -917,6 +1344,126 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           onVariantsRegenerated={handleVariantsRegenerated}
         />
       )}
+
+      {/* TPOS Edit Attribute Modal */}
+      <Dialog open={showTPOSEditModal} onOpenChange={setShowTPOSEditModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📝 Chỉnh Sửa Biến Thể TPOS</DialogTitle>
+          </DialogHeader>
+          
+          <Tabs value={tposAttributeTab} onValueChange={(v) => setTposAttributeTab(v as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="sizeText">Size Chữ</TabsTrigger>
+              <TabsTrigger value="color">Màu</TabsTrigger>
+              <TabsTrigger value="sizeNumber">Size Số</TabsTrigger>
+            </TabsList>
+            
+            {/* Size Text Tab */}
+            <TabsContent value="sizeText" className="space-y-4">
+              <Select onValueChange={(v) => addTPOSAttributeValue("sizeText", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn size chữ --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TPOS_ATTRIBUTES.sizeText.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {tposAttributeLines
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.SIZE_TEXT)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeTPOSAttributeValue("sizeText", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+            
+            {/* Color Tab */}
+            <TabsContent value="color" className="space-y-4">
+              <Select onValueChange={(v) => addTPOSAttributeValue("color", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn màu --" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {TPOS_ATTRIBUTES.color.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {tposAttributeLines
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.COLOR)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeTPOSAttributeValue("color", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+            
+            {/* Size Number Tab */}
+            <TabsContent value="sizeNumber" className="space-y-4">
+              <Select onValueChange={(v) => addTPOSAttributeValue("sizeNumber", parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Chọn size số --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TPOS_ATTRIBUTES.sizeNumber.map(val => (
+                    <SelectItem key={val.Id} value={val.Id.toString()}>{val.Name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <div className="min-h-16 p-3 bg-muted rounded-lg flex flex-wrap gap-2">
+                {tposAttributeLines
+                  .find(line => line.AttributeId === TPOS_ATTRIBUTE_IDS.SIZE_NUMBER)
+                  ?.Values.map((val: any) => (
+                    <Badge key={val.Id} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white">
+                      {val.Name}
+                      <button
+                        onClick={() => removeTPOSAttributeValue("sizeNumber", val.Id)}
+                        className="ml-1 hover:bg-white/30 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )) || <p className="text-muted-foreground text-sm">Chưa có giá trị</p>}
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTPOSEditModal(false)}>
+              ❌ Hủy
+            </Button>
+            <Button 
+              onClick={handleSaveTPOSAttributeLines} 
+              className="bg-green-500 hover:bg-green-600 text-white"
+              disabled={tposAttributeLines.length === 0}
+            >
+              ✅ Tạo {tposAttributeLines.length > 0 ? tposAttributeLines.reduce((acc, line) => acc * line.Values.length, 1) : 0} Variants
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
