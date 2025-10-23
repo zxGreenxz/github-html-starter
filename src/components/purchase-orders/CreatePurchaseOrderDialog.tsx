@@ -802,6 +802,45 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
+  const handleProductNameBlur = async (index: number) => {
+    const item = items[index];
+    
+    // Only auto-generate if:
+    // 1. Product name is filled
+    // 2. Product code is empty
+    // 3. User hasn't manually edited the code (checkbox unchecked)
+    if (
+      item.product_name.trim() && 
+      !item.product_code.trim() && 
+      !manualProductCodes.has(index) &&
+      !enabledCodeEditing.has(index)
+    ) {
+      try {
+        const tempItems = items.map(i => ({ 
+          product_name: i.product_name, 
+          product_code: i.product_code 
+        }));
+        
+        const code = await generateProductCodeFromMax(item.product_name, tempItems);
+        
+        setItems(prev => {
+          const newItems = [...prev];
+          if (
+            newItems[index] && 
+            !newItems[index].product_code.trim() && 
+            !manualProductCodes.has(index) &&
+            !enabledCodeEditing.has(index)
+          ) {
+            newItems[index] = { ...newItems[index], product_code: code };
+          }
+          return newItems;
+        });
+      } catch (error) {
+        console.error("Error generating product code on blur:", error);
+      }
+    }
+  };
+
   const handleSelectProduct = async (product: any) => {
     if (currentItemIndex !== null) {
       const newItems = [...items];
@@ -1209,6 +1248,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           placeholder="Nhập tên sản phẩm"
                           value={item.product_name}
                           onChange={(e) => updateItem(index, "product_name", e.target.value)}
+                          onBlur={() => handleProductNameBlur(index)}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
                           rows={2}
                         />
