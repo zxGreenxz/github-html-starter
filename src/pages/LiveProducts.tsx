@@ -94,6 +94,7 @@ interface LiveProduct {
   sold_quantity: number;
   image_url?: string;
   created_at?: string;
+  updated_at?: string;
   note?: string | null;
   product_type?: 'hang_dat' | 'hang_le' | 'hang_so_luong';
 }
@@ -186,8 +187,7 @@ export default function LiveProducts() {
     return localStorage.getItem('liveProducts_activeTab') || "products";
   });
 
-  // Track product updates with timestamps (for sorting)
-  const [productUpdates, setProductUpdates] = useState<Record<string, number>>({});
+  // Removed productUpdates state - now using updated_at from database
 
   // Auto-print toggle state - persist in localStorage
   const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState(() => {
@@ -225,7 +225,6 @@ export default function LiveProducts() {
 
   // Helper function to increment order quantities when an order is added
   const handleOrderAdded = (productId: string, quantity: number) => {
-    setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }));
     setOrderQuantities(prev => ({
       ...prev,
       [productId]: (prev[productId] || 0) + quantity
@@ -266,8 +265,7 @@ export default function LiveProducts() {
       }).eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: (_, variables) => {
-      setProductUpdates(prev => ({ ...prev, [variables.productId]: Date.now() }));
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["live-products", selectedPhase, selectedSession]
       });
@@ -366,8 +364,8 @@ export default function LiveProducts() {
         const {
           data,
           error
-        } = await supabase.from("live_products").select("*").eq("live_session_id", selectedSession).order("created_at", {
-          ascending: true
+        } = await supabase.from("live_products").select("*").eq("live_session_id", selectedSession).order("updated_at", {
+          ascending: false
         });
         if (error) throw error;
 
@@ -383,37 +381,31 @@ export default function LiveProducts() {
               product_name: product.product_name,
               prepared_quantity: 0,
               sold_quantity: 0,
-              earliest_created_at: product.created_at
+              updated_at: product.updated_at,
             };
           }
 
-          // Update product_name if found earlier record
-          const currentCreatedAt = new Date(product.created_at || 0).getTime();
-          const earliestCreatedAt = new Date(acc[product.product_code].earliest_created_at || 0).getTime();
-          if (currentCreatedAt < earliestCreatedAt) {
-            acc[product.product_code].product_name = product.product_name;
-            acc[product.product_code].earliest_created_at = product.created_at;
+          // Track latest updated_at for the aggregated product
+          const currentUpdatedAt = new Date(product.updated_at || 0).getTime();
+          const latestUpdatedAt = new Date(acc[product.product_code].updated_at || 0).getTime();
+          if (currentUpdatedAt > latestUpdatedAt) {
+            acc[product.product_code].updated_at = product.updated_at;
           }
 
           // Sum quantities
           acc[product.product_code].prepared_quantity += product.prepared_quantity;
           acc[product.product_code].sold_quantity += product.sold_quantity;
           return acc;
-        }, {} as Record<string, LiveProduct & {
-          earliest_created_at?: string;
-        }>);
+        }, {} as Record<string, LiveProduct>);
         
         console.log(`✅ [PERF] live-products fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
-        return Object.values(aggregated).map(({
-          earliest_created_at,
-          ...product
-        }) => product);
+        return Object.values(aggregated);
       } else {
         // Fetch products for single phase
         const {
           data,
           error
-        } = await supabase.from("live_products").select("*").eq("live_phase_id", selectedPhase).order("created_at", {
+        } = await supabase.from("live_products").select("*").eq("live_phase_id", selectedPhase).order("updated_at", {
           ascending: false
         }).order("product_code", {
           ascending: true
@@ -697,20 +689,7 @@ export default function LiveProducts() {
     localStorage.setItem('liveProducts_activeTab', activeTab);
   }, [activeTab]);
 
-  // Clear old product updates when session changes (keep only last 24h)
-  useEffect(() => {
-    if (!selectedSession) return;
-    
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-    
-    setProductUpdates(prev => {
-      const filtered = Object.entries(prev)
-        .filter(([_, timestamp]) => timestamp > oneDayAgo)
-        .reduce((acc, [id, ts]) => ({ ...acc, [id]: ts }), {});
-      return filtered;
-    });
-  }, [selectedSession]);
+  // Removed old product updates cleanup - now using updated_at from database
 
   // Helper function to get color based on copy status
   const getCopyStatusColor = (copyCount: number, soldQuantity: number) => {
@@ -1120,8 +1099,7 @@ export default function LiveProducts() {
       } = await supabase.from("live_orders").delete().eq("id", orderId);
       if (error) throw error;
     },
-    onSuccess: (_, variables) => {
-      setProductUpdates(prev => ({ ...prev, [variables.productId]: Date.now() }));
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["live-orders", selectedPhase]
       });
@@ -1154,12 +1132,7 @@ export default function LiveProducts() {
       } = await supabase.from("live_products").delete().eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: (_, productId) => {
-      setProductUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[productId]; // Remove deleted product from tracking
-        return newUpdates;
-      });
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["live-products", selectedPhase]
       });
@@ -1496,8 +1469,7 @@ export default function LiveProducts() {
       }).eq('id', productId);
       if (error) throw error;
     },
-    onSuccess: (_, productId) => {
-      setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }));
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['live-products']
       });
@@ -1766,36 +1738,29 @@ export default function LiveProducts() {
                               product_code: product.base_product_code || product.product_code,
                               product_name: product.base_product_code ? product.product_name.split('(')[0].trim() : product.product_name,
                               products: [],
-                              earliest_created_at: product.created_at,
+                              latest_updated_at: product.updated_at,
                               base_product_code: product.base_product_code
                             };
                           }
                           groups[key].products.push(product);
-                          // Track earliest created_at for group sorting
-                          if (product.created_at && product.created_at < groups[key].earliest_created_at!) {
-                            groups[key].earliest_created_at = product.created_at;
+                          // Track latest updated_at for group sorting
+                          if (product.updated_at && product.updated_at > groups[key].latest_updated_at!) {
+                            groups[key].latest_updated_at = product.updated_at;
                           }
                           return groups;
-                        }, {} as Record<string, {
-                          product_code: string;
-                          product_name: string;
-                          products: LiveProduct[];
-                          earliest_created_at?: string;
-                          base_product_code?: string | null;
-                        }>);
+        }, {} as Record<string, {
+          product_code: string;
+          product_name: string;
+          products: LiveProduct[];
+          latest_updated_at?: string;
+          base_product_code?: string | null;
+        }>);
 
-                        // Sort groups by latest update timestamp or earliest created_at (newest first)
+                        // Sort groups by latest updated_at from database (newest first)
                         const sortedGroups = Object.values(productGroups).sort((a, b) => {
-                          // Get latest update timestamp for any product in the group
-                          const latestUpdateA = Math.max(
-                            ...a.products.map(p => productUpdates[p.id] || 0),
-                            new Date(a.earliest_created_at || 0).getTime()
-                          );
-                          const latestUpdateB = Math.max(
-                            ...b.products.map(p => productUpdates[p.id] || 0),
-                            new Date(b.earliest_created_at || 0).getTime()
-                          );
-                          return latestUpdateB - latestUpdateA; // Descending: newest first
+                          const timeA = new Date(a.latest_updated_at || 0).getTime();
+                          const timeB = new Date(b.latest_updated_at || 0).getTime();
+                          return timeB - timeA; // Descending: newest first
                         });
                         return sortedGroups.flatMap(group => {
                           // Sort products within group by variant name first, then by created_at
@@ -2000,10 +1965,10 @@ export default function LiveProducts() {
                       // Use memoized filtered products
                       const filteredProducts = filteredLiveProducts;
 
-                      // Sort by latest update timestamp or created_at (newest first)
+                      // Sort by latest updated_at from database (newest first)
                       const sortedProducts = [...filteredProducts].sort((a, b) => {
-                        const timeA = productUpdates[a.id] || new Date(a.created_at || 0).getTime();
-                        const timeB = productUpdates[b.id] || new Date(b.created_at || 0).getTime();
+                        const timeA = new Date(a.updated_at || 0).getTime();
+                        const timeB = new Date(b.updated_at || 0).getTime();
                         return timeB - timeA; // Descending: newest first
                       });
                       return sortedProducts.map(product => {
@@ -2814,7 +2779,6 @@ export default function LiveProducts() {
         open={isEditProductOpen} 
         onOpenChange={setIsEditProductOpen} 
         product={editingProduct} 
-        onSuccess={(productId) => setProductUpdates(prev => ({ ...prev, [productId]: Date.now() }))}
       />
 
       <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
