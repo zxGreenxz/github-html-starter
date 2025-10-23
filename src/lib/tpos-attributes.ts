@@ -80,6 +80,9 @@ export const TPOS_ATTRIBUTES = {
     { Id: 100, Name: "Hồng Đào", Code: "hongdao", Sequence: null },
     { Id: 101, Name: "Hồng Đất", Code: "hongdat", Sequence: null },
     { Id: 102, Name: "Tím Đậm", Code: "timdam", Sequence: null },
+    { Id: 103, Name: "SỌC ĐỎ", Code: "socdo", Sequence: null },
+    { Id: 104, Name: "SỌC NÂU", Code: "socnau", Sequence: null },
+    { Id: 105, Name: "Sọc Trắng To", Code: "soctrangto", Sequence: null },
   ],
   sizeNumber: [
     { Id: 22, Name: "1", Code: "1", Sequence: null },
