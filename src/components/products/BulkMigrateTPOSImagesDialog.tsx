@@ -58,23 +58,44 @@ export function BulkMigrateTPOSImagesDialog({ open, onOpenChange }: BulkMigrateT
 
   const fetchProductsToMigrate = async () => {
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, product_code, tpos_product_id, tpos_image_url")
-        .not("tpos_product_id", "is", null)
-        .not("tpos_image_url", "is", null)
-        .order("created_at", { ascending: false });
+      addLog(`🔍 Đang tải danh sách sản phẩm...`);
+      
+      // Pagination loop để fetch tất cả products
+      let allProducts: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_code, tpos_product_id, tpos_image_url")
+          .not("tpos_product_id", "is", null)
+          .not("tpos_image_url", "is", null)
+          .range(from, from + pageSize - 1)
+          .order("created_at", { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        if (!data || data.length === 0) break;
+        
+        allProducts = [...allProducts, ...data];
+        addLog(`📥 Đã tải ${allProducts.length} sản phẩm...`);
+        
+        // Nếu page này có ít hơn pageSize records = đây là page cuối
+        if (data.length < pageSize) break;
+        
+        from += pageSize;
+      }
 
       // Filter out already migrated (Supabase URLs)
-      const toMigrate = data.filter(p => !p.tpos_image_url.includes('supabase.co/storage'));
+      const toMigrate = allProducts.filter(p => !p.tpos_image_url.includes('supabase.co/storage'));
       
       setProductsToMigrate(toMigrate);
       setStats(prev => ({ ...prev, total: toMigrate.length }));
-      addLog(`📊 Tìm thấy ${toMigrate.length} sản phẩm cần chuyển ảnh`);
+      addLog(`📊 Tìm thấy ${toMigrate.length} sản phẩm cần chuyển ảnh (từ ${allProducts.length} sản phẩm có TPOS image)`);
     } catch (error: any) {
       toast.error("Lỗi khi tải danh sách sản phẩm");
+      addLog(`❌ Lỗi: ${error.message}`);
       console.error(error);
     }
   };
