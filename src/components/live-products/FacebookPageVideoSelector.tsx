@@ -149,9 +149,24 @@ export function FacebookPageVideoSelector({
                 value={selectedVideoId} 
                 onValueChange={handleVideoChange}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn video" />
-                </SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn video">
+                  {selectedVideoId && (() => {
+                    const selectedVideo = facebookVideos.find(v => v.objectId === selectedVideoId);
+                    if (!selectedVideo) {
+                      return <span className="text-muted-foreground">Video ID: {selectedVideoId.slice(0, 20)}...</span>;
+                    }
+                    return (
+                      <div className="flex items-center gap-2">
+                        {selectedVideo.statusLive === 1 && (
+                          <Badge variant="destructive" className="text-xs shrink-0">🔴 LIVE</Badge>
+                        )}
+                        <span className="truncate">{selectedVideo.title}</span>
+                      </div>
+                    );
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {facebookVideos.map(video => (
                     <SelectItem 
