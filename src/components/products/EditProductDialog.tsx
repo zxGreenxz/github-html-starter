@@ -171,6 +171,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               value={formData.base_product_code}
               onChange={(e) => setFormData({ ...formData, base_product_code: e.target.value })}
               placeholder="Nhập mã sản phẩm cha"
+              disabled
               required
             />
             <p className="text-xs text-muted-foreground mt-1">
