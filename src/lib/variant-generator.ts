@@ -183,16 +183,6 @@ export function generateSKU(
 ): string {
   let code = baseCode;
 
-  // Kiểm tra xem có PHẢI CHỈ có Size Số không
-  // Size Số có AttributeId = 3 (theo TPOS_ATTRIBUTES_DATA)
-  const hasOnlySizeNumber = attrs.length > 0 && 
-    attrs.every(attr => attr.AttributeId === 3);
-
-  // Nếu chỉ có Size Số → Thêm "A" vào sau base code
-  if (hasOnlySizeNumber) {
-    code += "A";
-  }
-
   // Duyệt theo thứ tự tự nhiên của attrs
   for (const attr of attrs) {
     const attrCode = attr.Code || attr.Name;
