@@ -351,7 +351,7 @@ const PurchaseOrders = () => {
     }
   };
 
-  const handleExportPurchaseExcel = () => {
+  const handleExportPurchaseExcel = async () => {
     // Use selected orders if any, otherwise use filtered orders
     const ordersToExport = selectedOrders.length > 0 
       ? orders?.filter(order => selectedOrders.includes(order.id)) || []
@@ -401,8 +401,41 @@ const PurchaseOrders = () => {
     }
 
     try {
+      // Get all unique product codes
+      const allProductCodes = [...new Set(products.map(p => p.product_code))];
+
+      // Query all children in one go for efficiency
+      const { data: allChildren } = await supabase
+        .from('products')
+        .select('product_code, base_product_code')
+        .in('base_product_code', allProductCodes);
+
+      // Group children by base_product_code
+      const childrenMap: Record<string, any[]> = {};
+      allChildren?.forEach(child => {
+        if (!childrenMap[child.base_product_code]) {
+          childrenMap[child.base_product_code] = [];
+        }
+        childrenMap[child.base_product_code].push(child);
+      });
+
+      // Expand parent products into child variants
+      const expandedProducts = products.flatMap(item => {
+        const children = childrenMap[item.product_code] || [];
+        if (children.length > 0) {
+          // Parent has children → Replace with children, each with quantity = 1
+          return children.map(child => ({
+            ...item,
+            product_code: child.product_code,
+            quantity: 1
+          }));
+        }
+        // No children → Keep original item
+        return [item];
+      });
+
       // Calculate discount percentage for each item
-      const excelData = products.map(item => {
+      const excelData = expandedProducts.map(item => {
         return {
           "Mã sản phẩm (*)": item.product_code?.toString() || "",
           "Số lượng (*)": item.quantity || 0,
