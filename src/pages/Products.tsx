@@ -15,6 +15,7 @@ import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVarian
 import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
 import { SyncVariantsDialog } from "@/components/products/SyncVariantsDialog";
 import { BulkUploadImagesDialog } from "@/components/products/BulkUploadImagesDialog";
+import { BulkMigrateTPOSImagesDialog } from "@/components/products/BulkMigrateTPOSImagesDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -36,6 +37,7 @@ export default function Products() {
   const [isSyncTPOSDialogOpen, setIsSyncTPOSDialogOpen] = useState(false);
   const [isSyncVariantsDialogOpen, setIsSyncVariantsDialogOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isMigrateDialogOpen, setIsMigrateDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -231,6 +233,15 @@ export default function Products() {
                       Upload Ảnh
                     </Button>
                     <Button
+                      onClick={() => setIsMigrateDialogOpen(true)}
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {isMobile ? "Migrate" : "Chuyển Ảnh TPOS"}
+                    </Button>
+                    <Button
                       onClick={() => setIsImportDialogOpen(true)}
                       variant="outline"
                       size={isMobile ? "sm" : "default"}
@@ -356,6 +367,15 @@ export default function Products() {
           open={isBulkUploadOpen}
           onOpenChange={setIsBulkUploadOpen}
           onSuccess={refetch}
+        />
+        
+        <BulkMigrateTPOSImagesDialog
+          open={isMigrateDialogOpen}
+          onOpenChange={setIsMigrateDialogOpen}
+          onComplete={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["products-stats"] });
+          }}
         />
       </div>
     </div>
