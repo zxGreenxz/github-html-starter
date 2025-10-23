@@ -12,7 +12,6 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { toVietnamTime, nowVietnamISO } from "@/lib/date-utils";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { ZoomableImage } from "@/components/products/ZoomableImage";
-import { useImageBlob } from "@/hooks/use-image-blob";
 import {
   DndContext,
   closestCenter,
@@ -105,9 +104,6 @@ function SortableProductItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // Convert image to blob for CORS-free interaction
-  const displayImageUrl = useImageBlob(product.productInfo?.image_url);
-
   return (
     <div
       ref={setNodeRef}
@@ -151,7 +147,7 @@ function SortableProductItem({
       
       {/* Product thumbnail */}
       <ZoomableImage
-        src={displayImageUrl}
+        src={product.productInfo?.image_url}
         alt={product.productInfo?.name || "Product"}
         size="sm"
       />
