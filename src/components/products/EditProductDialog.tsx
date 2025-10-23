@@ -139,8 +139,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       });
 
       setShowVariantGenerator(false);
-      onSuccess();
-      onOpenChange(false);
+      onSuccess(); // Refresh product list
     } catch (error: any) {
       console.error("Error regenerating variants:", error);
       toast({
