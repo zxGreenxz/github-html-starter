@@ -241,6 +241,42 @@ serve(async (req) => {
             return baseData;
           });
           
+          // ========== OPTIMIZATION: Pre-fill session_index to avoid trigger overhead ==========
+          const uniqueUserIds = [...new Set(commentsToInsert.map((c: any) => c.facebook_user_id).filter(Boolean))];
+          
+          if (uniqueUserIds.length > 0) {
+            console.log(`🔍 Looking up session_index for ${uniqueUserIds.length} users...`);
+            
+            const { data: existingSessions } = await supabaseClient
+              .from('facebook_comments_archive')
+              .select('facebook_user_id, session_index')
+              .eq('facebook_post_id', postId)
+              .in('facebook_user_id', uniqueUserIds)
+              .not('session_index', 'is', null);
+            
+            // Build lookup map
+            const sessionIndexMap = new Map<string, string>();
+            if (existingSessions) {
+              existingSessions.forEach((row: any) => {
+                if (row.facebook_user_id && row.session_index) {
+                  sessionIndexMap.set(row.facebook_user_id, row.session_index);
+                }
+              });
+            }
+            
+            console.log(`✅ Found ${sessionIndexMap.size} existing session_index values`);
+            
+            // Apply to comments
+            commentsToInsert.forEach((comment: any) => {
+              if (!comment.session_index && comment.facebook_user_id) {
+                const existingIndex = sessionIndexMap.get(comment.facebook_user_id);
+                if (existingIndex) {
+                  comment.session_index = existingIndex;
+                }
+              }
+            });
+          }
+          
           const { error: archiveError } = await supabaseClient
             .from('facebook_comments_archive')
             .upsert(commentsToInsert, {
