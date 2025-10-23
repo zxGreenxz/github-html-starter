@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Package } from "lucide-react";
 import { toast } from "sonner";
+import { useImageBlob } from "@/hooks/use-image-blob";
 
 interface ZoomableImageProps {
   src?: string | null;
@@ -13,18 +14,25 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
 
+  // Convert to blob for CORS-free interaction
+  const displayUrl = useImageBlob(src);
+
   const handleImageClick = async () => {
-    if (!src) return;
+    if (!displayUrl) return;
     
     try {
-      // Create a canvas to handle CORS issues
+      // Fetch image as blob (displayUrl might already be blob URL)
+      const response = await fetch(displayUrl);
+      if (!response.ok) throw new Error("Failed to fetch image");
+      
+      const blob = await response.blob();
       const img = new Image();
-      img.crossOrigin = "anonymous";
+      const objectUrl = URL.createObjectURL(blob);
       
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
-        img.src = src;
+        img.src = objectUrl;
       });
       
       const canvas = document.createElement("canvas");
@@ -32,12 +40,18 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
       canvas.height = img.height;
       
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Could not get canvas context");
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        throw new Error("Could not get canvas context");
+      }
       
       ctx.drawImage(img, 0, 0);
       
+      // Clean up object URL
+      URL.revokeObjectURL(objectUrl);
+      
       // Convert canvas to blob
-      const blob = await new Promise<Blob>((resolve, reject) => {
+      const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error("Could not create blob"));
@@ -45,7 +59,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
       });
       
       await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": blob })
+        new ClipboardItem({ "image/png": pngBlob })
       ]);
       
       toast.success("Đã copy ảnh vào clipboard!");
@@ -93,7 +107,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
     setIsZoomed(false);
   };
 
-  if (!src) {
+  if (!displayUrl) {
     return (
       <div className={`${sizeClasses[size]} bg-muted rounded flex items-center justify-center`}>
         <Package className="h-6 w-6 text-muted-foreground" />
@@ -105,7 +119,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
     <div className="relative">
       <img
         ref={imgRef}
-        src={src}
+        src={displayUrl}
         alt={alt}
         className={`${sizeClasses[size]} object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80`}
         onMouseEnter={handleMouseEnter}
@@ -125,7 +139,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
           onMouseEnter={handleMouseLeave}
         >
           <img
-            src={src}
+            src={displayUrl}
             alt={alt}
             className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
           />

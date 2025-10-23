@@ -12,6 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatVietnamTime } from "@/lib/date-utils";
+import { useImageBlob } from "@/hooks/use-image-blob";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +119,41 @@ export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
     setTimeout(() => setShowSuggestions(false), 200);
   };
 
+  // Helper component for suggestion items with blob conversion
+  function SuggestionItem({ product, imageUrl, onSelect }: { 
+    product: any; 
+    imageUrl: string | null; 
+    onSelect: (code: string) => void;
+  }) {
+    const displayUrl = useImageBlob(imageUrl);
+    
+    return (
+      <button
+        onClick={() => onSelect(product.product_code)}
+        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded text-left"
+      >
+        {displayUrl ? (
+          <img
+            src={displayUrl}
+            alt={product.product_name}
+            className="w-8 h-8 rounded object-cover flex-shrink-0"
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.svg';
+            }}
+          />
+        ) : (
+          <div className="w-8 h-8 bg-muted rounded flex items-center justify-center flex-shrink-0">
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{product.product_name}</p>
+          <p className="text-xs text-muted-foreground truncate">{product.product_code}</p>
+        </div>
+      </button>
+    );
+  }
+
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);
   };
@@ -188,32 +224,17 @@ export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
               <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
                 <ScrollArea className="max-h-[200px]">
                   <div className="p-1">
-                    {productSuggestions.map((product) => (
-                      <button
-                        key={product.id}
-                        onClick={() => handleSelectSuggestion(product.product_code)}
-                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded text-left"
-                      >
-                        {product.tpos_image_url || (product.product_images && product.product_images[0]) ? (
-                          <img
-                            src={product.tpos_image_url || product.product_images[0]}
-                            alt={product.product_name}
-                            className="w-8 h-8 rounded object-cover flex-shrink-0"
-                            onError={(e) => {
-                              e.currentTarget.src = '/placeholder.svg';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-8 h-8 bg-muted rounded flex items-center justify-center flex-shrink-0">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{product.product_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{product.product_code}</p>
-                        </div>
-                      </button>
-                    ))}
+                    {productSuggestions.map((product) => {
+                      const imageUrl = product.tpos_image_url || (product.product_images && product.product_images[0]);
+                      return (
+                        <SuggestionItem
+                          key={product.id}
+                          product={product}
+                          imageUrl={imageUrl}
+                          onSelect={handleSelectSuggestion}
+                        />
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
@@ -297,32 +318,17 @@ export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
               <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
                 <ScrollArea className="max-h-[200px]">
                   <div className="p-1">
-                    {productSuggestions.map((product) => (
-                      <button
-                        key={product.id}
-                        onClick={() => handleSelectSuggestion(product.product_code)}
-                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded text-left"
-                      >
-                        {product.tpos_image_url || (product.product_images && product.product_images[0]) ? (
-                          <img
-                            src={product.tpos_image_url || product.product_images[0]}
-                            alt={product.product_name}
-                            className="w-8 h-8 rounded object-cover flex-shrink-0"
-                            onError={(e) => {
-                              e.currentTarget.src = '/placeholder.svg';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-8 h-8 bg-muted rounded flex items-center justify-center flex-shrink-0">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{product.product_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{product.product_code}</p>
-                        </div>
-                      </button>
-                    ))}
+                    {productSuggestions.map((product) => {
+                      const imageUrl = product.tpos_image_url || (product.product_images && product.product_images[0]);
+                      return (
+                        <SuggestionItem
+                          key={product.id}
+                          product={product}
+                          imageUrl={imageUrl}
+                          onSelect={handleSelectSuggestion}
+                        />
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
@@ -331,23 +337,25 @@ export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
           
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
-              {scannedBarcodes.map((barcode: ScannedBarcode, index: number) => (
-                <div
-                  key={`${barcode.code}-${index}`}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                >
-                  {barcode.productInfo?.image_url ? (
-                    <img
-                      src={barcode.productInfo.image_url}
-                      alt={barcode.productInfo.name}
-                      className="w-12 h-12 rounded object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
-                      <Package className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-                    </div>
-                  )}
+              {scannedBarcodes.map((barcode: ScannedBarcode, index: number) => {
+                const displayImageUrl = useImageBlob(barcode.productInfo?.image_url);
+                return (
+                  <div
+                    key={`${barcode.code}-${index}`}
+                    className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                  >
+                    {displayImageUrl ? (
+                      <img
+                        src={displayImageUrl}
+                        alt={barcode.productInfo?.name}
+                        className="w-12 h-12 rounded object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
+                        <Package className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                      </div>
+                    )}
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
@@ -380,7 +388,8 @@ export function ScannedBarcodesPanel({ sessionId }: ScannedBarcodesPanelProps) {
                     </p>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           </ScrollArea>
         </CardContent>
