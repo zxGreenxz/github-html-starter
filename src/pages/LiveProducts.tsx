@@ -1853,10 +1853,8 @@ export default function LiveProducts() {
                                       {(() => {
                                   const productOrders = selectedPhase === "all" ? ordersWithProducts.filter(order => order.product_code === product.product_code) : ordersWithProducts.filter(order => order.live_product_id === product.id);
 
-                                  // Reverse to show newest on the right
-                                  const ordersReversed = [...productOrders].reverse();
                                   return <>
-                                            {ordersReversed.map(order => {
+                                            {productOrders.map(order => {
                                       const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts, ordersWithProducts);
                                       const badgeVariant = isOversell ? "destructive" : order.uploaded_at ? "secondary" : "default";
                                       const getCustomerStatusColor = (status?: string) => {
@@ -2044,9 +2042,8 @@ export default function LiveProducts() {
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {(() => {
                               const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
-                              const ordersReversed = [...productOrders].reverse();
                               return <>
-                                      {ordersReversed.map(order => {
+                                      {productOrders.map(order => {
                                   const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts || [], ordersWithProducts);
                                   let badgeColor = "bg-blue-100 text-blue-700 hover:bg-blue-200";
                                   if (isOversell) {
