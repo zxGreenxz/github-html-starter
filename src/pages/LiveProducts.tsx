@@ -1508,37 +1508,6 @@ export default function LiveProducts() {
     });
     toast.success("Đã làm mới danh sách sản phẩm");
   };
-  // Helper function to get actual image URL (including parent fallback)
-  const getActualImageUrl = (product: LiveProduct): string | null => {
-    // Priority 1: Direct image_url from live_products
-    if (product.image_url) return product.image_url;
-    
-    // Priority 2: From productsDetailsMap
-    const details = productsDetailsMap.get(product.product_code);
-    if (!details) return null;
-    
-    // Priority 3: product_images array
-    if (details.product_images && details.product_images.length > 0) {
-      return details.product_images[0];
-    }
-    
-    // Priority 4: tpos_image_url
-    if (details.tpos_image_url) return details.tpos_image_url;
-    
-    // Priority 5: Parent image (if this is a variant)
-    if (details.base_product_code && details.base_product_code !== product.product_code) {
-      const parentDetails = productsDetailsMap.get(details.base_product_code);
-      if (parentDetails) {
-        if (parentDetails.product_images && parentDetails.product_images.length > 0) {
-          return parentDetails.product_images[0];
-        }
-        if (parentDetails.tpos_image_url) return parentDetails.tpos_image_url;
-      }
-    }
-    
-    return null;
-  };
-
   const getPhaseDisplayName = (phase: LivePhase) => {
     const date = new Date(phase.phase_date);
     const dayNumber = Math.floor((date.getTime() - new Date(livePhases[0]?.phase_date || phase.phase_date).getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -1838,14 +1807,11 @@ export default function LiveProducts() {
                                     toast.error("Số lượng phải lớn hơn 0");
                                     return;
                                   }
-                                  
-                                  const actualImageUrl = getActualImageUrl(product);
-                                  if (!actualImageUrl) {
+                                  if (!product.image_url) {
                                     toast.error("Sản phẩm chưa có hình ảnh");
                                     return;
                                   }
-                                  
-                                  await generateOrderImage(actualImageUrl, product.variant || "", qty, product.product_name);
+                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
@@ -1856,7 +1822,7 @@ export default function LiveProducts() {
                                     ...prev,
                                     [product.id]: 0
                                   }));
-                                }} disabled={!getActualImageUrl(product)} title={getActualImageUrl(product) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                                }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                         <Copy className="h-3 w-3" />
                                       </Button>
                                       <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
@@ -2033,14 +1999,11 @@ export default function LiveProducts() {
                                 toast.error("Số lượng phải lớn hơn 0");
                                 return;
                               }
-                              
-                              const actualImageUrl = getActualImageUrl(product);
-                              if (!actualImageUrl) {
+                              if (!product.image_url) {
                                 toast.error("Sản phẩm chưa có hình ảnh");
                                 return;
                               }
-                              
-                              await generateOrderImage(actualImageUrl, product.variant || "", qty, product.product_name);
+                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty
@@ -2050,7 +2013,7 @@ export default function LiveProducts() {
                                 ...prev,
                                 [product.id]: 0
                               }));
-                            }} disabled={!getActualImageUrl(product)} title={getActualImageUrl(product) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                            }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                   <Copy className="h-3 w-3" />
                                 </Button>
                                  <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
