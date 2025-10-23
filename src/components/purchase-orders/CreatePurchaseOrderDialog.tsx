@@ -79,6 +79,7 @@ interface PurchaseOrderItem {
   selling_price: number | string;
   product_images: string[];
   price_images: string[];
+  tpos_product_id?: number | null;
   
   // UI only
   _tempTotalPrice: number;
@@ -133,7 +134,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
-  const [enabledCodeEditing, setEnabledCodeEditing] = useState<Set<number>>(new Set());
   const [validationDialogState, setValidationDialogState] = useState<{
     open: boolean;
     itemIndex: number;
@@ -172,6 +172,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           selling_price: (item.selling_price || 0) / 1000,
           product_images: item.product_images || [],
           price_images: item.price_images || [],
+          tpos_product_id: item.tpos_product_id || null,
           _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
         }));
         setItems(loadedItems);
@@ -184,12 +185,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
-      // Only auto-generate if user hasn't manually focused on the product_code field AND checkbox is unchecked
+      // Only auto-generate if user hasn't manually focused on the product_code field and not uploaded to TPOS
       if (
         item.product_name.trim() && 
         !item.product_code.trim() && 
         !manualProductCodes.has(index) &&
-        !enabledCodeEditing.has(index)
+        !item.tpos_product_id
       ) {
         try {
           const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
@@ -200,7 +201,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               newItems[index] && 
               !newItems[index].product_code.trim() && 
               !manualProductCodes.has(index) &&
-              !enabledCodeEditing.has(index)
+              !newItems[index].tpos_product_id
             ) {
               newItems[index] = { ...newItems[index], product_code: code };
             }
@@ -211,7 +212,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
     });
-  }, [debouncedProductNames, manualProductCodes, enabledCodeEditing]);
+  }, [debouncedProductNames, manualProductCodes]);
 
   // Validation: Check if product code gap > 10
   const validateProductCodeGap = async (productCode: string, itemIndex: number) => {
@@ -259,13 +260,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   // Debounced validation trigger
   const debouncedProductCodes = useDebounce(
-    items.map((item, idx) => enabledCodeEditing.has(idx) ? item.product_code : '').join('|'),
+    items.map((item) => !item.tpos_product_id ? item.product_code : '').join('|'),
     500
   );
 
   useEffect(() => {
     items.forEach((item, index) => {
-      if (enabledCodeEditing.has(index) && item.product_code.trim()) {
+      if (!item.tpos_product_id && item.product_code.trim()) {
         validateProductCodeGap(item.product_code, index);
       }
     });
@@ -808,12 +809,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     // Only auto-generate if:
     // 1. Product name is filled
     // 2. Product code is empty
-    // 3. User hasn't manually edited the code (checkbox unchecked)
+    // 3. User hasn't manually edited the code
+    // 4. Not uploaded to TPOS yet
     if (
       item.product_name.trim() && 
       !item.product_code.trim() && 
       !manualProductCodes.has(index) &&
-      !enabledCodeEditing.has(index)
+      !item.tpos_product_id
     ) {
       try {
         const tempItems = items.map(i => ({ 
@@ -829,7 +831,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             newItems[index] && 
             !newItems[index].product_code.trim() && 
             !manualProductCodes.has(index) &&
-            !enabledCodeEditing.has(index)
+            !newItems[index].tpos_product_id
           ) {
             newItems[index] = { ...newItems[index], product_code: code };
           }
@@ -1279,33 +1281,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                         />
                       </TableCell>
             <TableCell>
-              <div className="flex items-start gap-1 mb-1">
-                <Label className="text-xs text-muted-foreground">Mã SP</Label>
-                <Checkbox
-                  checked={enabledCodeEditing.has(index)}
-                  onCheckedChange={(checked) => {
-                    setEnabledCodeEditing(prev => {
-                      const newSet = new Set(prev);
-                      if (checked) {
-                        newSet.add(index);
-                        setManualProductCodes(prevManual => new Set(prevManual).add(index));
-                      } else {
-                        newSet.delete(index);
-                      }
-                      return newSet;
-                    });
-                  }}
-                  className="h-3 w-3 mt-0.5"
-                />
-              </div>
+              <Label className="text-xs text-muted-foreground">Mã SP</Label>
               <Input
                 placeholder="Mã SP"
                 value={item.product_code}
                 onChange={(e) => updateItem(index, "product_code", e.target.value)}
-                disabled={!enabledCodeEditing.has(index)}
+                disabled={!!item.tpos_product_id}
                 className={cn(
                   "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs",
-                  !enabledCodeEditing.has(index) && "bg-muted cursor-not-allowed opacity-60"
+                  item.tpos_product_id && "bg-muted cursor-not-allowed opacity-60"
                 )}
                 maxLength={10}
               />
