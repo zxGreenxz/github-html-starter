@@ -55,6 +55,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     missingInLocal: string[];
     missingInTPOS: string[];
   } | null>(null);
+  const [hasRunSync, setHasRunSync] = useState(false);
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -142,11 +143,13 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         !open ||
         !product ||
         product.base_product_code !== product.product_code ||
-        isSyncingTPOS
+        isSyncingTPOS ||
+        hasRunSync
       ) {
         return;
       }
 
+      setHasRunSync(true);
       setIsSyncingTPOS(true);
       console.log("🔄 Auto-syncing variants from TPOS...");
 
@@ -225,7 +228,16 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     };
 
     autoSyncFromTPOS();
-  }, [activeTab, open, product, isSyncingTPOS]);
+  }, [activeTab, open, product]);
+
+  // Reset sync flag when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setHasRunSync(false);
+      setSyncDiscrepancy(null);
+      setLastSyncTime(null);
+    }
+  }, [open]);
 
   const handleVariantTextGenerated = (variantText: string) => {
     setFormData({ ...formData, variant: variantText });
