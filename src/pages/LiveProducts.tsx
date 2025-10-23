@@ -11,6 +11,7 @@ import { CreateLiveSessionDialog } from "@/components/live-products/CreateLiveSe
 import { EditLiveSessionDialog } from "@/components/live-products/EditLiveSessionDialog";
 import { AddProductToLiveDialog } from "@/components/live-products/AddProductToLiveDialog";
 import { SelectProductFromInventoryDialog } from "@/components/live-products/SelectProductFromInventoryDialog";
+import { FacebookPageVideoSelector } from "@/components/live-products/FacebookPageVideoSelector";
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
@@ -1547,43 +1548,62 @@ export default function LiveProducts() {
           ) : (
             <>
               <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Chọn Đợt Live & Facebook Video</h3>
+                </div>
               </CardHeader>
               <CardContent>
-            {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Đợt Live</label>
-                  <Select value={selectedSession} onValueChange={value => {
-                setSelectedSession(value);
-                setSelectedPhase(""); // Reset phase selection
-              }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn một đợt live" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {liveSessions.map(session => <SelectItem key={session.id} value={session.id}>
-                          {getSessionDisplayName(session)}
-                        </SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedSession && livePhases.length > 0 && <div>
-                    <label className="text-sm font-medium mb-2 block">Phiên Live</label>
-                    <Select value={selectedPhase} onValueChange={setSelectedPhase}>
+            {liveSessions.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Đợt Live</label>
+                    <Select value={selectedSession} onValueChange={value => {
+                  setSelectedSession(value);
+                  setSelectedPhase(""); // Reset phase selection
+                }}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Chọn phiên live" />
+                        <SelectValue placeholder="Chọn một đợt live" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
-                        <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
-                        {livePhases.map(phase => <SelectItem key={phase.id} value={phase.id}>
-                            {getPhaseDisplayName(phase)}
+                      <SelectContent>
+                        {liveSessions.map(session => <SelectItem key={session.id} value={session.id}>
+                            {getSessionDisplayName(session)}
                           </SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>}
-              </div> : <div className="text-center py-6 text-muted-foreground">
+                  </div>
+
+                  {selectedSession && livePhases.length > 0 && <div>
+                      <label className="text-sm font-medium mb-2 block">Phiên Live</label>
+                      <Select value={selectedPhase} onValueChange={setSelectedPhase}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn phiên live" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
+                          {livePhases.map(phase => <SelectItem key={phase.id} value={phase.id}>
+                              {getPhaseDisplayName(phase)}
+                            </SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>}
+                </div>
+
+                {/* Facebook Page & Video Selector */}
+                {selectedSession && sessionData && (
+                  <div className="pt-4 border-t">
+                    <FacebookPageVideoSelector 
+                      sessionId={selectedSession}
+                      currentFacebookPostId={sessionData.facebook_post_id}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
                 Chưa có đợt live nào. Nhấn nút "Tạo đợt Live mới" để bắt đầu.
-              </div>}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3 mt-4">
               <div className="flex gap-2">
