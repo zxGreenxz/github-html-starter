@@ -114,3 +114,21 @@ export const DEFAULT_SELECTIONS = {
   color: ["Cam", "Xanh Đậu", "Xanh Đen"],
   sizeNumber: ["29", "30", "32"]
 };
+
+// ============================================
+// EXPORT FOR VARIANT GENERATOR COMPATIBILITY
+// ============================================
+
+export const TPOS_ATTRIBUTES_DATA = {
+  ATTRIBUTES: [
+    { Id: 1, Name: "Size Chữ", Code: "SZCh" },
+    { Id: 3, Name: "Màu", Code: "Mau" },
+    { Id: 4, Name: "Size Số", Code: "SZNu" },
+  ],
+
+  ATTRIBUTE_VALUES: {
+    1: TPOS_ATTRIBUTES.sizeText,    // 7 items
+    3: TPOS_ATTRIBUTES.color,       // 68 items ✅ FULL DATA
+    4: TPOS_ATTRIBUTES.sizeNumber,  // 21 items
+  }
+};
