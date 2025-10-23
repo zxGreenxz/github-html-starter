@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
@@ -37,6 +38,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showVariantGenerator, setShowVariantGenerator] = useState(false);
+  const [activeTab, setActiveTab] = useState("price");
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -250,138 +252,160 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Mã sản phẩm</Label>
-            <Input value={product?.product_code || ""} disabled />
-          </div>
-
-          <div>
-            <Label htmlFor="base_product_code">Base Product Code *</Label>
-            <Input
-              id="base_product_code"
-              value={formData.base_product_code}
-              onChange={(e) => setFormData({ ...formData, base_product_code: e.target.value })}
-              placeholder="Nhập mã sản phẩm cha"
-              disabled
-              required
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Có thể giống với Mã sản phẩm (parent tự trỏ chính nó)
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="product_name">Tên sản phẩm *</Label>
-            <Input
-              id="product_name"
-              value={formData.product_name}
-              onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-              required
-            />
-            {hasDetections && (
-              <VariantDetectionBadge detectionResult={detectionResult} className="mt-2" />
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          {/* ===== PHẦN TRÊN: Fixed Header ===== */}
+          <div className="space-y-4 pb-4 border-b">
             <div>
-              <Label htmlFor="variant">Variant</Label>
-              <div className="flex gap-2">
+              <Label>Mã sản phẩm</Label>
+              <Input value={product?.product_code || ""} disabled className="bg-muted" />
+            </div>
+
+            <div>
+              <Label htmlFor="product_name">Tên sản phẩm *</Label>
+              <Input
+                id="product_name"
+                value={formData.product_name}
+                onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <Label>Base Product Code</Label>
+              <Input
+                value={formData.base_product_code}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Có thể giống với Mã sản phẩm (parent tự trỏ chính nó)
+              </p>
+            </div>
+          </div>
+
+          {/* ===== PHẦN DƯỚI: Tabs ===== */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="price">Giá</TabsTrigger>
+              <TabsTrigger value="variants">Biến thể</TabsTrigger>
+              <TabsTrigger value="general">Thông tin chung</TabsTrigger>
+            </TabsList>
+
+            {/* TAB 1: Giá */}
+            <TabsContent value="price" className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="selling_price">Giá bán</Label>
                 <Input
-                  id="variant"
-                  value={formData.variant}
-                  onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                  placeholder="(1 | 2 | 3) (S | M | L)"
-                  readOnly
+                  id="selling_price"
+                  type="number"
+                  value={formData.selling_price}
+                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                  placeholder="0"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setShowVariantGenerator(true)}
-                  title="Tạo biến thể tự động"
-                >
-                  <Sparkles className="h-4 w-4" />
-                </Button>
               </div>
-            </div>
-            <div>
-              <Label htmlFor="unit">Đơn vị</Label>
-              <Input
-                id="unit"
-                value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              />
-            </div>
-          </div>
+              <div>
+                <Label htmlFor="purchase_price">Giá mua</Label>
+                <Input
+                  id="purchase_price"
+                  type="number"
+                  value={formData.purchase_price}
+                  onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+            </TabsContent>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="selling_price">Giá bán</Label>
-              <Input
-                id="selling_price"
-                type="number"
-                value={formData.selling_price}
-                onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="purchase_price">Giá mua</Label>
-              <Input
-                id="purchase_price"
-                type="number"
-                value={formData.purchase_price}
-                onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
-              />
-            </div>
-          </div>
+            {/* TAB 2: Biến thể */}
+            <TabsContent value="variants" className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="variant">Variant</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="variant"
+                    value={formData.variant}
+                    onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
+                    placeholder="(1 | 2 | 3) (S | M | L)"
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowVariantGenerator(true)}
+                    title="Tạo biến thể tự động"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                </div>
+                {hasDetections && (
+                  <VariantDetectionBadge detectionResult={detectionResult} className="mt-2" />
+                )}
+              </div>
+            </TabsContent>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="category">Nhóm sản phẩm</Label>
-              <Input
-                id="category"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="stock_quantity">Số lượng tồn</Label>
-              <Input
-                id="stock_quantity"
-                type="number"
-                value={formData.stock_quantity}
-                onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
-                disabled={product?.base_product_code === product?.product_code}
-              />
-              {product?.base_product_code === product?.product_code && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Tồn kho parent = tổng tồn kho các biến thể
-                </p>
-              )}
-            </div>
-          </div>
+            {/* TAB 3: Thông tin chung */}
+            <TabsContent value="general" className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="unit">Đơn vị</Label>
+                <Input
+                  id="unit"
+                  value={formData.unit}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                  placeholder="Cái"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="barcode">Mã vạch</Label>
-              <Input
-                id="barcode"
-                value={formData.barcode}
-                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="supplier_name">Nhà cung cấp</Label>
-              <Input
-                id="supplier_name"
-                value={formData.supplier_name}
-                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-              />
-            </div>
-          </div>
+              <div>
+                <Label htmlFor="category">Nhóm sản phẩm</Label>
+                <Input
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="Nhập nhóm sản phẩm"
+                />
+              </div>
 
-          <div className="flex gap-2 justify-end">
+              <div>
+                <Label htmlFor="stock_quantity">Số lượng tồn</Label>
+                <Input
+                  id="stock_quantity"
+                  type="number"
+                  value={formData.stock_quantity}
+                  onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                  disabled={product?.base_product_code === product?.product_code}
+                  placeholder="0"
+                />
+                {product?.base_product_code === product?.product_code && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tồn kho parent = tổng tồn kho các biến thể
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="barcode">Mã vạch</Label>
+                <Input
+                  id="barcode"
+                  value={formData.barcode}
+                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                  placeholder="Nhập mã vạch"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="supplier_name">Nhà cung cấp</Label>
+                <Input
+                  id="supplier_name"
+                  value={formData.supplier_name}
+                  onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                  placeholder="Nhập tên nhà cung cấp"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* ===== FOOTER: Action buttons ===== */}
+          <div className="flex gap-2 justify-end pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Hủy
             </Button>
