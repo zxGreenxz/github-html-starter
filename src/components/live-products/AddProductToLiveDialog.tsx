@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useImageBlob } from "@/hooks/use-image-blob";
 import {
   Dialog,
   DialogContent,
@@ -37,65 +36,6 @@ import { useProductVariants } from "@/hooks/use-product-variants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
-
-// Helper component for variant items with blob conversion
-function VariantItem({ 
-  variant, 
-  isSelected, 
-  formVariant,
-  onToggle,
-  onQuantityChange
-}: {
-  variant: any;
-  isSelected: boolean;
-  formVariant: any;
-  onToggle: () => void;
-  onQuantityChange: (quantity: number) => void;
-}) {
-  const imageUrl = variant.product_images?.[0] || variant.tpos_image_url;
-  const displayImageUrl = useImageBlob(imageUrl);
-  
-  return (
-    <div
-      className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
-        isSelected ? "bg-primary/5 border-primary/20" : "bg-background"
-      }`}
-    >
-      <Checkbox
-        checked={isSelected}
-        onCheckedChange={onToggle}
-      />
-      
-      {displayImageUrl && (
-        <img
-          src={displayImageUrl}
-          alt={variant.variant}
-          className="w-10 h-10 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-        />
-      )}
-      
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">
-          {variant.variant}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Tồn: {variant.stock_quantity}
-        </div>
-      </div>
-      
-      {isSelected && (
-        <Input
-          type="number"
-          min="1"
-          value={formVariant?.quantity || 1}
-          onChange={(e) => onQuantityChange(parseInt(e.target.value) || 1)}
-          className="w-20 h-8 text-center"
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
-    </div>
-  );
-}
 
 interface AddProductToLiveDialogProps {
   open: boolean;
@@ -797,14 +737,45 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
                         const formVariant = currentVariants.find(v => v.name === variant.variant);
                         
                         return (
-                          <VariantItem
+                          <div
                             key={variant.id}
-                            variant={variant}
-                            isSelected={isSelected}
-                            formVariant={formVariant}
-                            onToggle={() => toggleVariantSelection(variant.id, variant)}
-                            onQuantityChange={(quantity) => updateVariantQuantity(variant.variant, quantity)}
-                          />
+                            className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
+                              isSelected ? "bg-primary/5 border-primary/20" : "bg-background"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleVariantSelection(variant.id, variant)}
+                            />
+                            
+                            {(variant.product_images?.[0] || variant.tpos_image_url) && (
+                              <img
+                                src={variant.product_images?.[0] || variant.tpos_image_url || ""}
+                                alt={variant.variant}
+                                className="w-10 h-10 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
+                              />
+                            )}
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">
+                                {variant.variant}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Tồn: {variant.stock_quantity}
+                              </div>
+                            </div>
+                            
+                            {isSelected && (
+                              <Input
+                                type="number"
+                                min="1"
+                                value={formVariant?.quantity || 1}
+                                onChange={(e) => updateVariantQuantity(variant.variant, parseInt(e.target.value) || 1)}
+                                className="w-20 h-8 text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
+                          </div>
                         );
                       })}
                     </div>
