@@ -648,7 +648,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 <Input
                   id="unit"
                   value={formData.unit}
-                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                  disabled
+                  className="bg-muted"
                   placeholder="Cái"
                 />
               </div>
@@ -658,7 +659,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 <Input
                   id="category"
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  disabled
+                  className="bg-muted"
                   placeholder="Nhập nhóm sản phẩm"
                 />
               </div>
@@ -669,8 +671,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                   id="stock_quantity"
                   type="number"
                   value={formData.stock_quantity}
-                  onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
-                  disabled={product?.base_product_code === product?.product_code}
+                  disabled
+                  className="bg-muted"
                   placeholder="0"
                 />
                 {product?.base_product_code === product?.product_code && (
@@ -685,7 +687,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 <Input
                   id="barcode"
                   value={formData.barcode}
-                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                  disabled
+                  className="bg-muted"
                   placeholder="Nhập mã vạch"
                 />
               </div>
@@ -695,7 +698,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 <Input
                   id="supplier_name"
                   value={formData.supplier_name}
-                  onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                  disabled
+                  className="bg-muted"
                   placeholder="Nhập tên nhà cung cấp"
                 />
               </div>
