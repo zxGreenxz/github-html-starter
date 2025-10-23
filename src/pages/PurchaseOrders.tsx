@@ -410,13 +410,16 @@ const PurchaseOrders = () => {
         .select('product_code, base_product_code')
         .in('base_product_code', allProductCodes);
 
-      // Group children by base_product_code
+      // Group children by base_product_code (exclude self-reference)
       const childrenMap: Record<string, any[]> = {};
       allChildren?.forEach(child => {
-        if (!childrenMap[child.base_product_code]) {
-          childrenMap[child.base_product_code] = [];
+        // Only add if product_code is different from base_product_code (exclude parent itself)
+        if (child.product_code !== child.base_product_code) {
+          if (!childrenMap[child.base_product_code]) {
+            childrenMap[child.base_product_code] = [];
+          }
+          childrenMap[child.base_product_code].push(child);
         }
-        childrenMap[child.base_product_code].push(child);
       });
 
       // Expand parent products into child variants
