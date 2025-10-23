@@ -4,9 +4,24 @@ interface ImageUploadCellProps {
   images: string[];
   onImagesChange: (images: string[]) => void;
   itemIndex: number;
+  disabled?: boolean;
 }
 
-export function ImageUploadCell({ images, onImagesChange, itemIndex }: ImageUploadCellProps) {
+export function ImageUploadCell({ images, onImagesChange, itemIndex, disabled = false }: ImageUploadCellProps) {
+  if (disabled) {
+    return (
+      <div className="flex gap-1">
+        {images && images.length > 0 ? (
+          images.map((url, idx) => (
+            <img key={idx} src={url} alt="" className="w-12 h-12 object-cover rounded border" />
+          ))
+        ) : (
+          <span className="text-xs text-muted-foreground">Không có ảnh</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <UnifiedImageUpload
       value={images}

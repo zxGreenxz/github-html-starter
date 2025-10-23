@@ -16,7 +16,6 @@ import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
-import { EditPurchaseOrderItemDialog } from "./EditPurchaseOrderItemDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
@@ -98,8 +97,6 @@ export function PurchaseOrderList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
-  const [editingItem, setEditingItem] = useState<PurchaseOrderItem | null>(null);
-  const [isEditItemDialogOpen, setIsEditItemDialogOpen] = useState(false);
   const [isDeleteItemDialogOpen, setIsDeleteItemDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<PurchaseOrderItem | null>(null);
   
@@ -291,11 +288,6 @@ export function PurchaseOrderList({
     if (orderToDelete) {
       deletePurchaseOrderMutation.mutate(orderToDelete.id);
     }
-  };
-
-  const handleEditItem = (item: PurchaseOrderItem) => {
-    setEditingItem(item);
-    setIsEditItemDialogOpen(true);
   };
 
   const handleDeleteItem = (item: PurchaseOrderItem) => {
@@ -724,18 +716,6 @@ export function PurchaseOrderList({
                   {/* Item-level actions - each item has its own buttons */}
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {/* Only show edit button if no tpos_product_id */}
-                      {!flatItem.item?.tpos_product_id && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditItem(flatItem.item!)}
-                          title="Chỉnh sửa sản phẩm"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
-                      
                       {/* Delete button for each item */}
                       <Button
                         variant="ghost"
@@ -769,12 +749,6 @@ export function PurchaseOrderList({
         order={editingOrder}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
-      />
-
-      <EditPurchaseOrderItemDialog
-        item={editingItem}
-        open={isEditItemDialogOpen}
-        onOpenChange={setIsEditItemDialogOpen}
       />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

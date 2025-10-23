@@ -15,6 +15,7 @@ interface VariantDropdownSelectorProps {
     variant: string;
   }) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export function VariantDropdownSelector({
@@ -22,7 +23,8 @@ export function VariantDropdownSelector({
   value,
   onChange,
   onVariantSelect,
-  className
+  className,
+  disabled = false
 }: VariantDropdownSelectorProps) {
   const [open, setOpen] = useState(false);
   const { data: variants = [], isLoading } = useProductVariants(baseProductCode);
@@ -38,6 +40,18 @@ export function VariantDropdownSelector({
     // Delay closing to ensure selection is processed
     setTimeout(() => setOpen(false), 100);
   };
+
+  if (disabled) {
+    return (
+      <Input
+        value={value}
+        readOnly
+        disabled
+        placeholder="Chọn biến thể..."
+        className={className}
+      />
+    );
+  }
   
   return (
     <Popover open={open} onOpenChange={setOpen}>

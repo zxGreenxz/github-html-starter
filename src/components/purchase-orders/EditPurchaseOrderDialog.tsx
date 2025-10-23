@@ -952,19 +952,27 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       </TableCell>
                       <TableCell>
                         <Textarea
+                          disabled={!!item.id}
                           placeholder="Nhập tên sản phẩm"
                           value={item._tempProductName}
                           onChange={(e) => updateItem(index, "_tempProductName", e.target.value)}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                          )}
                           rows={2}
                         />
                       </TableCell>
                       <TableCell>
                         <Input
+                          disabled={!!item.id}
                           placeholder="Mã SP"
                           value={item._tempProductCode}
                           onChange={(e) => updateItem(index, "_tempProductCode", e.target.value)}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs"
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                          )}
                           maxLength={10}
                         />
                       </TableCell>
@@ -979,22 +987,30 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       </TableCell>
                       <TableCell>
                         <Input
+                          disabled={!!item.id}
                           type="text"
                           inputMode="numeric"
                           placeholder=""
                           value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
                           onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm"
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                          )}
                         />
                       </TableCell>
                       <TableCell>
                         <Input
+                          disabled={!!item.id}
                           type="text"
                           inputMode="numeric"
                           placeholder=""
                           value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
                           onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm"
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                          )}
                         />
                       </TableCell>
                       <TableCell className="text-right font-medium">
@@ -1005,6 +1021,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           images={item._tempProductImages}
                           onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
                           itemIndex={index}
+                          disabled={!!item.id}
                         />
                       </TableCell>
                       <TableCell>
@@ -1012,6 +1029,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           images={item._tempPriceImages}
                           onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
                           itemIndex={index}
+                          disabled={!!item.id}
                         />
                       </TableCell>
                       <TableCell>
@@ -1019,6 +1037,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           {/* Input chính + nút Sparkles */}
                           <div className="flex items-center gap-1">
                             <VariantDropdownSelector
+                              disabled={!!item.id}
                               baseProductCode={item._tempProductCode}
                               value={item._tempVariant}
                               onChange={(value) => updateItem(index, "_tempVariant", value)}
@@ -1029,39 +1048,41 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                               }}
                               className="flex-1"
                             />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div>
-                                    {canGenerateVariant(item).valid ? (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={() => openVariantGenerator(index)}
-                                        title="Tạo biến thể tự động"
-                                      >
-                                        <Sparkles className="h-4 w-4" />
-                                      </Button>
-                                    ) : (
-                                      <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                                        <Sparkles className="h-4 w-4" />
-                                      </div>
-                                    )}
-                                  </div>
-                                </TooltipTrigger>
-                                {!canGenerateVariant(item).valid && (
-                                  <TooltipContent side="top" className="max-w-[250px]">
-                                    <p className="font-semibold mb-1">Thiếu thông tin:</p>
-                                    <ul className="list-disc list-inside text-sm">
-                                      {canGenerateVariant(item).missing.map((field, i) => (
-                                        <li key={i}>{field}</li>
-                                      ))}
-                                    </ul>
-                                  </TooltipContent>
-                                )}
-                              </Tooltip>
-                            </TooltipProvider>
+                            {!item.id && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div>
+                                      {canGenerateVariant(item).valid ? (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 shrink-0"
+                                          onClick={() => openVariantGenerator(index)}
+                                          title="Tạo biến thể tự động"
+                                        >
+                                          <Sparkles className="h-4 w-4" />
+                                        </Button>
+                                      ) : (
+                                        <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
+                                          <Sparkles className="h-4 w-4" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TooltipTrigger>
+                                  {!canGenerateVariant(item).valid && (
+                                    <TooltipContent side="top" className="max-w-[250px]">
+                                      <p className="font-semibold mb-1">Thiếu thông tin:</p>
+                                      <ul className="list-disc list-inside text-sm">
+                                        {canGenerateVariant(item).missing.map((field, i) => (
+                                          <li key={i}>{field}</li>
+                                        ))}
+                                      </ul>
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
 
                           {/* Collapsible danh sách biến thể */}
