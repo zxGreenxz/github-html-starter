@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
@@ -11,6 +12,7 @@ import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
 import { Sparkles } from "lucide-react";
 import { GeneratedVariant } from "@/lib/variant-generator";
+import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 
 interface Product {
   id: string;
@@ -39,6 +41,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showVariantGenerator, setShowVariantGenerator] = useState(false);
   const [activeTab, setActiveTab] = useState("price");
+  const [childProducts, setChildProducts] = useState<Product[]>([]);
+  const [isLoadingChildren, setIsLoadingChildren] = useState(false);
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -75,6 +79,43 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       });
     }
   }, [product]);
+
+  // Fetch child products when dialog opens
+  useEffect(() => {
+    const fetchChildProducts = async () => {
+      if (!product || !open) {
+        setChildProducts([]);
+        return;
+      }
+
+      // Only fetch if this is a parent product (base_product_code points to itself)
+      const isParent = product.base_product_code === product.product_code;
+      if (!isParent) {
+        setChildProducts([]);
+        return;
+      }
+
+      setIsLoadingChildren(true);
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("base_product_code", product.product_code)
+          .neq("product_code", product.product_code) // Exclude parent itself
+          .order("product_code", { ascending: true });
+
+        if (error) throw error;
+        setChildProducts(data || []);
+      } catch (error) {
+        console.error("Error fetching child products:", error);
+        setChildProducts([]);
+      } finally {
+        setIsLoadingChildren(false);
+      }
+    };
+
+    fetchChildProducts();
+  }, [product, open]);
 
   const handleVariantTextGenerated = (variantText: string) => {
     setFormData({ ...formData, variant: variantText });
@@ -159,6 +200,18 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
       setShowVariantGenerator(false);
       onSuccess(); // Refresh product list
+
+      // Refresh child products list
+      const { data: refreshedChildren } = await supabase
+        .from("products")
+        .select("*")
+        .eq("base_product_code", product.product_code)
+        .neq("product_code", product.product_code)
+        .order("product_code", { ascending: true });
+
+      if (refreshedChildren) {
+        setChildProducts(refreshedChildren);
+      }
     } catch (error: any) {
       console.error("Error regenerating variants:", error);
       toast({
@@ -315,32 +368,91 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
             </TabsContent>
 
             {/* TAB 2: Biến thể */}
-            <TabsContent value="variants" className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="variant">Variant</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="variant"
-                    value={formData.variant}
-                    onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                    placeholder="(1 | 2 | 3) (S | M | L)"
-                    readOnly
-                    className="bg-muted"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowVariantGenerator(true)}
-                    title="Tạo biến thể tự động"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
+            <TabsContent value="variants" className="space-y-6 mt-4">
+              {/* Section 1: Thuộc tính */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">Thuộc tính</h3>
+                <div>
+                  <Label htmlFor="variant">Giá trị thuộc tính</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="variant"
+                      value={formData.variant}
+                      onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
+                      placeholder="(1 | 2 | 3) (S | M | L)"
+                      readOnly
+                      className="bg-muted"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowVariantGenerator(true)}
+                      title="Tạo biến thể tự động"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {hasDetections && (
+                    <VariantDetectionBadge detectionResult={detectionResult} className="mt-2" />
+                  )}
                 </div>
-                {hasDetections && (
-                  <VariantDetectionBadge detectionResult={detectionResult} className="mt-2" />
-                )}
               </div>
+
+              {/* Section 2: Danh sách biến thể */}
+              {product?.base_product_code === product?.product_code && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground">
+                    Biến thể ({childProducts.length})
+                  </h3>
+                  
+                  {isLoadingChildren ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Đang tải danh sách biến thể...
+                    </div>
+                  ) : childProducts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Chưa có biến thể nào. Nhấn nút ✨ để tạo biến thể.
+                    </div>
+                  ) : (
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-16">STT</TableHead>
+                            <TableHead>Tên</TableHead>
+                            <TableHead className="w-32 text-right">Giá</TableHead>
+                            <TableHead className="w-24 text-right">Tồn kho</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {childProducts.map((child, index) => (
+                            <TableRow key={child.id}>
+                              <TableCell className="font-medium">{index + 1}</TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <div className="font-medium">[{child.product_code}] {child.product_name}</div>
+                                  {child.variant && (
+                                    <div className="text-xs text-muted-foreground">
+                                      ({formatVariantForDisplay(child.variant)})
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {child.selling_price?.toLocaleString('vi-VN') || '0'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {child.stock_quantity || 0}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
             </TabsContent>
 
             {/* TAB 3: Thông tin chung */}
