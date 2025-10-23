@@ -50,6 +50,23 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
       ? `${formData.product_name} (${formData.variant})` 
       : formData.product_name;
 
+    // Validation - Không cho tạo parent trùng
+    const { data: existingParent } = await supabase
+      .from('products')
+      .select('product_code, base_product_code')
+      .eq('base_product_code', finalProductCode)
+      .maybeSingle();
+
+    if (existingParent) {
+      setIsSubmitting(false);
+      toast({
+        title: "Lỗi",
+        description: `Đã tồn tại sản phẩm cha với Base Product Code = ${finalProductCode}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     let finalSellingPrice = parseFloat(formData.selling_price) || 0;
     let finalPurchasePrice = parseFloat(formData.purchase_price) || 0;
 
@@ -145,6 +162,9 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
                 onChange={(e) => setFormData({ ...formData, product_code: e.target.value })}
                 required
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Base Product Code sẽ tự động giống Mã sản phẩm
+              </p>
             </div>
             <div>
               <Label htmlFor="barcode">Mã vạch</Label>

@@ -375,7 +375,7 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                   </div>
                 )}
 
-                {isAdmin && (
+                {isAdmin && !isVariant(product) && (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -591,13 +591,15 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                 {isAdmin && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingProduct(product)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      {!isVariant(product) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingProduct(product)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"

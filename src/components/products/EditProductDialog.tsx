@@ -46,6 +46,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     barcode: "",
     stock_quantity: "",
     supplier_name: "",
+    base_product_code: "",
   });
 
   // Auto-detect variants from product name
@@ -67,6 +68,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         barcode: product.barcode || "",
         stock_quantity: product.stock_quantity.toString(),
         supplier_name: product.supplier_name || "",
+        base_product_code: product.base_product_code || "",
       });
     }
   }, [product]);
@@ -79,6 +81,16 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
+
+    // Validation không để trống
+    if (!formData.base_product_code || formData.base_product_code.trim() === "") {
+      toast({
+        title: "Lỗi",
+        description: "Base Product Code không được để trống",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -97,6 +109,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         barcode: formData.barcode || null,
         stock_quantity: parseInt(formData.stock_quantity) || 0,
         supplier_name: formData.supplier_name || null,
+        base_product_code: formData.base_product_code,
       })
       .eq("id", product.id);
 
@@ -149,6 +162,20 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           <div>
             <Label>Mã sản phẩm</Label>
             <Input value={product?.product_code || ""} disabled />
+          </div>
+
+          <div>
+            <Label htmlFor="base_product_code">Base Product Code *</Label>
+            <Input
+              id="base_product_code"
+              value={formData.base_product_code}
+              onChange={(e) => setFormData({ ...formData, base_product_code: e.target.value })}
+              placeholder="Nhập mã sản phẩm cha"
+              required
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Có thể giống với Mã sản phẩm (parent tự trỏ chính nó)
+            </p>
           </div>
 
           <div>
@@ -233,7 +260,13 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 type="number"
                 value={formData.stock_quantity}
                 onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                disabled={product?.base_product_code === product?.product_code}
               />
+              {product?.base_product_code === product?.product_code && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tồn kho parent = tổng tồn kho các biến thể
+                </p>
+              )}
             </div>
           </div>
 
