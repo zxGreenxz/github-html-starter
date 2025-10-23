@@ -433,13 +433,43 @@ export default function LiveProducts() {
       
       const productCodes = [...new Set(allLiveProducts.map(p => p.product_code))];
       
-      const { data, error } = await supabase
+      // Step 1: Fetch all products
+      const { data: products, error } = await supabase
         .from("products")
         .select("product_code, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .in("product_code", productCodes);
       
       if (error) throw error;
-      return data || [];
+      if (!products) return [];
+      
+      // Step 2: Find all unique base_product_codes (parents) for variants without tpos_image_url
+      const baseProductCodes = [...new Set(
+        products
+          .filter(p => !p.tpos_image_url && p.base_product_code && p.base_product_code !== p.product_code)
+          .map(p => p.base_product_code)
+      )];
+      
+      // Step 3: Fetch parent tpos_image_urls if needed
+      if (baseProductCodes.length > 0) {
+        const { data: parents } = await supabase
+          .from("products")
+          .select("product_code, tpos_image_url")
+          .in("product_code", baseProductCodes);
+        
+        const parentMap = new Map(
+          (parents || []).map(p => [p.product_code, p.tpos_image_url])
+        );
+        
+        // Step 4: Merge parent tpos_image_url into children
+        return products.map(product => ({
+          ...product,
+          tpos_image_url: product.tpos_image_url || 
+                          (product.base_product_code ? parentMap.get(product.base_product_code) : null) ||
+                          null
+        }));
+      }
+      
+      return products;
     },
     enabled: allLiveProducts.length > 0,
     staleTime: 60000, // 60s - product images rarely change
