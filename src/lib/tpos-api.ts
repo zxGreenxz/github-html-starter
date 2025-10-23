@@ -233,6 +233,8 @@ interface SyncResult {
   updated: number;
   skipped: number;
   errors: string[];
+  missingInLocal: string[];   // Variants có trên TPOS nhưng không có local
+  missingInTPOS: string[];    // Variants có local nhưng không có trên TPOS
 }
 
 /**
@@ -327,7 +329,7 @@ export async function fetchTPOSProductVariants(tposProductId: number): Promise<T
  * Main function: Sync variants from TPOS to local database
  */
 export async function syncVariantsFromTPOS(parentProductCode: string): Promise<SyncResult> {
-  const result: SyncResult = { updated: 0, skipped: 0, errors: [] };
+  const result: SyncResult = { updated: 0, skipped: 0, errors: [], missingInLocal: [], missingInTPOS: [] };
   
   try {
     // Step 1: Get parent product from database
@@ -386,6 +388,27 @@ export async function syncVariantsFromTPOS(parentProductCode: string): Promise<S
     const tposVariantsMap = new Map(
       tposData.variants.map(v => [normalizeProductCode(v.DefaultCode), v])
     );
+
+    // Step 5.5: Detect discrepancies
+    // Check variants DƯ trên TPOS (có trên TPOS nhưng không có local)
+    tposData.variants.forEach(tposVariant => {
+      const normalizedTPOSCode = normalizeProductCode(tposVariant.DefaultCode);
+      const localExists = localVariants?.some(local => 
+        normalizeProductCode(local.product_code) === normalizedTPOSCode
+      );
+      
+      if (!localExists) {
+        result.missingInLocal.push(tposVariant.DefaultCode);
+      }
+    });
+
+    // Check variants THIẾU trên TPOS (có local nhưng không có trên TPOS)
+    localVariants?.forEach(localVariant => {
+      const normalizedCode = normalizeProductCode(localVariant.product_code);
+      if (!tposVariantsMap.has(normalizedCode)) {
+        result.missingInTPOS.push(localVariant.product_code);
+      }
+    });
 
     // Step 6: Update each local variant
     for (const localVariant of localVariants) {

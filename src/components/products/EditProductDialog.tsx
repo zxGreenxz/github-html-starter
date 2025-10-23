@@ -10,10 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useVariantDetector } from "@/hooks/use-variant-detector";
 import { VariantDetectionBadge } from "./VariantDetectionBadge";
 import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Info } from "lucide-react";
 import { GeneratedVariant } from "@/lib/variant-generator";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import { syncVariantsFromTPOS } from "@/lib/tpos-api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 interface Product {
   id: string;
@@ -49,6 +51,10 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const [isLoadingChildren, setIsLoadingChildren] = useState(false);
   const [isSyncingTPOS, setIsSyncingTPOS] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [syncDiscrepancy, setSyncDiscrepancy] = useState<{
+    missingInLocal: string[];
+    missingInTPOS: string[];
+  } | null>(null);
   const [formData, setFormData] = useState({
     product_name: "",
     variant: "",
@@ -147,34 +153,65 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       try {
         const result = await syncVariantsFromTPOS(product.product_code);
         
-        if (result.updated > 0) {
-          setLastSyncTime(new Date());
-          toast({
-            title: "✅ Đồng bộ thành công",
-            description: `Đã cập nhật ${result.updated} biến thể từ TPOS`,
-          });
-        } else if (result.skipped > 0 && result.errors.length === 0) {
-          toast({
-            title: "ℹ️ Không có biến thể",
-            description: "Sản phẩm này chưa có biến thể trên TPOS",
-          });
-        }
+      if (result.updated > 0) {
+        setLastSyncTime(new Date());
+        toast({
+          title: "✅ Đồng bộ thành công",
+          description: `Đã cập nhật ${result.updated} biến thể từ TPOS`,
+        });
+      } else if (result.skipped > 0 && result.errors.length === 0) {
+        toast({
+          title: "ℹ️ Không có biến thể",
+          description: "Sản phẩm này chưa có biến thể trên TPOS",
+        });
+      }
 
-        if (result.errors.length > 0) {
-          console.error("Sync errors:", result.errors);
-        }
+      if (result.errors.length > 0) {
+        console.error("Sync errors:", result.errors);
+      }
 
-        // Refresh child products list
-        const { data: refreshedChildren } = await supabase
-          .from("products")
-          .select("*")
-          .eq("base_product_code", product.product_code)
-          .neq("product_code", product.product_code)
-          .order("product_code", { ascending: true });
+      // Refresh child products list
+      const { data: refreshedChildren } = await supabase
+        .from("products")
+        .select("*")
+        .eq("base_product_code", product.product_code)
+        .neq("product_code", product.product_code)
+        .order("product_code", { ascending: true });
 
-        if (refreshedChildren) {
-          setChildProducts(refreshedChildren);
+      if (refreshedChildren) {
+        setChildProducts(refreshedChildren);
+      }
+
+      // Save and display discrepancies
+      if (result.missingInLocal || result.missingInTPOS) {
+        setSyncDiscrepancy({
+          missingInLocal: result.missingInLocal || [],
+          missingInTPOS: result.missingInTPOS || []
+        });
+      }
+
+      // Show warning toast if discrepancies found
+      const hasMissingInLocal = result.missingInLocal && result.missingInLocal.length > 0;
+      const hasMissingInTPOS = result.missingInTPOS && result.missingInTPOS.length > 0;
+
+      if (hasMissingInLocal || hasMissingInTPOS) {
+        let warningMessage = "";
+        
+        if (hasMissingInTPOS) {
+          warningMessage += `⚠️ THIẾU trên TPOS: ${result.missingInTPOS.length} biến thể (${result.missingInTPOS.slice(0, 3).join(', ')}${result.missingInTPOS.length > 3 ? '...' : ''})\n`;
         }
+        
+        if (hasMissingInLocal) {
+          warningMessage += `⚠️ DƯ trên TPOS: ${result.missingInLocal.length} biến thể chưa có trong hệ thống (${result.missingInLocal.slice(0, 3).join(', ')}${result.missingInLocal.length > 3 ? '...' : ''})`;
+        }
+        
+        toast({
+          title: "⚠️ Phát hiện sự khác biệt",
+          description: warningMessage,
+          variant: "default",
+          duration: 10000,
+        });
+      }
       } catch (error: any) {
         console.error("Auto-sync error:", error);
         toast({
@@ -452,12 +489,51 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                 </div>
               )}
 
-              {/* Last Sync Time */}
-              {lastSyncTime && !isSyncingTPOS && (
-                <div className="text-xs text-muted-foreground text-right">
-                  Đã đồng bộ lúc: {lastSyncTime.toLocaleTimeString('vi-VN')}
-                </div>
+          {/* Last Sync Time */}
+          {lastSyncTime && !isSyncingTPOS && (
+            <div className="text-xs text-muted-foreground text-right">
+              Đã đồng bộ lúc: {lastSyncTime.toLocaleTimeString('vi-VN')}
+            </div>
+          )}
+
+          {/* Discrepancy Warning Badges */}
+          {syncDiscrepancy && (syncDiscrepancy.missingInLocal.length > 0 || syncDiscrepancy.missingInTPOS.length > 0) && (
+            <div className="space-y-2">
+              {syncDiscrepancy.missingInTPOS.length > 0 && (
+                <Alert variant="destructive" className="bg-orange-50 border-orange-300">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>THIẾU trên TPOS</AlertTitle>
+                  <AlertDescription>
+                    {syncDiscrepancy.missingInTPOS.length} biến thể có trong hệ thống nhưng không tìm thấy trên TPOS:
+                    <div className="mt-2 text-xs font-mono">
+                      {syncDiscrepancy.missingInTPOS.map((code, i) => (
+                        <Badge key={i} variant="outline" className="mr-1 mb-1">
+                          {code}
+                        </Badge>
+                      ))}
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
+              
+              {syncDiscrepancy.missingInLocal.length > 0 && (
+                <Alert variant="default" className="bg-blue-50 border-blue-300">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>DƯ trên TPOS</AlertTitle>
+                  <AlertDescription>
+                    {syncDiscrepancy.missingInLocal.length} biến thể có trên TPOS nhưng chưa import vào hệ thống:
+                    <div className="mt-2 text-xs font-mono">
+                      {syncDiscrepancy.missingInLocal.map((code, i) => (
+                        <Badge key={i} variant="secondary" className="mr-1 mb-1">
+                          {code}
+                        </Badge>
+                      ))}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
               {/* Section 1: Thuộc tính */}
               <div className="space-y-2">
