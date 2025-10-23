@@ -16,6 +16,7 @@ import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import { syncVariantsFromTPOS } from "@/lib/tpos-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
 
 interface Product {
   id: string;
@@ -346,6 +347,183 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     }
   };
 
+  const syncProductToTPOS = async (
+    parentProduct: any,
+    variants: any[],
+    listPrice: number,
+    purchasePrice: number
+  ) => {
+    try {
+      const token = await getActiveTPOSToken();
+      if (!token) {
+        console.log("⚠️ Không có TPOS token, bỏ qua sync");
+        return;
+      }
+
+      let tposProductId = parentProduct.tpos_product_id;
+
+      // B1: Nếu chưa có tpos_product_id, fetch từ TPOS
+      if (!tposProductId) {
+        const searchUrl = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(parentProduct.product_code)}`;
+        
+        const searchResponse = await fetch(searchUrl, {
+          headers: getTPOSHeaders(token),
+        });
+
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.value && searchData.value.length > 0) {
+            tposProductId = searchData.value[0].Id;
+            
+            // Save tpos_product_id to database
+            await supabase
+              .from("products")
+              .update({ tpos_product_id: tposProductId })
+              .eq("id", parentProduct.id);
+          } else {
+            console.log("⚠️ Không tìm thấy sản phẩm trên TPOS");
+            return;
+          }
+        } else {
+          console.log("⚠️ Lỗi khi search TPOS");
+          return;
+        }
+      }
+
+      // B2: GET full payload from TPOS
+      const getUrl = `https://tomato.tpos.vn/odata/ProductTemplate(${tposProductId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+      
+      const getResponse = await fetch(getUrl, {
+        headers: getTPOSHeaders(token),
+      });
+
+      if (!getResponse.ok) {
+        throw new Error("Không thể lấy thông tin sản phẩm từ TPOS");
+      }
+
+      const existingProduct = await getResponse.json();
+
+      // B3: Build payload với OVERWRITE variants
+      const variantTemplate = existingProduct.ProductVariants?.[0] || {};
+
+      // Build ProductVariants hoàn toàn từ local data
+      const newProductVariants = variants.map((localVariant) => ({
+        Id: 0,
+        DefaultCode: localVariant.product_code,
+        NameTemplate: parentProduct.product_name,
+        Name: localVariant.product_name,
+        NameGet: `[${localVariant.product_code}] ${localVariant.product_name}`,
+        ListPrice: localVariant.selling_price || listPrice,
+        PurchasePrice: localVariant.purchase_price || purchasePrice,
+        StandardPrice: localVariant.purchase_price || purchasePrice,
+        PriceVariant: localVariant.selling_price || listPrice,
+        LstPrice: 0,
+        DiscountSale: null,
+        DiscountPurchase: null,
+        OldPrice: null,
+        IsDiscount: false,
+        EAN13: null,
+        Barcode: localVariant.barcode || localVariant.product_code,
+        QtyAvailable: 0,
+        VirtualAvailable: 0,
+        OutgoingQty: null,
+        IncomingQty: null,
+        ProductTmplId: tposProductId,
+        Type: "product",
+        SaleOK: true,
+        PurchaseOK: true,
+        Active: true,
+        AvailableInPOS: true,
+        InvoicePolicy: "order",
+        PurchaseMethod: "receive",
+        Tracking: variantTemplate.Tracking || null,
+        UOMId: variantTemplate.UOMId || 1,
+        UOMName: variantTemplate.UOMName || null,
+        UOMPOId: variantTemplate.UOMPOId || 1,
+        UOM: variantTemplate.UOM || null,
+        UOMPO: variantTemplate.UOMPO || null,
+        CategId: variantTemplate.CategId || 2,
+        CategName: variantTemplate.CategName || null,
+        Categ: variantTemplate.Categ || null,
+        POSCategId: variantTemplate.POSCategId || null,
+        POSCateg: variantTemplate.POSCateg || null,
+        AttributeValues: variantTemplate.AttributeValues || [],
+        DisplayAttributeValues: variantTemplate.DisplayAttributeValues || null,
+        Weight: 0,
+        Volume: null,
+        Version: 0,
+        Description: null,
+        LastUpdated: null,
+        DateCreated: null,
+        NameNoSign: null,
+        NameTemplateNoSign: null,
+        PropertyCostMethod: null,
+        PropertyValuation: null,
+        CostMethod: null,
+        Valuation: null,
+        CompanyId: null,
+        IsCombo: null,
+        ProductTmplEnableAll: false,
+        Variant_TeamId: 0,
+        SaleDelay: 0,
+        Image: null,
+        ImageUrl: null,
+        Thumbnails: [],
+        TaxesIds: [],
+        StockValue: null,
+        SaleValue: null,
+        PosSalesCount: null,
+        Factor: null,
+        AmountTotal: null,
+        NameCombos: [],
+        RewardName: null,
+        Product_UOMId: null,
+        Tags: null,
+        InitInventory: null,
+        OrderTag: "",
+        StringExtraProperties: '{"OrderTag":null,"Thumbnails":[]}',
+        CreatedById: null,
+        TaxAmount: null,
+        Price: null,
+        Error: null,
+      }));
+
+      // Build final payload
+      const updatedPayload = {
+        ...existingProduct,
+        ListPrice: listPrice,
+        PurchasePrice: purchasePrice,
+        StandardPrice: purchasePrice,
+        ProductVariants: newProductVariants,
+      };
+
+      delete updatedPayload["@odata.context"];
+
+      // POST to UpdateV2
+      const updateUrl = "https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2";
+      
+      const updateResponse = await fetch(updateUrl, {
+        method: "POST",
+        headers: getTPOSHeaders(token),
+        body: JSON.stringify(updatedPayload),
+      });
+
+      if (!updateResponse.ok && updateResponse.status !== 204) {
+        const errorText = await updateResponse.text();
+        throw new Error(`TPOS UpdateV2 failed: ${errorText.substring(0, 200)}`);
+      }
+
+      console.log("✅ Đã đồng bộ thành công lên TPOS (overwrite variants)");
+    } catch (error: any) {
+      console.error("❌ Lỗi khi sync TPOS:", error);
+      toast({
+        title: "⚠️ Cảnh báo",
+        description: "Cập nhật local thành công nhưng không thể đồng bộ TPOS: " + error.message,
+        variant: "default",
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
@@ -362,61 +540,67 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
     setIsSubmitting(true);
 
-    const updatedSellingPrice = parseFloat(formData.selling_price) || 0;
-    const updatedPurchasePrice = parseFloat(formData.purchase_price) || 0;
+    try {
+      const updatedSellingPrice = parseFloat(formData.selling_price) || 0;
+      const updatedPurchasePrice = parseFloat(formData.purchase_price) || 0;
 
-    const { error } = await supabase
-      .from("products")
-      .update({
-        product_name: formData.product_name,
-        variant: formData.variant || null,
-        selling_price: updatedSellingPrice,
-        purchase_price: updatedPurchasePrice,
-        unit: formData.unit,
-        category: formData.category || null,
-        barcode: formData.barcode || null,
-        stock_quantity: parseInt(formData.stock_quantity) || 0,
-        supplier_name: formData.supplier_name || null,
-        base_product_code: formData.base_product_code,
-      })
-      .eq("id", product.id);
+      const { error } = await supabase
+        .from("products")
+        .update({
+          product_name: formData.product_name,
+          variant: formData.variant || null,
+          selling_price: updatedSellingPrice,
+          purchase_price: updatedPurchasePrice,
+          unit: formData.unit,
+          category: formData.category || null,
+          barcode: formData.barcode || null,
+          stock_quantity: parseInt(formData.stock_quantity) || 0,
+          supplier_name: formData.supplier_name || null,
+          base_product_code: formData.base_product_code,
+        })
+        .eq("id", product.id);
 
-    if (error) {
+      if (error) throw error;
+
+      // Nếu đây là parent product, cập nhật giá cho variants có giá = 0
+      const isParentProduct = product.base_product_code === product.product_code;
+      if (isParentProduct && product.product_code) {
+        await supabase
+          .from("products")
+          .update({ selling_price: updatedSellingPrice })
+          .eq("base_product_code", product.product_code)
+          .eq("selling_price", 0);
+        
+        await supabase
+          .from("products")
+          .update({ purchase_price: updatedPurchasePrice })
+          .eq("base_product_code", product.product_code)
+          .eq("purchase_price", 0);
+
+        // Sync to TPOS if parent product
+        await syncProductToTPOS(
+          product,
+          childProducts,
+          updatedSellingPrice,
+          updatedPurchasePrice
+        );
+      }
+
+      setIsSubmitting(false);
+      toast({
+        title: "Thành công",
+        description: "Đã cập nhật sản phẩm và đồng bộ TPOS",
+      });
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: any) {
       setIsSubmitting(false);
       toast({
         title: "Lỗi",
         description: error.message,
         variant: "destructive",
       });
-      return;
     }
-
-    // Nếu đây là parent product (không có base_product_code), 
-    // cập nhật giá cho variants có giá = 0
-    const isParentProduct = !product.base_product_code;
-    if (isParentProduct && product.product_code) {
-      // Update selling_price for variants with 0 price
-      await supabase
-        .from("products")
-        .update({ selling_price: updatedSellingPrice })
-        .eq("base_product_code", product.product_code)
-        .eq("selling_price", 0);
-      
-      // Update purchase_price for variants with 0 price
-      await supabase
-        .from("products")
-        .update({ purchase_price: updatedPurchasePrice })
-        .eq("base_product_code", product.product_code)
-        .eq("purchase_price", 0);
-    }
-
-    setIsSubmitting(false);
-    toast({
-      title: "Thành công",
-      description: "Đã cập nhật sản phẩm",
-    });
-    onSuccess();
-    onOpenChange(false);
   };
 
   return (
