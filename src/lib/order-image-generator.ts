@@ -7,20 +7,47 @@ export const generateOrderImage = async (
   quantity: number,
   productName: string
 ): Promise<void> => {
+  let blobUrl: string | null = null;
+  
   try {
-    // Create a canvas
+    // Step 1: Convert to blob URL if it's a TPOS URL (to bypass CORS)
+    let imageToUse = imageUrl;
+    
+    const isTPOSUrl = imageUrl.includes('s3.me-south-1.') || 
+                      imageUrl.includes('tpos.') || 
+                      imageUrl.includes('api.tpos.vn');
+    
+    if (isTPOSUrl) {
+      try {
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error("Failed to fetch image");
+        
+        const blob = await response.blob();
+        blobUrl = URL.createObjectURL(blob);
+        imageToUse = blobUrl;
+      } catch (fetchError) {
+        console.error("Error fetching TPOS image:", fetchError);
+        toast.error("Không thể tải hình ảnh từ TPOS");
+        return;
+      }
+    }
+
+    // Step 2: Create a canvas
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Could not get canvas context");
 
     // Load the image
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    // Only set crossOrigin for non-blob URLs
+    if (!imageToUse.startsWith('blob:')) {
+      img.crossOrigin = "anonymous";
+    }
     
     await new Promise((resolve, reject) => {
       img.onload = resolve;
       img.onerror = reject;
-      img.src = imageUrl;
+      img.src = imageToUse;
     });
 
     // Calculate dimensions: image takes 2/3, text takes 1/3
@@ -92,5 +119,10 @@ export const generateOrderImage = async (
   } catch (error) {
     console.error("Error generating order image:", error);
     toast.error("Không thể tạo hình order. Vui lòng thử lại.");
+  } finally {
+    // Cleanup blob URL if created
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+    }
   }
 };
