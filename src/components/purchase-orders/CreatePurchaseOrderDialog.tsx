@@ -82,6 +82,21 @@ interface PurchaseOrderItem {
   // UI only
   _tempTotalPrice: number;
   _manualCodeEdit?: boolean;
+  
+  // ✅ Variant config for draft-to-order workflow
+  variantConfig?: {
+    attributeLines: AttributeLine[];
+    generatedVariants: Array<{
+      product_code: string;
+      product_name: string;
+      variant: string;
+      purchase_price: number | string;
+      selling_price: number | string;
+      quantity: number;
+      product_images: string[];
+      price_images: string[];
+    }>;
+  };
 }
 
 interface CreatePurchaseOrderDialogProps {
@@ -154,21 +169,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         shipping_fee: (initialData.shipping_fee || 0) / 1000
       });
 
-      if (initialData.items && initialData.items.length > 0) {
-        const loadedItems = initialData.items.map((item: any) => ({
-          quantity: item.quantity || 1,
-          notes: item.notes || "",
-          product_code: item.product_code || "",
-          product_name: item.product_name || "",
-          variant: item.variant || "",
-          purchase_price: (item.purchase_price || 0) / 1000,
-          selling_price: (item.selling_price || 0) / 1000,
-          product_images: item.product_images || [],
-          price_images: item.price_images || [],
-          _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
-        }));
-        setItems(loadedItems);
-      }
+    if (initialData.items && initialData.items.length > 0) {
+      const loadedItems = initialData.items.map((item: any) => ({
+        quantity: item.quantity || 1,
+        notes: item.notes || "",
+        product_code: item.product_code || "",
+        product_name: item.product_name || "",
+        variant: item.variant || "",
+        purchase_price: (item.purchase_price || 0) / 1000,
+        selling_price: (item.selling_price || 0) / 1000,
+        product_images: item.product_images || [],
+        price_images: item.price_images || [],
+        _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
+        variantConfig: item.variant_config || undefined, // ✅ Restore variant config
+      }));
+      setItems(loadedItems);
+      console.log('📂 Loading draft - Items with variantConfig:', loadedItems.filter(i => i.variantConfig).length);
+    }
       
       setShowShippingFee((initialData.shipping_fee || 0) > 0);
     }
@@ -316,21 +333,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Create items if any
       if (items.some(item => item.product_name.trim())) {
-        const orderItems = items
-          .filter(item => item.product_name.trim())
-          .map((item, index) => ({
-            purchase_order_id: order.id,
-            quantity: item.quantity,
-            position: index + 1,
-            notes: item.notes.trim().toUpperCase() || null,
-            product_code: item.product_code.trim().toUpperCase() || null,
-            product_name: item.product_name.trim().toUpperCase(),
-            variant: item.variant?.trim().toUpperCase() || null,
-            purchase_price: Number(item.purchase_price || 0) * 1000,
-            selling_price: Number(item.selling_price || 0) * 1000,
-            product_images: Array.isArray(item.product_images) ? item.product_images : [],
-            price_images: Array.isArray(item.price_images) ? item.price_images : []
-          }));
+    const orderItems = items
+      .filter(item => item.product_name.trim())
+      .map((item, index) => ({
+        purchase_order_id: order.id,
+        quantity: item.quantity,
+        position: index + 1,
+        notes: item.notes.trim().toUpperCase() || null,
+        product_code: item.product_code.trim().toUpperCase() || null,
+        product_name: item.product_name.trim().toUpperCase(),
+        variant: item.variant?.trim().toUpperCase() || null,
+        purchase_price: Number(item.purchase_price || 0) * 1000,
+        selling_price: Number(item.selling_price || 0) * 1000,
+        product_images: Array.isArray(item.product_images) ? item.product_images : [],
+        price_images: Array.isArray(item.price_images) ? item.price_images : [],
+        variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null, // ✅ Save variant config as JSON
+      }));
 
         const { error: itemsError } = await supabase
           .from("purchase_order_items")
@@ -391,14 +409,29 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           validationErrors.push(`Dòng ${itemNumber}: Thiếu Hình ảnh sản phẩm`);
         }
         
-        // Kiểm tra Giá mua
-        if (!item.purchase_price || Number(item.purchase_price) <= 0) {
-          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá mua`);
-        }
-        
-        // Kiểm tra Giá bán
-        if (!item.selling_price || Number(item.selling_price) <= 0) {
-          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
+        // ✨ Smart validation: Only require prices if NO variantConfig
+        if (!item.variantConfig) {
+          // Kiểm tra Giá mua
+          if (!item.purchase_price || Number(item.purchase_price) <= 0) {
+            validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá mua`);
+          }
+          
+          // Kiểm tra Giá bán
+          if (!item.selling_price || Number(item.selling_price) <= 0) {
+            validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
+          }
+        } else {
+          // Has variantConfig → Validate variants have prices
+          const invalidVariants = item.variantConfig.generatedVariants.filter(
+            (v: any) => !v.purchase_price || Number(v.purchase_price) <= 0 || 
+                 !v.selling_price || Number(v.selling_price) <= 0
+          );
+          
+          if (invalidVariants.length > 0) {
+            validationErrors.push(
+              `Dòng ${itemNumber}: Có ${invalidVariants.length} biến thể thiếu giá. Vui lòng cập nhật giá cho sản phẩm cha.`
+            );
+          }
         }
       });
 
@@ -898,7 +931,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       attributeLines: AttributeLine[];
     }
   ) => {
-    console.log('🎯 handleVariantsGenerated:', { index, data });
+    console.log('🎯 handleVariantsGenerated - SAVE CONFIG ONLY:', { index, data });
 
     const { variants, attributeLines } = data;
     const parentItem = items[index];
@@ -906,88 +939,36 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     try {
       // ✅ Format variant text by groups
       const variantText = formatVariantTextByGroups(attributeLines);
-      
-      // ✅ 1. Insert parent product vào kho
-      const parentProductData = {
-        product_code: parentItem.product_code.trim().toUpperCase(),
-        product_name: parentItem.product_name.trim().toUpperCase(),
-        base_product_code: parentItem.product_code.trim().toUpperCase(),
-        variant: variantText,
-        purchase_price: Number(parentItem.purchase_price || 0) * 1000,
-        selling_price: Number(parentItem.selling_price || 0) * 1000,
-        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-        product_images: parentItem.product_images || [],
-        price_images: parentItem.price_images || [],
-        stock_quantity: 0,
-        unit: 'Cái'
-      };
-
-      const { error: parentError } = await supabase
-        .from("products")
-        .insert(parentProductData);
-
-      if (parentError && parentError.code !== '23505') {
-        throw parentError;
-      }
-
-      // ✅ 2. Insert variant products vào kho
-      // Check if only Size Số (attributeId = 4)
-      const hasOnlySizeNumber = attributeLines.length === 1 && 
-        attributeLines[0].attributeId === 4;
-
-      const variantProductsData = variants.map(v => {
-        let finalProductCode = v.product_code;
-        
-        // If only Size Số → Add "A" between base code and number
-        if (hasOnlySizeNumber) {
-          const baseCode = parentItem.product_code.trim().toUpperCase();
-          const sizeNumber = v.variant.toUpperCase();
-          finalProductCode = `${baseCode}A${sizeNumber}`;
-        }
-
-        return {
-          product_code: finalProductCode,
-          product_name: v.product_name,
-          base_product_code: parentItem.product_code.trim().toUpperCase(),
-          variant: v.variant.toUpperCase(),
-          purchase_price: Number(v.purchase_price || 0) * 1000,
-          selling_price: Number(v.selling_price || 0) * 1000,
-          supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-          product_images: v.product_images || [],
-          price_images: v.price_images || [],
-          stock_quantity: 0,
-          unit: 'Cái'
-        };
-      });
-
-      const { error: variantsError } = await supabase
-        .from("products")
-        .insert(variantProductsData);
-
-      if (variantsError) throw variantsError;
-
-      // ✅ 3. Update parent item's variant field and quantity in form
       const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
       
+      // ✅ ONLY save config to form state (NO database insertion)
       const newItems = [...items];
       newItems[index] = {
         ...newItems[index],
         variant: variantText,
-        quantity: totalQuantity,  // Update quantity to sum of all variants
-        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
+        quantity: totalQuantity,
+        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity,
+        variantConfig: {
+          attributeLines,
+          generatedVariants: variants.map(v => ({
+            product_code: v.product_code,
+            product_name: v.product_name,
+            variant: v.variant.toUpperCase(),
+            purchase_price: v.purchase_price,
+            selling_price: v.selling_price,
+            quantity: v.quantity || 1,
+            product_images: v.product_images || [],
+            price_images: v.price_images || []
+          }))
+        }
       };
       setItems(newItems);
-
-      // ✅ 4. Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["products-select"] });
-
-      // ✅ 5. Update productsWithVariants to hide the button immediately
-      setProductsWithVariants(prev => new Set([...prev, parentItem.product_code.trim().toUpperCase()]));
+      
+      console.log('✅ Variant config saved to form:', newItems[index].variantConfig);
 
       toast({
-        title: "✅ Đã tạo biến thể",
-        description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
+        title: "✅ Đã cấu hình biến thể",
+        description: `Đã cấu hình ${variants.length} biến thể. Sẽ tạo vào kho khi bấm "Tạo Đơn Hàng".`,
       });
 
     } catch (error: any) {

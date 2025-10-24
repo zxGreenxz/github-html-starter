@@ -1183,6 +1183,7 @@ export type Database = {
           tpos_deleted_at: string | null
           tpos_product_id: number | null
           variant: string | null
+          variant_config: Json | null
         }
         Insert: {
           created_at?: string
@@ -1201,6 +1202,7 @@ export type Database = {
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
           variant?: string | null
+          variant_config?: Json | null
         }
         Update: {
           created_at?: string
@@ -1219,6 +1221,7 @@ export type Database = {
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
           variant?: string | null
+          variant_config?: Json | null
         }
         Relationships: [
           {
@@ -1523,12 +1526,9 @@ export type Database = {
           total_comments: number
         }[]
       }
-      get_product_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
+      get_product_stats: { Args: never; Returns: Json }
       get_supplier_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           avg_stock: number
           low_stock_count: number
@@ -1579,23 +1579,16 @@ export type Database = {
           variant: string | null
           virtual_available: number | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      unaccent: {
-        Args: { "": string }
-        Returns: string
-      }
-      unaccent_init: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      update_missing_suppliers: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      upsert_customers_deduped: {
-        Args: { payload: Json }
-        Returns: Json
-      }
+      unaccent: { Args: { "": string }; Returns: string }
+      update_missing_suppliers: { Args: never; Returns: number }
+      upsert_customers_deduped: { Args: { payload: Json }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "user"
