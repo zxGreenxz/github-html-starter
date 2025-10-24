@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, ChevronDown } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, ChevronDown, Edit, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
@@ -49,6 +49,7 @@ interface PurchaseOrderItem {
   _tempTotalPrice: number;
   _tempProductImages: string[];
   _tempPriceImages: string[];
+  _manualCodeEdit?: boolean;
 }
 
 interface PurchaseOrder {
@@ -1007,17 +1008,41 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
-                          disabled={!!item.id}
-                          placeholder="Mã SP"
-                          value={item._tempProductCode}
-                          onChange={(e) => updateItem(index, "_tempProductCode", e.target.value)}
-                          className={cn(
-                            "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs",
-                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                        <div className="flex gap-1 items-center">
+                          <Input
+                            id={`temp-product-code-${index}`}
+                            disabled={!!item.id}
+                            placeholder="Mã SP"
+                            value={item._tempProductCode}
+                            onChange={(e) => updateItem(index, "_tempProductCode", e.target.value)}
+                            className={cn(
+                              "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs flex-1",
+                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                            )}
+                            maxLength={10}
+                            readOnly={!item._manualCodeEdit}
+                          />
+                          {!item.id && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 hover:bg-accent"
+                              onClick={() => {
+                                const newItems = [...items];
+                                newItems[index]._manualCodeEdit = !newItems[index]._manualCodeEdit;
+                                setItems(newItems);
+                                if (newItems[index]._manualCodeEdit) {
+                                  setTimeout(() => {
+                                    document.getElementById(`temp-product-code-${index}`)?.focus();
+                                  }, 0);
+                                }
+                              }}
+                            >
+                              {item._manualCodeEdit ? <Check className="h-3 w-3" /> : <Edit className="h-3 w-3" />}
+                            </Button>
                           )}
-                          maxLength={10}
-                        />
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Input
