@@ -59,19 +59,16 @@ export const generateOrderImage = async (
     let fontSize = 20;
     const maxWidth = canvas.width * 0.9; // 90% of canvas width
     
-    // Use system font stack that supports Vietnamese characters
-    const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
-    
     // Increase font size until text fills the width
-    ctx.font = `bold ${fontSize}px ${fontFamily}`;
+    ctx.font = `bold ${fontSize}px Arial`;
     while (ctx.measureText(text).width < maxWidth && fontSize < 200) {
       fontSize += 2;
-      ctx.font = `bold ${fontSize}px ${fontFamily}`;
+      ctx.font = `bold ${fontSize}px Arial`;
     }
     // Step back one size if we went over
     if (ctx.measureText(text).width > maxWidth) {
       fontSize -= 2;
-      ctx.font = `bold ${fontSize}px ${fontFamily}`;
+      ctx.font = `bold ${fontSize}px Arial`;
     }
 
     // Draw text in red, bold, large
