@@ -27,7 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { generateOrderImage } from "@/lib/order-image-generator";
+import { generateSimpleOrderImage } from "@/lib/simple-order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
 import { formatVariant, getVariantName } from "@/lib/variant-utils";
 import { ZoomableImage } from "@/components/products/ZoomableImage";
@@ -1866,17 +1866,33 @@ export default function LiveProducts() {
                                     toast.error("Số lượng phải lớn hơn 0");
                                     return;
                                   }
-                                  const inventoryImageUrl = await getInventoryImageUrl(product.product_code, productsDetailsMap);
-                                  if (!inventoryImageUrl) {
-                                    toast.error("Sản phẩm chưa có hình ảnh trong kho");
+                                  
+                                  // Get image URL from productsDetailsMap
+                                  const productDetail = productsDetailsMap.get(product.product_code);
+                                  if (!productDetail) {
+                                    toast.error("Chưa có hình ảnh sản phẩm");
                                     return;
                                   }
-                                  await generateOrderImage(inventoryImageUrl, product.variant || "", qty, product.product_name);
+                                  
+                                  // Priority: product_images[0] > tpos_image_url > product.image_url
+                                  const imageUrl = productDetail.product_images?.[0] 
+                                    || productDetail.tpos_image_url 
+                                    || product.image_url;
+                                  
+                                  if (!imageUrl) {
+                                    toast.error("Sản phẩm chưa có hình ảnh");
+                                    return;
+                                  }
+                                  
+                                  // Generate order image with simple logic
+                                  await generateSimpleOrderImage(imageUrl, product.variant || "", qty);
+                                  
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
                                     [product.id]: (prev[product.id] || 0) + qty
                                   }));
+                                  
                                   // Reset orderQuantities to 0
                                   setOrderQuantities(prev => ({
                                     ...prev,
@@ -2057,16 +2073,32 @@ export default function LiveProducts() {
                                 toast.error("Số lượng phải lớn hơn 0");
                                 return;
                               }
-                              const inventoryImageUrl = await getInventoryImageUrl(product.product_code, productsDetailsMap);
-                              if (!inventoryImageUrl) {
-                                toast.error("Sản phẩm chưa có hình ảnh trong kho");
+                              
+                              // Get image URL from productsDetailsMap
+                              const productDetail = productsDetailsMap.get(product.product_code);
+                              if (!productDetail) {
+                                toast.error("Chưa có hình ảnh sản phẩm");
                                 return;
                               }
-                              await generateOrderImage(inventoryImageUrl, product.variant || "", qty, product.product_name);
+                              
+                              // Priority: product_images[0] > tpos_image_url > product.image_url
+                              const imageUrl = productDetail.product_images?.[0] 
+                                || productDetail.tpos_image_url 
+                                || product.image_url;
+                              
+                              if (!imageUrl) {
+                                toast.error("Sản phẩm chưa có hình ảnh");
+                                return;
+                              }
+                              
+                              // Generate order image with simple logic
+                              await generateSimpleOrderImage(imageUrl, product.variant || "", qty);
+                              
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty
                               }));
+                              
                               // Reset orderQuantities to 0
                               setOrderQuantities(prev => ({
                                 ...prev,
