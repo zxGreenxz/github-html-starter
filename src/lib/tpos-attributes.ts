@@ -83,6 +83,7 @@ export const TPOS_ATTRIBUTES = {
     { Id: 103, Name: "SỌC ĐỎ", Code: "socdo", Sequence: null },
     { Id: 104, Name: "SỌC NÂU", Code: "socnau", Sequence: null },
     { Id: 105, Name: "Sọc Trắng To", Code: "soctrangto", Sequence: null },
+    { Id: 106, Name: "Beo", Code: "beo", Sequence: null },
   ],
   sizeNumber: [
     { Id: 22, Name: "1", Code: "1", Sequence: null },
@@ -106,13 +107,13 @@ export const TPOS_ATTRIBUTES = {
     { Id: 92, Name: "42", Code: "42", Sequence: null },
     { Id: 93, Name: "43", Code: "43", Sequence: null },
     { Id: 94, Name: "44", Code: "44", Sequence: null },
-  ]
+  ],
 };
 
 export const DEFAULT_SELECTIONS = {
   sizeText: ["M", "L", "XL", "XXL", "XXXL"],
   color: ["Cam", "Xanh Đậu", "Xanh Đen"],
-  sizeNumber: ["29", "30", "32"]
+  sizeNumber: ["29", "30", "32"],
 };
 
 // ============================================
@@ -127,8 +128,8 @@ export const TPOS_ATTRIBUTES_DATA = {
   ],
 
   ATTRIBUTE_VALUES: {
-    1: TPOS_ATTRIBUTES.sizeText,    // 7 items
-    3: TPOS_ATTRIBUTES.color,       // 68 items ✅ FULL DATA
-    4: TPOS_ATTRIBUTES.sizeNumber,  // 21 items
-  }
+    1: TPOS_ATTRIBUTES.sizeText, // 7 items
+    3: TPOS_ATTRIBUTES.color, // 68 items ✅ FULL DATA
+    4: TPOS_ATTRIBUTES.sizeNumber, // 21 items
+  },
 };
