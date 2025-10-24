@@ -134,6 +134,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [enabledCodeEditing, setEnabledCodeEditing] = useState<Set<number>>(new Set());
+  const [variantGeneratedItems, setVariantGeneratedItems] = useState<Set<number>>(new Set());
   const [validationDialogState, setValidationDialogState] = useState<{
     open: boolean;
     itemIndex: number;
@@ -714,6 +715,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     });
     setShowShippingFee(false);
     setManualProductCodes(new Set());
+    setVariantGeneratedItems(new Set());
     setItems([
       { 
         quantity: 1,
@@ -785,6 +787,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const removeItem = (index: number) => {
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== index));
+      
+      // Update variantGeneratedItems indexes after removal
+      setVariantGeneratedItems(prev => {
+        const newSet = new Set<number>();
+        prev.forEach(itemIndex => {
+          if (itemIndex < index) {
+            // Item before removed item → keep same index
+            newSet.add(itemIndex);
+          } else if (itemIndex > index) {
+            // Item after removed item → decrease index by 1
+            newSet.add(itemIndex - 1);
+          }
+          // itemIndex === index → don't add (removed)
+        });
+        return newSet;
+      });
     } else {
       // Reset the last item to empty state instead of removing
       setItems([{ 
@@ -799,6 +817,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         price_images: [],
         _tempTotalPrice: 0,
       }]);
+      setVariantGeneratedItems(new Set());
     }
   };
 
@@ -1054,6 +1073,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
       };
       setItems(newItems);
+
+      // ✅ Mark this item as having generated variants
+      setVariantGeneratedItems(prev => new Set(prev).add(index));
 
       // ✅ 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -1381,7 +1403,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
-                        {canGenerateVariant(item).valid ? (
+                        {canGenerateVariant(item).valid && !variantGeneratedItems.has(index) ? (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1398,14 +1420,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                         )}
                       </div>
                     </TooltipTrigger>
-                    {!canGenerateVariant(item).valid && (
+                    {(!canGenerateVariant(item).valid || variantGeneratedItems.has(index)) && (
                       <TooltipContent side="top" className="max-w-[250px]">
-                        <p className="font-semibold mb-1">Thiếu thông tin:</p>
-                        <ul className="list-disc list-inside text-sm">
-                          {canGenerateVariant(item).missing.map((field, i) => (
-                            <li key={i}>{field}</li>
-                          ))}
-                        </ul>
+                        {variantGeneratedItems.has(index) ? (
+                          <p className="text-sm">
+                            ✅ Đã tạo biến thể cho sản phẩm này
+                          </p>
+                        ) : (
+                          <>
+                            <p className="font-semibold mb-1">Thiếu thông tin:</p>
+                            <ul className="list-disc list-inside text-sm">
+                              {canGenerateVariant(item).missing.map((field, i) => (
+                                <li key={i}>{field}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
                       </TooltipContent>
                     )}
                   </Tooltip>
