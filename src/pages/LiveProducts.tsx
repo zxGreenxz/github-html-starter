@@ -467,19 +467,43 @@ export default function LiveProducts() {
   const { data: productsDetails = [] } = useQuery({
     queryKey: ["products-details-for-live", selectedPhase, selectedSession],
     queryFn: async () => {
-      if (allLiveProducts.length === 0) return [];
+      const perfStart = performance.now();
+      console.log("⚡ [PERF] Fetching products-details-for-live...");
       
-      const productCodes = [...new Set(allLiveProducts.map(p => p.product_code))];
+      // Step 1: Fetch product codes directly from live_products table
+      let liveProductsQuery = supabase
+        .from("live_products")
+        .select("product_code");
       
+      if (selectedPhase === "all") {
+        liveProductsQuery = liveProductsQuery.eq("live_session_id", selectedSession);
+      } else {
+        liveProductsQuery = liveProductsQuery.eq("live_phase_id", selectedPhase);
+      }
+      
+      const { data: liveProductsForCodes, error: liveError } = await liveProductsQuery;
+      
+      if (liveError) throw liveError;
+      if (!liveProductsForCodes || liveProductsForCodes.length === 0) {
+        console.log(`✅ [PERF] products-details-for-live fetched in ${(performance.now() - perfStart).toFixed(0)}ms (empty)`);
+        return [];
+      }
+      
+      // Step 2: Extract unique product codes
+      const productCodes = [...new Set(liveProductsForCodes.map(p => p.product_code))];
+      
+      // Step 3: Fetch product details from products table
       const { data, error } = await supabase
         .from("products")
         .select("product_code, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .in("product_code", productCodes);
       
       if (error) throw error;
+      
+      console.log(`✅ [PERF] products-details-for-live fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
       return data || [];
     },
-    enabled: allLiveProducts.length > 0,
+    enabled: !!selectedPhase && !!selectedSession,
     staleTime: 60000, // 60s - product images rarely change
   });
 
