@@ -127,15 +127,33 @@ export function UploadLiveOrdersToTPOSDialog({
         sessionMatch = product.session_index.toString().includes(sessionIndexSearch.trim());
       }
 
-      // Filter by content (product code, name, variant, note) if search query exists
+      // Filter by content (product code, name, variant, note) with multi-keyword support
       if (hasContentSearch) {
         const contentQuery = contentSearch.toLowerCase().trim();
-        const productCodeMatch = product.product_code.toLowerCase().includes(contentQuery);
-        const productNameMatch = product.product_name.toLowerCase().includes(contentQuery);
-        const variantMatch = product.variant?.toLowerCase().includes(contentQuery) || false;
-        const noteMatch = product.note?.toLowerCase().includes(contentQuery) || false;
+        const keywords = contentQuery.split(/\s+/).filter(k => k.length > 0);
         
-        contentMatch = productCodeMatch || productNameMatch || variantMatch || noteMatch;
+        if (keywords.length === 1) {
+          // Single keyword: OR search across all fields
+          const keyword = keywords[0];
+          const productCodeMatch = product.product_code.toLowerCase().includes(keyword);
+          const productNameMatch = product.product_name.toLowerCase().includes(keyword);
+          const variantMatch = product.variant?.toLowerCase().includes(keyword) || false;
+          const noteMatch = product.note?.toLowerCase().includes(keyword) || false;
+          
+          contentMatch = productCodeMatch || productNameMatch || variantMatch || noteMatch;
+        } else {
+          // Multiple keywords: ALL must be present in product_name OR note
+          const productNameLower = product.product_name.toLowerCase();
+          const noteLower = (product.note || '').toLowerCase();
+          
+          // Check if all keywords are in product_name
+          const allInProductName = keywords.every(keyword => productNameLower.includes(keyword));
+          
+          // Check if all keywords are in note
+          const allInNote = keywords.every(keyword => noteLower.includes(keyword));
+          
+          contentMatch = allInProductName || allInNote;
+        }
       }
 
       return sessionMatch && contentMatch;
