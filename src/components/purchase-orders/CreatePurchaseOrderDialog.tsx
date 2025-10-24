@@ -82,6 +82,22 @@ interface PurchaseOrderItem {
   
   // UI only
   _tempTotalPrice: number;
+  
+  // Variant generation metadata (not saved to DB)
+  _variantMetadata?: {
+    attributeLines: AttributeLine[];
+    generatedVariants: Array<{
+      product_code: string;
+      product_name: string;
+      variant: string;
+      quantity: number;
+      purchase_price: number | string;
+      selling_price: number | string;
+      product_images: string[];
+      price_images: string[];
+      _tempTotalPrice: number;
+    }>;
+  };
 }
 
 interface CreatePurchaseOrderDialogProps {
@@ -504,6 +520,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         if (itemsError) throw itemsError;
 
+        // Insert variants from metadata
+        console.log('🔄 Processing variant metadata for edited draft items...');
+        for (const item of items.filter(i => i.product_name.trim())) {
+          if (item._variantMetadata) {
+            await insertVariantsFromMetadata(item, formData.supplier_name);
+          }
+        }
+
         // Create parent products (same logic as before)
         const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
@@ -615,6 +639,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
+      // Step 2.5: Insert variants from metadata
+      console.log('🔄 Processing variant metadata for items...');
+      for (const item of items.filter(i => i.product_name.trim())) {
+        if (item._variantMetadata) {
+          await insertVariantsFromMetadata(item, formData.supplier_name);
+        }
+      }
+
       // Step 3: Create parent products in inventory
       const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
@@ -685,7 +717,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: () => {
-      toast({ title: "Tạo đơn đặt hàng thành công!" });
+      // Count variants created
+      const variantsCount = items.reduce((sum, item) => {
+        return sum + (item._variantMetadata?.generatedVariants.length || 0);
+      }, 0);
+      
+      const successMessage = variantsCount > 0
+        ? `Đã tạo đơn hàng và ${variantsCount} biến thể vào kho`
+        : "Tạo đơn đặt hàng thành công!";
+      
+      toast({ title: successMessage });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -975,26 +1016,79 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       attributeLines: AttributeLine[];
     }
   ) => {
-    console.log('🎯 handleVariantsGenerated:', { index, data });
+    console.log('🎯 handleVariantsGenerated - Saving metadata only:', { index, data });
 
     const { variants, attributeLines } = data;
-    const parentItem = items[index];
 
     try {
-      // ✅ Format variant text by groups
+      // ✅ 1. Format variant text by groups
       const variantText = formatVariantTextByGroups(attributeLines);
       
-      // ✅ 1. Insert parent product vào kho
-      const parentProductData = {
-        product_code: parentItem.product_code.trim().toUpperCase(),
-        product_name: parentItem.product_name.trim().toUpperCase(),
-        base_product_code: parentItem.product_code.trim().toUpperCase(),
+      // ✅ 2. Calculate total quantity
+      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
+      
+      // ✅ 3. Update item with metadata (NO database insert)
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
         variant: variantText,
-        purchase_price: Number(parentItem.purchase_price || 0) * 1000,
-        selling_price: Number(parentItem.selling_price || 0) * 1000,
-        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-        product_images: parentItem.product_images || [],
-        price_images: parentItem.price_images || [],
+        quantity: totalQuantity,
+        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity,
+        // ✅ Save metadata for later
+        _variantMetadata: {
+          attributeLines,
+          generatedVariants: variants
+        }
+      };
+      setItems(newItems);
+
+      toast({
+        title: "✅ Đã cấu hình biến thể",
+        description: `Đã chuẩn bị ${variants.length} biến thể. Sẽ tạo vào kho khi bạn click "Tạo đơn hàng".`,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error saving variant metadata:', error);
+      toast({
+        title: "Lỗi cấu hình biến thể",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  /**
+   * Helper function: Insert parent + child variants vào database từ metadata
+   * Called in createOrderMutation when clicking "Tạo đơn hàng"
+   */
+  const insertVariantsFromMetadata = async (
+    item: PurchaseOrderItem,
+    supplierName: string
+  ) => {
+    // Skip if no metadata
+    if (!item._variantMetadata) {
+      return;
+    }
+
+    const { attributeLines, generatedVariants } = item._variantMetadata;
+    
+    try {
+      console.log('🔄 Inserting variants from metadata:', {
+        product_code: item.product_code,
+        variants_count: generatedVariants.length
+      });
+
+      // ✅ 1. Insert parent product
+      const parentProductData = {
+        product_code: item.product_code.trim().toUpperCase(),
+        product_name: item.product_name.trim().toUpperCase(),
+        base_product_code: item.product_code.trim().toUpperCase(),
+        variant: item.variant, // Already formatted in handleVariantsGenerated
+        purchase_price: Number(item.purchase_price || 0) * 1000,
+        selling_price: Number(item.selling_price || 0) * 1000,
+        supplier_name: supplierName.trim().toUpperCase(),
+        product_images: item.product_images || [],
+        price_images: item.price_images || [],
         stock_quantity: 0,
         unit: 'Cái'
       };
@@ -1007,17 +1101,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         throw parentError;
       }
 
-      // ✅ 2. Insert variant products vào kho
+      // ✅ 2. Insert child variants
       // Check if only Size Số (attributeId = 4)
       const hasOnlySizeNumber = attributeLines.length === 1 && 
         attributeLines[0].attributeId === 4;
 
-      const variantProductsData = variants.map(v => {
+      const variantProductsData = generatedVariants.map(v => {
         let finalProductCode = v.product_code;
         
         // If only Size Số → Add "A" between base code and number
         if (hasOnlySizeNumber) {
-          const baseCode = parentItem.product_code.trim().toUpperCase();
+          const baseCode = item.product_code.trim().toUpperCase();
           const sizeNumber = v.variant.toUpperCase();
           finalProductCode = `${baseCode}A${sizeNumber}`;
         }
@@ -1025,11 +1119,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         return {
           product_code: finalProductCode,
           product_name: v.product_name,
-          base_product_code: parentItem.product_code.trim().toUpperCase(),
+          base_product_code: item.product_code.trim().toUpperCase(),
           variant: v.variant.toUpperCase(),
           purchase_price: Number(v.purchase_price || 0) * 1000,
           selling_price: Number(v.selling_price || 0) * 1000,
-          supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
+          supplier_name: supplierName.trim().toUpperCase(),
           product_images: v.product_images || [],
           price_images: v.price_images || [],
           stock_quantity: 0,
@@ -1043,34 +1137,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       if (variantsError) throw variantsError;
 
-      // ✅ 3. Update parent item's variant field and quantity in form
-      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
-      
-      const newItems = [...items];
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-        quantity: totalQuantity,  // Update quantity to sum of all variants
-        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
-      };
-      setItems(newItems);
-
-      // ✅ 4. Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["products-select"] });
-
-      toast({
-        title: "✅ Đã tạo biến thể",
-        description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
-      });
+      console.log(`✅ Inserted parent + ${generatedVariants.length} child variants for ${item.product_code}`);
 
     } catch (error: any) {
-      console.error('❌ Error creating variants:', error);
-      toast({
-        title: "Lỗi tạo biến thể",
-        description: error.message,
-        variant: "destructive"
-      });
+      console.error('❌ Error inserting variants from metadata:', error);
+      // Re-throw to let createOrderMutation handle it
+      throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${error.message}`);
     }
   };
 
