@@ -343,6 +343,9 @@ export function UploadLiveOrdersToTPOSDialog({
     }
 
     setIsUploading(false);
+    
+    // Reset selected products after upload completes
+    setSelectedProducts(new Set());
 
     if (successCount > 0 && failedCount === 0) {
       toast.success(`Đã upload thành công ${successCount} đơn hàng`);
