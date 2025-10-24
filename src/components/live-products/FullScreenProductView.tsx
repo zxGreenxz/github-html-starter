@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
+import { QuickAddOrder } from "./QuickAddOrder";
 import { X, Search, Pencil, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -141,6 +141,14 @@ export function FullScreenProductView({
                                 </div>
                               )}
                             </TableCell>
+                            <TableCell rowSpan={rowSpan} className="align-top">
+                              <QuickAddOrder
+                                productId={product.id}
+                                phaseId={selectedPhase || ""}
+                                sessionId={selectedSession || ""}
+                                availableQuantity={remaining}
+                              />
+                            </TableCell>
                             <TableCell rowSpan={rowSpan} className="text-center align-top">
                               {product.prepared_quantity}
                             </TableCell>
@@ -206,6 +214,14 @@ export function FullScreenProductView({
                             <span className="text-xs text-muted-foreground">N/A</span>
                           </div>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <QuickAddOrder
+                          productId={product.id}
+                          phaseId={selectedPhase || ""}
+                          sessionId={selectedSession || ""}
+                          availableQuantity={remaining}
+                        />
                       </TableCell>
                       <TableCell className="text-center">{product.prepared_quantity}</TableCell>
                       <TableCell className="text-center">{product.sold_quantity}</TableCell>
