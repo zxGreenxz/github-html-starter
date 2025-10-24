@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import { generateVariants, ProductData, TPOSAttributeLine, TPOSAttributeValue } from "@/lib/variant-generator";
+import { TPOS_ATTRIBUTES } from "@/lib/tpos-attributes";
 
 // Helper: Get product image with priority: product_images > tpos_image_url > parent image
 const getProductImages = async (product: any): Promise<string[]> => {
@@ -64,6 +66,13 @@ interface AttributeLine {
   values: string[];
 }
 
+// Attribute ID to TPOS_ATTRIBUTES key mapping
+const ATTRIBUTE_KEY_MAP: Record<number, 'sizeText' | 'color' | 'sizeNumber'> = {
+  1: 'sizeText',
+  3: 'color',
+  4: 'sizeNumber'
+};
+
 interface PurchaseOrderItem {
   quantity: number;
   notes: string;
@@ -83,19 +92,9 @@ interface PurchaseOrderItem {
   _tempTotalPrice: number;
   _manualCodeEdit?: boolean;
   
-  // ✅ Variant config for draft-to-order workflow
+  // ✅ Variant config: Only store attribute metadata
   variantConfig?: {
     attributeLines: AttributeLine[];
-    generatedVariants: Array<{
-      product_code: string;
-      product_name: string;
-      variant: string;
-      purchase_price: number | string;
-      selling_price: number | string;
-      quantity: number;
-      product_images: string[];
-      price_images: string[];
-    }>;
   };
 }
 
@@ -409,29 +408,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           validationErrors.push(`Dòng ${itemNumber}: Thiếu Hình ảnh sản phẩm`);
         }
         
-        // ✨ Smart validation: Only require prices if NO variantConfig
-        if (!item.variantConfig) {
-          // Kiểm tra Giá mua
-          if (!item.purchase_price || Number(item.purchase_price) <= 0) {
-            validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá mua`);
-          }
-          
-          // Kiểm tra Giá bán
-          if (!item.selling_price || Number(item.selling_price) <= 0) {
-            validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
-          }
-        } else {
-          // Has variantConfig → Validate variants have prices
-          const invalidVariants = item.variantConfig.generatedVariants.filter(
-            (v: any) => !v.purchase_price || Number(v.purchase_price) <= 0 || 
-                 !v.selling_price || Number(v.selling_price) <= 0
-          );
-          
-          if (invalidVariants.length > 0) {
-            validationErrors.push(
-              `Dòng ${itemNumber}: Có ${invalidVariants.length} biến thể thiếu giá. Vui lòng cập nhật giá cho sản phẩm cha.`
-            );
-          }
+        // Kiểm tra Giá mua
+        if (!item.purchase_price || Number(item.purchase_price) <= 0) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá mua`);
+        }
+        
+        // Kiểm tra Giá bán
+        if (!item.selling_price || Number(item.selling_price) <= 0) {
+          validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
         }
       });
 
@@ -559,6 +543,92 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }
         }
 
+        // Step 2.5: Create child variant products from variantConfig
+        console.log('🔨 Checking items with variantConfig...');
+        for (const item of items.filter(i => i.product_name.trim() && i.variantConfig)) {
+          console.log(`🎯 Creating variants for ${item.product_code}:`, item.variantConfig);
+          
+          const { attributeLines } = item.variantConfig;
+          
+          // Convert attributeLines → TPOSAttributeLine[]
+          const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
+            const attrKey = ATTRIBUTE_KEY_MAP[line.attributeId];
+            if (!attrKey) return null;
+
+            const values: TPOSAttributeValue[] = line.values
+              .map(valueName => {
+                const value = TPOS_ATTRIBUTES[attrKey].find(v => v.Name === valueName);
+                return value ? {
+                  ...value,
+                  AttributeId: line.attributeId,
+                  AttributeName: line.attributeName
+                } : null;
+              })
+              .filter(Boolean) as TPOSAttributeValue[];
+
+            return {
+              Attribute: {
+                Id: line.attributeId,
+                Name: line.attributeName
+              },
+              Values: values
+            };
+          }).filter(Boolean) as TPOSAttributeLine[];
+          
+          // Prepare ProductData from current form item
+          const productData: ProductData = {
+            Id: 0,
+            Name: item.product_name.trim().toUpperCase(),
+            DefaultCode: item.product_code.trim().toUpperCase(),
+            ListPrice: Number(item.selling_price || 0) * 1000
+          };
+          
+          // Generate variants using variant-generator.ts
+          const generatedVariants = generateVariants(productData, tposAttributeLines);
+          
+          // Check if this is Size Number only (attributeId === 4)
+          const hasOnlySizeNumber = attributeLines.length === 1 && 
+            attributeLines[0].attributeId === 4;
+          
+          // Prepare variant products data
+          const variantProductsData = generatedVariants.map(v => {
+            let finalProductCode = v.DefaultCode;
+            
+            // If only Size Số → Add "A" between base code and number
+            if (hasOnlySizeNumber) {
+              const baseCode = item.product_code.trim().toUpperCase();
+              const sizeNumber = v.AttributeValues?.[0]?.Name || '';
+              finalProductCode = `${baseCode}A${sizeNumber}`;
+            }
+            
+            return {
+              product_code: finalProductCode.trim().toUpperCase(),
+              product_name: v.Name.trim().toUpperCase(),
+              base_product_code: item.product_code.trim().toUpperCase(),
+              variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+              purchase_price: Number(item.purchase_price || 0) * 1000,
+              selling_price: Number(item.selling_price || 0) * 1000,
+              supplier_name: formData.supplier_name.trim().toUpperCase(),
+              product_images: item.product_images || [],
+              price_images: item.price_images || [],
+              stock_quantity: 0,
+              unit: 'Cái'
+            };
+          });
+          
+          // Insert variant products (ignore duplicates)
+          const { error: variantsError } = await supabase
+            .from("products")
+            .insert(variantProductsData)
+            .select();
+          
+          if (variantsError && variantsError.code !== '23505') {
+            console.error('❌ Error creating variant products:', variantsError);
+          } else {
+            console.log(`✅ Created ${variantProductsData.length} variants for ${item.product_code}`);
+          }
+        }
+
         return order;
       }
 
@@ -674,6 +744,92 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           // Don't throw - continue with order creation
         } else {
           console.log(`✅ Created ${parentProducts.length} parent products`);
+        }
+      }
+
+      // Step 3.5: Create child variant products from variantConfig
+      console.log('🔨 Checking items with variantConfig...');
+      for (const item of items.filter(i => i.product_name.trim() && i.variantConfig)) {
+        console.log(`🎯 Creating variants for ${item.product_code}:`, item.variantConfig);
+        
+        const { attributeLines } = item.variantConfig;
+        
+        // Convert attributeLines → TPOSAttributeLine[]
+        const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
+          const attrKey = ATTRIBUTE_KEY_MAP[line.attributeId];
+          if (!attrKey) return null;
+
+          const values: TPOSAttributeValue[] = line.values
+            .map(valueName => {
+              const value = TPOS_ATTRIBUTES[attrKey].find(v => v.Name === valueName);
+              return value ? {
+                ...value,
+                AttributeId: line.attributeId,
+                AttributeName: line.attributeName
+              } : null;
+            })
+            .filter(Boolean) as TPOSAttributeValue[];
+
+          return {
+            Attribute: {
+              Id: line.attributeId,
+              Name: line.attributeName
+            },
+            Values: values
+          };
+        }).filter(Boolean) as TPOSAttributeLine[];
+        
+        // Prepare ProductData from current form item
+        const productData: ProductData = {
+          Id: 0,
+          Name: item.product_name.trim().toUpperCase(),
+          DefaultCode: item.product_code.trim().toUpperCase(),
+          ListPrice: Number(item.selling_price || 0) * 1000
+        };
+        
+        // Generate variants using variant-generator.ts
+        const generatedVariants = generateVariants(productData, tposAttributeLines);
+        
+        // Check if this is Size Number only (attributeId === 4)
+        const hasOnlySizeNumber = attributeLines.length === 1 && 
+          attributeLines[0].attributeId === 4;
+        
+        // Prepare variant products data
+        const variantProductsData = generatedVariants.map(v => {
+          let finalProductCode = v.DefaultCode;
+          
+          // If only Size Số → Add "A" between base code and number
+          if (hasOnlySizeNumber) {
+            const baseCode = item.product_code.trim().toUpperCase();
+            const sizeNumber = v.AttributeValues?.[0]?.Name || '';
+            finalProductCode = `${baseCode}A${sizeNumber}`;
+          }
+          
+          return {
+            product_code: finalProductCode.trim().toUpperCase(),
+            product_name: v.Name.trim().toUpperCase(),
+            base_product_code: item.product_code.trim().toUpperCase(),
+            variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+            purchase_price: Number(item.purchase_price || 0) * 1000,
+            selling_price: Number(item.selling_price || 0) * 1000,
+            supplier_name: formData.supplier_name.trim().toUpperCase(),
+            product_images: item.product_images || [],
+            price_images: item.price_images || [],
+            stock_quantity: 0,
+            unit: 'Cái'
+          };
+        });
+        
+        // Insert variant products (ignore duplicates)
+        const { error: variantsError } = await supabase
+          .from("products")
+          .insert(variantProductsData)
+          .select();
+        
+        if (variantsError && variantsError.code !== '23505') {
+          console.error('❌ Error creating variant products:', variantsError);
+        } else {
+          console.log(`✅ Created ${variantProductsData.length} variants for ${item.product_code}`);
         }
       }
 
@@ -917,31 +1073,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const handleVariantsGenerated = async (
     index: number,
     data: {
-      variants: Array<{
-        product_code: string;
-        product_name: string;
-        variant: string;
-        quantity: number;
-        purchase_price: number | string;
-        selling_price: number | string;
-        product_images: string[];
-        price_images: string[];
-        _tempTotalPrice: number;
-      }>;
       attributeLines: AttributeLine[];
     }
   ) => {
     console.log('🎯 handleVariantsGenerated - SAVE CONFIG ONLY:', { index, data });
 
-    const { variants, attributeLines } = data;
-    const parentItem = items[index];
+    const { attributeLines } = data;
 
     try {
       // ✅ Format variant text by groups
       const variantText = formatVariantTextByGroups(attributeLines);
-      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
       
-      // ✅ ONLY save config to form state (NO database insertion)
+      // Calculate total quantity from attributeLines
+      const totalQuantity = attributeLines.reduce((total, line) => {
+        return total * line.values.length;
+      }, 1);
+      
+      // ✅ ONLY save attributeLines to form state
       const newItems = [...items];
       newItems[index] = {
         ...newItems[index],
@@ -949,17 +1097,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         quantity: totalQuantity,
         _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity,
         variantConfig: {
-          attributeLines,
-          generatedVariants: variants.map(v => ({
-            product_code: v.product_code,
-            product_name: v.product_name,
-            variant: v.variant.toUpperCase(),
-            purchase_price: v.purchase_price,
-            selling_price: v.selling_price,
-            quantity: v.quantity || 1,
-            product_images: v.product_images || [],
-            price_images: v.price_images || []
-          }))
+          attributeLines
         }
       };
       setItems(newItems);
@@ -968,7 +1106,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       toast({
         title: "✅ Đã cấu hình biến thể",
-        description: `Đã cấu hình ${variants.length} biến thể. Sẽ tạo vào kho khi bấm "Tạo Đơn Hàng".`,
+        description: `Đã cấu hình ${totalQuantity} biến thể. Sẽ tạo vào kho khi bấm "Tạo Đơn Hàng".`,
       });
 
     } catch (error: any) {
