@@ -509,10 +509,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
       return insertData;
     },
     onSuccess: async (insertData) => {
-      // Refetch live-products trước để có product codes mới
-      await queryClient.refetchQueries({ queryKey: ["live-products", phaseId] });
-      // Sau đó refetch products-details với list đã update
-      await queryClient.refetchQueries({ queryKey: ["products-details-for-live", phaseId, sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       
       // Tạo toast message với format mới
       const baseProductCode = insertData[0]?.base_product_code || insertData[0]?.product_code.split('X')[0];
