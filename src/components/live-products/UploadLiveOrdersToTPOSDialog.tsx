@@ -66,7 +66,7 @@ export function UploadLiveOrdersToTPOSDialog({
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<Record<number, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
-  const [allowDuplicate, setAllowDuplicate] = useState(false);
+  const [allowDuplicate, setAllowDuplicate] = useState(true);
 
   // Fetch session data
   const { data: sessionData } = useQuery({
@@ -91,7 +91,7 @@ export function UploadLiveOrdersToTPOSDialog({
       setSelectedProducts(new Set());
       setUploadProgress({});
       setIsUploading(false);
-      setAllowDuplicate(false);
+      setAllowDuplicate(true);
     }
   }, [open]);
 
