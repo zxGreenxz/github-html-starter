@@ -464,7 +464,7 @@ export default function LiveProducts() {
   });
 
   // Fetch product details from products table for images
-  const { data: productsDetails = [] } = useQuery({
+  const { data: productsDetails = [], isLoading: isLoadingProductsDetails } = useQuery({
     queryKey: ["products-details-for-live", selectedPhase, selectedSession],
     queryFn: async () => {
       if (allLiveProducts.length === 0) return [];
@@ -1882,7 +1882,7 @@ export default function LiveProducts() {
                                     ...prev,
                                     [product.id]: 0
                                   }));
-                                }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                                }} disabled={isLoadingProductsDetails} title={isLoadingProductsDetails ? "Đang tải dữ liệu..." : "Copy hình order"}>
                                         <Copy className="h-3 w-3" />
                                       </Button>
                                       <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
@@ -2072,7 +2072,7 @@ export default function LiveProducts() {
                                 ...prev,
                                 [product.id]: 0
                               }));
-                            }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                            }} disabled={isLoadingProductsDetails} title={isLoadingProductsDetails ? "Đang tải dữ liệu..." : "Copy hình order"}>
                                   <Copy className="h-3 w-3" />
                                 </Button>
                                  <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
