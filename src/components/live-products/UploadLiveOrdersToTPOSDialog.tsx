@@ -68,7 +68,8 @@ export function UploadLiveOrdersToTPOSDialog({
   const [uploadProgress, setUploadProgress] = useState<Record<number, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [allowDuplicate, setAllowDuplicate] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [sessionIndexSearch, setSessionIndexSearch] = useState("");
+  const [contentSearch, setContentSearch] = useState("");
 
   // Fetch session data
   const { data: sessionData } = useQuery({
@@ -94,7 +95,8 @@ export function UploadLiveOrdersToTPOSDialog({
       setUploadProgress({});
       setIsUploading(false);
       setAllowDuplicate(true);
-      setSearchQuery("");
+      setSessionIndexSearch("");
+      setContentSearch("");
     }
   }, [open]);
 
@@ -108,22 +110,37 @@ export function UploadLiveOrdersToTPOSDialog({
       }))
       .sort((a, b) => a.session_index - b.session_index);
 
-    // Apply search filter
-    if (!searchQuery.trim()) {
+    // Apply search filters
+    const hasSessionSearch = sessionIndexSearch.trim();
+    const hasContentSearch = contentSearch.trim();
+    
+    if (!hasSessionSearch && !hasContentSearch) {
       return allProducts;
     }
 
-    const query = searchQuery.toLowerCase().trim();
     return allProducts.filter(product => {
-      const sessionIndexMatch = product.session_index.toString().includes(query);
-      const productCodeMatch = product.product_code.toLowerCase().includes(query);
-      const productNameMatch = product.product_name.toLowerCase().includes(query);
-      const variantMatch = product.variant?.toLowerCase().includes(query) || false;
-      const noteMatch = product.note?.toLowerCase().includes(query) || false;
-      
-      return sessionIndexMatch || productCodeMatch || productNameMatch || variantMatch || noteMatch;
+      let sessionMatch = true;
+      let contentMatch = true;
+
+      // Filter by SessionIndex if search query exists
+      if (hasSessionSearch) {
+        sessionMatch = product.session_index.toString().includes(sessionIndexSearch.trim());
+      }
+
+      // Filter by content (product code, name, variant, note) if search query exists
+      if (hasContentSearch) {
+        const contentQuery = contentSearch.toLowerCase().trim();
+        const productCodeMatch = product.product_code.toLowerCase().includes(contentQuery);
+        const productNameMatch = product.product_name.toLowerCase().includes(contentQuery);
+        const variantMatch = product.variant?.toLowerCase().includes(contentQuery) || false;
+        const noteMatch = product.note?.toLowerCase().includes(contentQuery) || false;
+        
+        contentMatch = productCodeMatch || productNameMatch || variantMatch || noteMatch;
+      }
+
+      return sessionMatch && contentMatch;
     });
-  }, [ordersWithProducts, searchQuery]);
+  }, [ordersWithProducts, sessionIndexSearch, contentSearch]);
 
   // Calculate rowSpan for session_index column
   const sessionIndexRowSpans = useMemo(() => {
@@ -373,16 +390,28 @@ export function UploadLiveOrdersToTPOSDialog({
             </label>
           </div>
 
-          {/* Search input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Tìm kiếm theo SessionIndex, sản phẩm hoặc ghi chú..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              disabled={isUploading}
-            />
+          {/* Search inputs */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm SessionIndex..."
+                value={sessionIndexSearch}
+                onChange={(e) => setSessionIndexSearch(e.target.value)}
+                className="pl-10"
+                disabled={isUploading}
+              />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm sản phẩm hoặc ghi chú..."
+                value={contentSearch}
+                onChange={(e) => setContentSearch(e.target.value)}
+                className="pl-10"
+                disabled={isUploading}
+              />
+            </div>
           </div>
           {sessionData && (
             <div className="bg-muted p-3 rounded-md">
