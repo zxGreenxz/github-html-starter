@@ -120,12 +120,50 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
+  const [productsWithVariants, setProductsWithVariants] = useState<Set<string>>(new Set());
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i._tempProductName).join('|'),
     500
   );
+
+  // Check which products already have variants in database
+  useEffect(() => {
+    const checkProductsWithVariants = async () => {
+      const productCodes = items
+        .map(item => item._tempProductCode?.trim().toUpperCase())
+        .filter(code => code && code.length > 0);
+      
+      if (productCodes.length === 0) {
+        setProductsWithVariants(new Set());
+        return;
+      }
+      
+      // Query for products that are parent products (product_code = base_product_code)
+      // and have variants (variant is not null and not empty)
+      const { data } = await supabase
+        .from("products")
+        .select("product_code, base_product_code, variant")
+        .in("product_code", productCodes)
+        .not("variant", "is", null)
+        .neq("variant", "");
+      
+      if (data) {
+        // Filter to only include products where product_code = base_product_code
+        const codesWithVariants = new Set(
+          data
+            .filter(p => p.product_code === p.base_product_code)
+            .map(p => p.product_code.toUpperCase())
+        );
+        setProductsWithVariants(codesWithVariants);
+      }
+    };
+    
+    if (open) {
+      checkProductsWithVariants();
+    }
+  }, [items.map(i => i._tempProductCode).join(','), open]);
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
@@ -636,6 +674,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           return newItems;
         });
         
+        // Update productsWithVariants to hide the button immediately
+        setProductsWithVariants(prev => new Set([...prev, baseItem._tempProductCode.trim().toUpperCase()]));
+        
         toast({
           title: "✅ Đã thêm variants vào danh sách",
           description: `Đã thêm ${createdVariants.length} variants vào đơn đặt hàng`,
@@ -1055,24 +1096,28 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div>
-                                      {canGenerateVariant(item).valid ? (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 shrink-0"
-                                          onClick={() => openVariantGenerator(index)}
-                                          title="Tạo biến thể tự động"
-                                        >
-                                          <Sparkles className="h-4 w-4" />
-                                        </Button>
-                                      ) : (
-                                        <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                                          <Sparkles className="h-4 w-4" />
-                                        </div>
+                                      {!productsWithVariants.has(item._tempProductCode?.trim().toUpperCase()) && (
+                                        <>
+                                          {canGenerateVariant(item).valid ? (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 shrink-0"
+                                              onClick={() => openVariantGenerator(index)}
+                                              title="Tạo biến thể tự động"
+                                            >
+                                              <Sparkles className="h-4 w-4" />
+                                            </Button>
+                                          ) : (
+                                            <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
+                                              <Sparkles className="h-4 w-4" />
+                                            </div>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   </TooltipTrigger>
-                                  {!canGenerateVariant(item).valid && (
+                                  {!canGenerateVariant(item).valid && !productsWithVariants.has(item._tempProductCode?.trim().toUpperCase()) && (
                                     <TooltipContent side="top" className="max-w-[250px]">
                                       <p className="font-semibold mb-1">Thiếu thông tin:</p>
                                       <ul className="list-disc list-inside text-sm">

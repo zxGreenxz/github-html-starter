@@ -132,6 +132,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
+  const [productsWithVariants, setProductsWithVariants] = useState<Set<string>>(new Set());
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -171,6 +172,43 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       setShowShippingFee((initialData.shipping_fee || 0) > 0);
     }
   }, [open, initialData]);
+
+  // Check which products already have variants in database
+  useEffect(() => {
+    const checkProductsWithVariants = async () => {
+      const productCodes = items
+        .map(item => item.product_code?.trim().toUpperCase())
+        .filter(code => code && code.length > 0);
+      
+      if (productCodes.length === 0) {
+        setProductsWithVariants(new Set());
+        return;
+      }
+      
+      // Query for products that are parent products (product_code = base_product_code)
+      // and have variants (variant is not null and not empty)
+      const { data } = await supabase
+        .from("products")
+        .select("product_code, base_product_code, variant")
+        .in("product_code", productCodes)
+        .not("variant", "is", null)
+        .neq("variant", "");
+      
+      if (data) {
+        // Filter to only include products where product_code = base_product_code
+        const codesWithVariants = new Set(
+          data
+            .filter(p => p.product_code === p.base_product_code)
+            .map(p => p.product_code.toUpperCase())
+        );
+        setProductsWithVariants(codesWithVariants);
+      }
+    };
+    
+    if (open) {
+      checkProductsWithVariants();
+    }
+  }, [items.map(i => i.product_code).join(','), open]);
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
@@ -943,6 +981,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-select"] });
 
+      // ✅ 5. Update productsWithVariants to hide the button immediately
+      setProductsWithVariants(prev => new Set([...prev, parentItem.product_code.trim().toUpperCase()]));
+
       toast({
         title: "✅ Đã tạo biến thể",
         description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
@@ -1219,24 +1260,28 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
-                        {canGenerateVariant(item).valid ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => openVariantGenerator(index)}
-                            title="Tạo biến thể tự động"
-                          >
-                            <Sparkles className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                            <Sparkles className="h-4 w-4" />
-                          </div>
+                        {!productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
+                          <>
+                            {canGenerateVariant(item).valid ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => openVariantGenerator(index)}
+                                title="Tạo biến thể tự động"
+                              >
+                                <Sparkles className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
+                                <Sparkles className="h-4 w-4" />
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </TooltipTrigger>
-                    {!canGenerateVariant(item).valid && (
+                    {!canGenerateVariant(item).valid && !productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
                       <TooltipContent side="top" className="max-w-[250px]">
                         <p className="font-semibold mb-1">Thiếu thông tin:</p>
                         <ul className="list-disc list-inside text-sm">
