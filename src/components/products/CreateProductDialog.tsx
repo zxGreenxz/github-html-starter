@@ -206,7 +206,8 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
                   id="variant"
                   value={formData.variant}
                   onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                  placeholder="VD: Đỏ, S, XL, 38, 42..."
+                  placeholder="(1 | 2 | 3) (S | M | L)"
+                  readOnly
                 />
                 <Button
                   type="button"
