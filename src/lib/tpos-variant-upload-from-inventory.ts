@@ -580,149 +580,78 @@ async function updateExistingProductVariants(
     const existingData = await fetchResponse.json();
     const cleanData = removeODataMetadata(existingData);
 
-    // STEP 2: Generate variants locally
+    // STEP 2: Generate variants locally (giống HTML reference)
     onProgress?.('🔨 Đang generate variants local...');
     const generatedVariants = generateVariantCombinations(baseProduct, attributeLines);
     onProgress?.(`✅ Đã generate ${generatedVariants.length} variants`);
 
-    // ========== HELPER FUNCTION: Upload Variants ==========
-    const uploadVariants = async (clearFirst: boolean = false): Promise<any> => {
-      // Nếu cần clear trước, gửi request xóa variants cũ
-      if (clearFirst && existingData.ProductVariants?.length > 0) {
-        onProgress?.('🗑️ Đang xóa variants cũ trên TPOS...');
-        
-        const clearPayload = {
-          ...cleanData,
-          ProductVariants: [],
-          AttributeLines: []
-        };
-
-        const clearResponse = await fetch(
-          'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2',
-          {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(clearPayload)
-          }
-        );
-
-        if (!clearResponse.ok) {
-          const errorData = await clearResponse.json();
-          throw new Error(`Clear variants failed: ${errorData.error?.message || clearResponse.status}`);
-        }
-
-        onProgress?.('✅ Đã xóa variants cũ');
-      }
-
-      // STEP 3: Preview variants
-      onProgress?.('🔍 [1/2] Đang gửi preview request...');
-      
-      const previewPayload = {
-        model: {
-          ...cleanData,
-          ProductVariants: generatedVariants,
-          AttributeLines: attributeLines
-        }
-      };
-
-      const previewResponse = await fetch(
-        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(previewPayload)
-        }
-      );
-
-      if (!previewResponse.ok) {
-        const errorData = await previewResponse.json();
-        throw new Error(`Preview failed: ${errorData.error?.message || previewResponse.status}`);
-      }
-
-      const previewData = await previewResponse.json();
-      onProgress?.(`✅ Preview: ${previewData.value?.length || 0} variants`);
-
-      // STEP 4: Save to database
-      onProgress?.('💾 [2/2] Đang lưu vào TPOS database...');
-      
-      const savePayload = {
+    // STEP 3: Preview variants - POST 1 LẦN với đầy đủ data (giống HTML)
+    onProgress?.('🔍 [1/2] Đang gửi preview request...');
+    
+    const previewPayload = {
+      model: {
         ...cleanData,
-        ListPrice: baseProduct.selling_price || 0,
-        PurchasePrice: baseProduct.purchase_price || 0,
-        ProductVariants: previewData.value.map((variant: any) => ({
-          ...variant,
-          ListPrice: null,
-          PurchasePrice: null
-        })),
-        AttributeLines: attributeLines,
-        Version: existingData.Version || 0
-      };
-
-      const saveResponse = await fetch(
-        'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(savePayload)
-        }
-      );
-
-      if (!saveResponse.ok) {
-        const errorData = await saveResponse.json();
-        throw new Error(`Save failed: ${errorData.error?.message || saveResponse.status}`);
+        ProductVariants: generatedVariants,  // ✅ Gửi KÈM variants đã generate
+        AttributeLines: attributeLines       // ✅ Gửi attribute lines
       }
-
-      onProgress?.('✅ Đã lưu thành công');
-      return previewData;
     };
 
-    // ========== SMART RETRY LOGIC ==========
-    try {
-      // LẦN THỬ ĐẦU TIÊN: Upload bình thường (không clear)
-      const previewData = await uploadVariants(false);
-      
-      const uploadedCount = previewData.value?.length || 0;
-      await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, previewData.value || []);
-
-      return {
-        success: true,
-        tposProductId,
-        variantsUploaded: uploadedCount
-      };
-
-    } catch (firstError: any) {
-      // Kiểm tra xem có phải lỗi "đang được sử dụng" không
-      const errorMessage = firstError.message.toLowerCase();
-      const isInUseError = 
-        errorMessage.includes('đang được sử dụng') ||
-        errorMessage.includes('in use') ||
-        errorMessage.includes('being used') ||
-        errorMessage.includes('không thể xóa') ||
-        errorMessage.includes('cannot delete');
-
-      if (isInUseError) {
-        // RETRY: Clear variants cũ trước rồi upload lại
-        onProgress?.('⚠️ Phát hiện conflict, đang retry với clear variants...');
-        
-        try {
-          const previewData = await uploadVariants(true); // clearFirst = true
-          
-          const uploadedCount = previewData.value?.length || 0;
-          await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, previewData.value || []);
-
-          return {
-            success: true,
-            tposProductId,
-            variantsUploaded: uploadedCount
-          };
-        } catch (retryError: any) {
-          throw new Error(`Retry failed: ${retryError.message}`);
-        }
-      } else {
-        // Lỗi khác, không retry
-        throw firstError;
+    const previewResponse = await fetch(
+      'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.SuggestionsVariant?$expand=AttributeValues',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(previewPayload)
       }
+    );
+
+    if (!previewResponse.ok) {
+      const errorData = await previewResponse.json();
+      throw new Error(
+        `Preview failed: ${errorData.error?.message || previewResponse.status}`
+      );
     }
+
+    const previewData = await previewResponse.json();
+    onProgress?.(`✅ Preview: ${previewData.value?.length || 0} variants`);
+
+    // STEP 4: Save to database (UpdateV2)
+    onProgress?.('💾 [2/2] Đang lưu vào TPOS database...');
+    
+    const savePayload = {
+      ...cleanData,
+      ProductVariants: previewData.value,
+      AttributeLines: attributeLines,
+      Version: existingData.Version || 0
+    };
+
+    const saveResponse = await fetch(
+      'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(savePayload)
+      }
+    );
+
+    if (!saveResponse.ok) {
+      const errorData = await saveResponse.json();
+      throw new Error(`Save failed: ${errorData.error?.message || saveResponse.status}`);
+    }
+
+    onProgress?.('✅ Đã lưu thành công');
+
+    // Use preview data directly (no verification step needed)
+    const uploadedCount = previewData.value?.length || 0;
+    
+    // Update local database
+    await updateDatabaseAfterUpload(baseProduct.product_code, tposProductId, previewData.value || []);
+
+    return {
+      success: true,
+      tposProductId,
+      variantsUploaded: uploadedCount
+    };
 
   } catch (error: any) {
     throw new Error(`Lỗi cập nhật variants: ${error.message}`);

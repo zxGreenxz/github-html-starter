@@ -11,7 +11,6 @@ import { CreateLiveSessionDialog } from "@/components/live-products/CreateLiveSe
 import { EditLiveSessionDialog } from "@/components/live-products/EditLiveSessionDialog";
 import { AddProductToLiveDialog } from "@/components/live-products/AddProductToLiveDialog";
 import { SelectProductFromInventoryDialog } from "@/components/live-products/SelectProductFromInventoryDialog";
-import { FacebookPageVideoSelector } from "@/components/live-products/FacebookPageVideoSelector";
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
@@ -27,7 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { generateSimpleOrderImage } from "@/lib/simple-order-image-generator";
+import { generateOrderImage } from "@/lib/order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
 import { formatVariant, getVariantName } from "@/lib/variant-utils";
 import { ZoomableImage } from "@/components/products/ZoomableImage";
@@ -64,46 +63,6 @@ const filterProductsBySearch = <T extends {
     });
   }
 };
-
-/**
- * Get inventory image URL for a product with fallback logic
- */
-const getInventoryImageUrl = async (
-  productCode: string,
-  productsDetailsMap: Map<string, any>
-): Promise<string | null> => {
-  const productDetail = productsDetailsMap.get(productCode);
-  if (!productDetail) return null;
-
-  // Priority 1: product_images[0]
-  if (productDetail.product_images?.[0]) {
-    return productDetail.product_images[0];
-  }
-
-  // Priority 2: tpos_image_url
-  if (productDetail.tpos_image_url) {
-    return productDetail.tpos_image_url;
-  }
-
-  // Priority 3: Parent product images (if variant)
-  if (productDetail.base_product_code && productDetail.base_product_code !== productCode) {
-    const { data: parentData } = await supabase
-      .from("products")
-      .select("product_images, tpos_image_url")
-      .eq("product_code", productDetail.base_product_code)
-      .maybeSingle();
-
-    if (parentData?.product_images?.[0]) {
-      return parentData.product_images[0];
-    }
-    if (parentData?.tpos_image_url) {
-      return parentData.tpos_image_url;
-    }
-  }
-
-  return null;
-};
-
 interface LiveSession {
   id: string;
   session_date: string;
@@ -135,7 +94,6 @@ interface LiveProduct {
   sold_quantity: number;
   image_url?: string;
   created_at?: string;
-  updated_at?: string;
   note?: string | null;
   product_type?: 'hang_dat' | 'hang_le' | 'hang_so_luong';
 }
@@ -227,8 +185,6 @@ export default function LiveProducts() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     return localStorage.getItem('liveProducts_activeTab') || "products";
   });
-
-  // Removed productUpdates state - now using updated_at from database
 
   // Auto-print toggle state - persist in localStorage
   const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState(() => {
@@ -405,8 +361,8 @@ export default function LiveProducts() {
         const {
           data,
           error
-        } = await supabase.from("live_products").select("*").eq("live_session_id", selectedSession).order("updated_at", {
-          ascending: false
+        } = await supabase.from("live_products").select("*").eq("live_session_id", selectedSession).order("created_at", {
+          ascending: true
         });
         if (error) throw error;
 
@@ -422,31 +378,37 @@ export default function LiveProducts() {
               product_name: product.product_name,
               prepared_quantity: 0,
               sold_quantity: 0,
-              updated_at: product.updated_at,
+              earliest_created_at: product.created_at
             };
           }
 
-          // Track latest updated_at for the aggregated product
-          const currentUpdatedAt = new Date(product.updated_at || 0).getTime();
-          const latestUpdatedAt = new Date(acc[product.product_code].updated_at || 0).getTime();
-          if (currentUpdatedAt > latestUpdatedAt) {
-            acc[product.product_code].updated_at = product.updated_at;
+          // Update product_name if found earlier record
+          const currentCreatedAt = new Date(product.created_at || 0).getTime();
+          const earliestCreatedAt = new Date(acc[product.product_code].earliest_created_at || 0).getTime();
+          if (currentCreatedAt < earliestCreatedAt) {
+            acc[product.product_code].product_name = product.product_name;
+            acc[product.product_code].earliest_created_at = product.created_at;
           }
 
           // Sum quantities
           acc[product.product_code].prepared_quantity += product.prepared_quantity;
           acc[product.product_code].sold_quantity += product.sold_quantity;
           return acc;
-        }, {} as Record<string, LiveProduct>);
+        }, {} as Record<string, LiveProduct & {
+          earliest_created_at?: string;
+        }>);
         
         console.log(`✅ [PERF] live-products fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
-        return Object.values(aggregated);
+        return Object.values(aggregated).map(({
+          earliest_created_at,
+          ...product
+        }) => product);
       } else {
         // Fetch products for single phase
         const {
           data,
           error
-        } = await supabase.from("live_products").select("*").eq("live_phase_id", selectedPhase).order("updated_at", {
+        } = await supabase.from("live_products").select("*").eq("live_phase_id", selectedPhase).order("created_at", {
           ascending: false
         }).order("product_code", {
           ascending: true
@@ -467,43 +429,19 @@ export default function LiveProducts() {
   const { data: productsDetails = [] } = useQuery({
     queryKey: ["products-details-for-live", selectedPhase, selectedSession],
     queryFn: async () => {
-      const perfStart = performance.now();
-      console.log("⚡ [PERF] Fetching products-details-for-live...");
+      if (allLiveProducts.length === 0) return [];
       
-      // Step 1: Fetch product codes directly from live_products table
-      let liveProductsQuery = supabase
-        .from("live_products")
-        .select("product_code");
+      const productCodes = [...new Set(allLiveProducts.map(p => p.product_code))];
       
-      if (selectedPhase === "all") {
-        liveProductsQuery = liveProductsQuery.eq("live_session_id", selectedSession);
-      } else {
-        liveProductsQuery = liveProductsQuery.eq("live_phase_id", selectedPhase);
-      }
-      
-      const { data: liveProductsForCodes, error: liveError } = await liveProductsQuery;
-      
-      if (liveError) throw liveError;
-      if (!liveProductsForCodes || liveProductsForCodes.length === 0) {
-        console.log(`✅ [PERF] products-details-for-live fetched in ${(performance.now() - perfStart).toFixed(0)}ms (empty)`);
-        return [];
-      }
-      
-      // Step 2: Extract unique product codes
-      const productCodes = [...new Set(liveProductsForCodes.map(p => p.product_code))];
-      
-      // Step 3: Fetch product details from products table
       const { data, error } = await supabase
         .from("products")
         .select("product_code, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .in("product_code", productCodes);
       
       if (error) throw error;
-      
-      console.log(`✅ [PERF] products-details-for-live fetched in ${(performance.now() - perfStart).toFixed(0)}ms`);
       return data || [];
     },
-    enabled: !!selectedPhase && !!selectedSession,
+    enabled: allLiveProducts.length > 0,
     staleTime: 60000, // 60s - product images rarely change
   });
 
@@ -754,8 +692,6 @@ export default function LiveProducts() {
     localStorage.setItem('liveProducts_activeTab', activeTab);
   }, [activeTab]);
 
-  // Removed old product updates cleanup - now using updated_at from database
-
   // Helper function to get color based on copy status
   const getCopyStatusColor = (copyCount: number, soldQuantity: number) => {
     if (copyCount < soldQuantity) return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950";
@@ -872,9 +808,9 @@ export default function LiveProducts() {
       
       if (!ordersData || ordersData.length === 0) return [];
       
-      // Sort orders by created_at (oldest first)
+      // Sort orders by session_index numerically (ascending)
       const sortedOrdersData = [...ordersData].sort((a, b) => {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return a.session_index - b.session_index;
       });
       
       // Create comments map
@@ -1612,62 +1548,43 @@ export default function LiveProducts() {
           ) : (
             <>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Chọn Đợt Live & Facebook Video</h3>
-                </div>
               </CardHeader>
               <CardContent>
-            {liveSessions.length > 0 ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Đợt Live</label>
-                    <Select value={selectedSession} onValueChange={value => {
-                  setSelectedSession(value);
-                  setSelectedPhase(""); // Reset phase selection
-                }}>
+            {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Đợt Live</label>
+                  <Select value={selectedSession} onValueChange={value => {
+                setSelectedSession(value);
+                setSelectedPhase(""); // Reset phase selection
+              }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn một đợt live" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {liveSessions.map(session => <SelectItem key={session.id} value={session.id}>
+                          {getSessionDisplayName(session)}
+                        </SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedSession && livePhases.length > 0 && <div>
+                    <label className="text-sm font-medium mb-2 block">Phiên Live</label>
+                    <Select value={selectedPhase} onValueChange={setSelectedPhase}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Chọn một đợt live" />
+                        <SelectValue placeholder="Chọn phiên live" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {liveSessions.map(session => <SelectItem key={session.id} value={session.id}>
-                            {getSessionDisplayName(session)}
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
+                        {livePhases.map(phase => <SelectItem key={phase.id} value={phase.id}>
+                            {getPhaseDisplayName(phase)}
                           </SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  {selectedSession && livePhases.length > 0 && <div>
-                      <label className="text-sm font-medium mb-2 block">Phiên Live</label>
-                      <Select value={selectedPhase} onValueChange={setSelectedPhase}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn phiên live" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
-                          <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
-                          {livePhases.map(phase => <SelectItem key={phase.id} value={phase.id}>
-                              {getPhaseDisplayName(phase)}
-                            </SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>}
-                </div>
-
-                {/* Facebook Page & Video Selector */}
-                {selectedSession && sessionData && (
-                  <div className="pt-4 border-t">
-                    <FacebookPageVideoSelector 
-                      sessionId={selectedSession}
-                      currentFacebookPostId={sessionData.facebook_post_id}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-6 text-muted-foreground">
+                  </div>}
+              </div> : <div className="text-center py-6 text-muted-foreground">
                 Chưa có đợt live nào. Nhấn nút "Tạo đợt Live mới" để bắt đầu.
-              </div>
-            )}
+              </div>}
 
             <div className="flex flex-col gap-3 mt-4">
               <div className="flex gap-2">
@@ -1822,28 +1739,28 @@ export default function LiveProducts() {
                               product_code: product.base_product_code || product.product_code,
                               product_name: product.base_product_code ? product.product_name.split('(')[0].trim() : product.product_name,
                               products: [],
-                              latest_updated_at: product.updated_at,
+                              earliest_created_at: product.created_at,
                               base_product_code: product.base_product_code
                             };
                           }
                           groups[key].products.push(product);
-                          // Track latest updated_at for group sorting
-                          if (product.updated_at && product.updated_at > groups[key].latest_updated_at!) {
-                            groups[key].latest_updated_at = product.updated_at;
+                          // Track earliest created_at for group sorting
+                          if (product.created_at && product.created_at < groups[key].earliest_created_at!) {
+                            groups[key].earliest_created_at = product.created_at;
                           }
                           return groups;
-        }, {} as Record<string, {
-          product_code: string;
-          product_name: string;
-          products: LiveProduct[];
-          latest_updated_at?: string;
-          base_product_code?: string | null;
-        }>);
+                        }, {} as Record<string, {
+                          product_code: string;
+                          product_name: string;
+                          products: LiveProduct[];
+                          earliest_created_at?: string;
+                          base_product_code?: string | null;
+                        }>);
 
-                        // Sort groups by latest updated_at from database (newest first)
+                        // Sort groups by earliest created_at (newest first)
                         const sortedGroups = Object.values(productGroups).sort((a, b) => {
-                          const timeA = new Date(a.latest_updated_at || 0).getTime();
-                          const timeB = new Date(b.latest_updated_at || 0).getTime();
+                          const timeA = new Date(a.earliest_created_at || 0).getTime();
+                          const timeB = new Date(b.earliest_created_at || 0).getTime();
                           return timeB - timeA; // Descending: newest first
                         });
                         return sortedGroups.flatMap(group => {
@@ -1890,39 +1807,22 @@ export default function LiveProducts() {
                                     toast.error("Số lượng phải lớn hơn 0");
                                     return;
                                   }
-                                  
-                                  // Get image URL from productsDetailsMap
-                                  const productDetail = productsDetailsMap.get(product.product_code);
-                                  if (!productDetail) {
-                                    toast.error("Chưa có hình ảnh sản phẩm");
-                                    return;
-                                  }
-                                  
-                                  // Priority: product_images[0] > tpos_image_url > product.image_url
-                                  const imageUrl = productDetail.product_images?.[0] 
-                                    || productDetail.tpos_image_url 
-                                    || product.image_url;
-                                  
-                                  if (!imageUrl) {
+                                  if (!product.image_url) {
                                     toast.error("Sản phẩm chưa có hình ảnh");
                                     return;
                                   }
-                                  
-                                  // Generate order image with simple logic
-                                  await generateSimpleOrderImage(imageUrl, product.variant || "", qty);
-                                  
+                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
                                     [product.id]: (prev[product.id] || 0) + qty
                                   }));
-                                  
                                   // Reset orderQuantities to 0
                                   setOrderQuantities(prev => ({
                                     ...prev,
                                     [product.id]: 0
                                   }));
-                                }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                                }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                         <Copy className="h-3 w-3" />
                                       </Button>
                                       <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
@@ -1954,8 +1854,10 @@ export default function LiveProducts() {
                                       {(() => {
                                   const productOrders = selectedPhase === "all" ? ordersWithProducts.filter(order => order.product_code === product.product_code) : ordersWithProducts.filter(order => order.live_product_id === product.id);
 
+                                  // Reverse to show newest on the right
+                                  const ordersReversed = [...productOrders].reverse();
                                   return <>
-                                            {productOrders.map(order => {
+                                            {ordersReversed.map(order => {
                                       const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts, ordersWithProducts);
                                       const badgeVariant = isOversell ? "destructive" : order.uploaded_at ? "secondary" : "default";
                                       const getCustomerStatusColor = (status?: string) => {
@@ -2064,11 +1966,11 @@ export default function LiveProducts() {
                       // Use memoized filtered products
                       const filteredProducts = filteredLiveProducts;
 
-                      // Sort by latest updated_at from database (newest first)
+                      // Sort by created_at (newest first)
                       const sortedProducts = [...filteredProducts].sort((a, b) => {
-                        const timeA = new Date(a.updated_at || 0).getTime();
-                        const timeB = new Date(b.updated_at || 0).getTime();
-                        return timeB - timeA; // Descending: newest first
+                        const timeA = new Date(a.created_at || 0).getTime();
+                        const timeB = new Date(b.created_at || 0).getTime();
+                        return timeB - timeA;
                       });
                       return sortedProducts.map(product => {
                         const productDetail = productsDetailsMap.get(product.product_code);
@@ -2097,38 +1999,21 @@ export default function LiveProducts() {
                                 toast.error("Số lượng phải lớn hơn 0");
                                 return;
                               }
-                              
-                              // Get image URL from productsDetailsMap
-                              const productDetail = productsDetailsMap.get(product.product_code);
-                              if (!productDetail) {
-                                toast.error("Chưa có hình ảnh sản phẩm");
-                                return;
-                              }
-                              
-                              // Priority: product_images[0] > tpos_image_url > product.image_url
-                              const imageUrl = productDetail.product_images?.[0] 
-                                || productDetail.tpos_image_url 
-                                || product.image_url;
-                              
-                              if (!imageUrl) {
+                              if (!product.image_url) {
                                 toast.error("Sản phẩm chưa có hình ảnh");
                                 return;
                               }
-                              
-                              // Generate order image with simple logic
-                              await generateSimpleOrderImage(imageUrl, product.variant || "", qty);
-                              
+                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty
                               }));
-                              
                               // Reset orderQuantities to 0
                               setOrderQuantities(prev => ({
                                 ...prev,
                                 [product.id]: 0
                               }));
-                            }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
+                            }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                   <Copy className="h-3 w-3" />
                                 </Button>
                                  <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
@@ -2160,8 +2045,9 @@ export default function LiveProducts() {
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {(() => {
                               const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
+                              const ordersReversed = [...productOrders].reverse();
                               return <>
-                                      {productOrders.map(order => {
+                                      {ordersReversed.map(order => {
                                   const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts || [], ordersWithProducts);
                                   let badgeColor = "bg-blue-100 text-blue-700 hover:bg-blue-200";
                                   if (isOversell) {
@@ -2890,11 +2776,7 @@ export default function LiveProducts() {
 
       <SelectProductFromInventoryDialog open={isSelectFromInventoryOpen} onOpenChange={setIsSelectFromInventoryOpen} phaseId={selectedPhase} sessionId={selectedSession} />
 
-      <EditProductDialog 
-        open={isEditProductOpen} 
-        onOpenChange={setIsEditProductOpen} 
-        product={editingProduct} 
-      />
+      <EditProductDialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen} product={editingProduct} />
 
       <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
 

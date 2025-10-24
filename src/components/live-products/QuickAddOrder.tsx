@@ -131,45 +131,6 @@ export function QuickAddOrder({
     staleTime: 10000, // ✅ Cache 10s to prevent refetch on every keystroke
   });
 
-  // ✅ LOCAL realtime subscription for facebook_pending_orders (filtered by video)
-  useEffect(() => {
-    if (!facebookPostId) {
-      console.warn('⚠️ [REALTIME QuickAdd] No facebookPostId, skipping subscription');
-      return;
-    }
-
-    console.log('🔔 [REALTIME QuickAdd] Setting up subscription for facebook_post_id:', facebookPostId);
-
-    const channel = supabase
-      .channel(`facebook_pending_orders:${facebookPostId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'facebook_pending_orders',
-          filter: `facebook_post_id=eq.${facebookPostId}` // ✅ Only listen to this video
-        },
-        (payload) => {
-          console.log('📡 [REALTIME QuickAdd] facebook_pending_orders changed:', payload);
-          
-          // Invalidate query to trigger refetch
-          queryClient.invalidateQueries({
-            queryKey: ['facebook-pending-orders', phaseData?.phase_date, facebookPostId]
-          });
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 [REALTIME QuickAdd] Subscription status:', status);
-      });
-
-    // Cleanup on unmount or when facebookPostId changes
-    return () => {
-      console.log('🔕 [REALTIME QuickAdd] Cleaning up subscription for:', facebookPostId);
-      supabase.removeChannel(channel);
-    };
-  }, [facebookPostId, phaseData?.phase_date, queryClient]);
-
   // ✅ Data will be refetched ON-DEMAND when dropdown is opened (see Popover onOpenChange)
 
   // Count how many times each comment has been used

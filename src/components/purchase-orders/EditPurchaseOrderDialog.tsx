@@ -1023,6 +1023,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           images={item._tempProductImages}
                           onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
                           itemIndex={index}
+                          disabled={!!item.id}
                         />
                       </TableCell>
                       <TableCell>
@@ -1030,6 +1031,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           images={item._tempPriceImages}
                           onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
                           itemIndex={index}
+                          disabled={!!item.id}
                         />
                       </TableCell>
                       <TableCell>

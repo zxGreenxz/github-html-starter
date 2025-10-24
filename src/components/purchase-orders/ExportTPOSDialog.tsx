@@ -685,47 +685,12 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="sticky top-0 z-10 bg-background border-b pb-4">
-          <div className="flex items-center justify-between">
-            <DialogTitle>Export & Upload lên TPOS</DialogTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isUploading}
-              >
-                Đóng
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={handleDownloadExcel}
-                disabled={isUploading || selectedItems.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Tải Excel ({selectedItems.length})
-              </Button>
-              <Button
-                onClick={handleUploadToTPOS}
-                disabled={isUploading || selectedItems.length === 0}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang upload...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload ({selectedItems.length})
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Export & Upload lên TPOS</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto flex-1">
+        <div className="space-y-4">
           {/* Summary */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-muted p-3 rounded-lg">
@@ -930,6 +895,40 @@ export function ExportTPOSDialog({ open, onOpenChange, items, onSuccess }: Expor
             </div>
           </div>
         </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isUploading}
+          >
+            Hủy
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleDownloadExcel}
+            disabled={isUploading || selectedItems.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Chỉ tải Excel ({selectedItems.length})
+          </Button>
+          <Button
+            onClick={handleUploadToTPOS}
+            disabled={isUploading || selectedItems.length === 0}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Đang upload...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload lên TPOS ({selectedItems.length})
+              </>
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

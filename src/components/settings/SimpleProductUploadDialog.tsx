@@ -125,33 +125,12 @@ export function SimpleProductUploadDialog({ open, onOpenChange, items, onSuccess
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="sticky top-0 z-10 bg-background border-b pb-4 flex-row items-center justify-between space-y-0">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
           <DialogTitle>Upload sản phẩm đơn giản lên TPOS (không có biến thể)</DialogTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Đóng
-            </Button>
-            <Button 
-              onClick={handleUpload} 
-              disabled={isUploading || selectedItems.length === 0}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang upload...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload {selectedItems.length} sản phẩm
-                </>
-              )}
-            </Button>
-          </div>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto flex-1">
+        <div className="space-y-4">
           {itemsWithoutVariants.length === 0 ? (
             <Alert>
               <AlertDescription>
@@ -285,6 +264,28 @@ export function SimpleProductUploadDialog({ open, onOpenChange, items, onSuccess
             </Alert>
           )}
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Đóng
+          </Button>
+          <Button 
+            onClick={handleUpload} 
+            disabled={isUploading || selectedItems.length === 0}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Đang upload...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload {selectedItems.length} sản phẩm
+              </>
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

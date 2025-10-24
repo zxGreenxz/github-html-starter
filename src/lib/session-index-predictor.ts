@@ -21,47 +21,46 @@ export async function predictNextSessionIndex(
 ): Promise<SessionIndexPrediction> {
   console.log(`🔮 Predicting SessionIndex for user: ${userId}`);
   
-  // Query recent comments globally (limit 5 để detect gaps/patterns)
+  // Query recent orders (limit 5 để detect gaps/patterns)
   const { data, error } = await supabase
-    .from('facebook_comments_archive')
-    .select('session_index, created_at')
+    .from('facebook_pending_orders')
+    .select('session_index, created_time')
     .eq('facebook_user_id', userId)
     .not('session_index', 'is', null)
     .order('session_index', { ascending: false })
     .limit(5);
   
   if (error) {
-    console.error('❌ Error fetching comments for prediction:', error);
+    console.error('❌ Error fetching orders for prediction:', error);
     return { 
       predicted: 1, 
       confidence: 'high',
-      reasoning: 'First comment (no history)'
+      reasoning: 'First order (no history)'
     };
   }
   
-  // No comments yet → first comment
+  // No orders yet → first order
   if (!data || data.length === 0) {
     return { 
       predicted: 1, 
       confidence: 'high',
-      reasoning: 'First comment for this user'
+      reasoning: 'First order for this user'
     };
   }
   
-  // session_index is already INTEGER in facebook_comments_archive, no need to parse
-  const maxIndex = data[0].session_index;
+  const maxIndex = parseInt(data[0].session_index);
   
-  // Check for concurrent comments within 5 seconds (race condition risk)
+  // Check for concurrent orders within 5 seconds (race condition risk)
   const now = Date.now();
-  const recentComments = data.filter(comment => {
-    const createdTime = new Date(comment.created_at).getTime();
+  const recentOrders = data.filter(order => {
+    const createdTime = new Date(order.created_time).getTime();
     const diff = now - createdTime;
     return diff < 5000; // 5 seconds
   });
   
-  const confidence = recentComments.length > 1 ? 'low' : 'high';
+  const confidence = recentOrders.length > 1 ? 'low' : 'high';
   const reasoning = confidence === 'low' 
-    ? `${recentComments.length} comments created within 5s (race condition risk)`
+    ? `${recentOrders.length} orders created within 5s (race condition risk)`
     : 'Normal prediction';
   
   console.log(`✅ Prediction result: ${maxIndex + 1} (confidence: ${confidence})`);

@@ -30,15 +30,6 @@ export async function fetchAndSaveTPOSImage(
     // Extract ImgUrl from TPOS response
     const imgUrl = tposProduct.ImgUrl || tposProduct.ImageUrl || tposProduct.Image;
     
-    // Add browser cache hint for faster subsequent loads
-    if (imgUrl) {
-      const link = document.createElement('link');
-      link.rel = 'prefetch';
-      link.as = 'image';
-      link.href = imgUrl;
-      document.head.appendChild(link);
-    }
-    
     if (!imgUrl) {
       console.log(`No image URL in TPOS response for ${productCode}`);
       return null;

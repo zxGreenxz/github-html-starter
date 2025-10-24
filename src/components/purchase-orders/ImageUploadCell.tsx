@@ -13,14 +13,7 @@ export function ImageUploadCell({ images, onImagesChange, itemIndex, disabled = 
       <div className="flex gap-1">
         {images && images.length > 0 ? (
           images.map((url, idx) => (
-            <img 
-              key={idx} 
-              src={url} 
-              alt="" 
-              loading="lazy"
-              decoding="async"
-              className="w-12 h-12 object-cover rounded border" 
-            />
+            <img key={idx} src={url} alt="" className="w-12 h-12 object-cover rounded border" />
           ))
         ) : (
           <span className="text-xs text-muted-foreground">Không có ảnh</span>

@@ -55,12 +55,6 @@ interface VariantGeneratorDialogProps {
   }) => void;
   // Old behavior: Just generate variant text (for EditPurchaseOrderDialog)
   onVariantTextGenerated?: (variantText: string) => void;
-  // Regenerate behavior: Delete old variants and create new ones (for Products)
-  onVariantsRegenerated?: (data: {
-    variants: any[];
-    variantText: string;
-    attributeLines: AttributeLine[];
-  }) => void;
 }
 
 const ATTRIBUTES = [
@@ -74,8 +68,7 @@ export function VariantGeneratorDialog({
   onOpenChange,
   currentItem,
   onVariantsGenerated,
-  onVariantTextGenerated,
-  onVariantsRegenerated
+  onVariantTextGenerated
 }: VariantGeneratorDialogProps) {
   const { toast } = useToast();
   const [attributeLines, setAttributeLines] = useState<AttributeLine[]>([]);
@@ -87,72 +80,35 @@ export function VariantGeneratorDialog({
   // Parse variant string to attribute lines when dialog opens
   useEffect(() => {
     if (open && currentItem.variant) {
-      // Extract all groups in parentheses: "(S | M | L) (Đỏ | Xanh)" → ["S | M | L", "Đỏ | Xanh"]
-      const groupRegex = /\(([^)]+)\)/g;
-      const groups: string[] = [];
-      let match;
-      while ((match = groupRegex.exec(currentItem.variant)) !== null) {
-        groups.push(match[1]);
-      }
-
-      // If no groups found, try splitting by pipe directly (fallback for "S | M | L" without parentheses)
-      if (groups.length === 0 && currentItem.variant.includes('|')) {
-        groups.push(currentItem.variant);
-      }
-
-      // Parse each group into values
+      const variantArray = currentItem.variant
+        .split(',')
+        .map(v => v.trim())
+        .filter(v => v.length > 0);
+      
       const lines: AttributeLine[] = [];
       
-      groups.forEach(group => {
-        // Split by pipe and clean up
-        const values = group
-          .split('|')
-          .map(v => v.trim())
-          .filter(v => v.length > 0);
-
-        if (values.length === 0) return;
-
-        // Try to detect which attribute this group belongs to
-        let detectedAttributeId: number | null = null;
-        let detectedAttributeName: string | null = null;
-        const matchedValues: string[] = [];
-
-        // Check each attribute type
-        for (const attr of ATTRIBUTES) {
-          const matches: string[] = [];
-          
-          values.forEach(value => {
-            const match = TPOS_ATTRIBUTES[attr.key].find(
-              item => item.Name.toUpperCase() === value.toUpperCase()
-            );
-            if (match) {
-              matches.push(match.Name);
-            }
-          });
-
-          // If we found matches, this is the attribute
-          if (matches.length > 0) {
-            detectedAttributeId = attr.id;
-            detectedAttributeName = attr.name;
-            matchedValues.push(...matches);
-            break; // Stop after first match
+      ATTRIBUTES.forEach(attr => {
+        const values: string[] = [];
+        
+        variantArray.forEach(variant => {
+          const match = TPOS_ATTRIBUTES[attr.key].find(
+            item => item.Name.toUpperCase() === variant.toUpperCase()
+          );
+          if (match) {
+            values.push(match.Name);
           }
-        }
-
-        // Add to lines if we detected an attribute
-        if (detectedAttributeId && detectedAttributeName && matchedValues.length > 0) {
+        });
+        
+        if (values.length > 0) {
           lines.push({
-            attributeId: detectedAttributeId,
-            attributeName: detectedAttributeName,
-            values: matchedValues
+            attributeId: attr.id,
+            attributeName: attr.name,
+            values
           });
         }
       });
-
+      
       setAttributeLines(lines);
-    } else if (open) {
-      // Reset when opening without variant
-      setAttributeLines([]);
     }
   }, [open, currentItem.variant]);
 
@@ -250,59 +206,13 @@ export function VariantGeneratorDialog({
       return;
     }
 
-    // Generate variant text first (common for all paths)
-    const variantText = attributeLines
-      .map(line => `(${line.values.join(' | ')})`)
-      .join(' ');
-
     // Check which callback to use
     if (onVariantTextGenerated) {
-      // Just update variant text (for PurchaseOrders)
+      // Old behavior: Just generate variant text with new format (Value1 | Value2) (Value3 | Value4)
+      const variantText = attributeLines
+        .map(line => `(${line.values.join(' | ')})`)
+        .join(' ');
       onVariantTextGenerated(variantText);
-    } else if (onVariantsRegenerated) {
-      // Regenerate all variants (for Products)
-      // Convert AttributeLine[] → TPOSAttributeLine[]
-      const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
-        const attribute = ATTRIBUTES.find(a => a.id === line.attributeId);
-        if (!attribute) return null;
-
-        const values: TPOSAttributeValue[] = line.values
-          .map(valueName => {
-            const value = TPOS_ATTRIBUTES[attribute.key].find(v => v.Name === valueName);
-            return value ? {
-              ...value,
-              AttributeId: line.attributeId,
-              AttributeName: line.attributeName
-            } : null;
-          })
-          .filter(Boolean) as TPOSAttributeValue[];
-
-        return {
-          Attribute: {
-            Id: line.attributeId,
-            Name: line.attributeName
-          },
-          Values: values
-        };
-      }).filter(Boolean) as TPOSAttributeLine[];
-
-      // Prepare ProductData
-      const productData: ProductData = {
-        Id: 0,
-        Name: currentItem.product_name.trim().toUpperCase(),
-        DefaultCode: currentItem.product_code.trim().toUpperCase(),
-        ListPrice: Number(currentItem.selling_price || 0) * 1000
-      };
-
-      // Generate variants using variant-generator.ts
-      const generatedVariants = generateVariants(productData, tposAttributeLines);
-
-      // Return data for parent to handle
-      onVariantsRegenerated({
-        variants: generatedVariants,
-        variantText: variantText,
-        attributeLines: attributeLines
-      });
     } else if (onVariantsGenerated) {
       // New behavior: Generate full variant products using variant-generator.ts
       // ✅ STEP 1: Convert AttributeLine[] → TPOSAttributeLine[] (giữ nguyên thứ tự người dùng chọn)

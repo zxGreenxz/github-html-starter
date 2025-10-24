@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { predictNextSessionIndex } from './session-index-predictor.ts';
 
 // Updated: 2025-01-15 - Use tpos_credentials table
 const corsHeaders = {
@@ -241,39 +240,6 @@ serve(async (req) => {
             
             return baseData;
           });
-          
-          // ========== AUTO-GENERATE session_index using predictor ==========
-          console.log(`🔮 Predicting session_index for ${commentsToInsert.length} comments...`);
-
-          for (const comment of commentsToInsert) {
-            // Only predict if:
-            // 1. Comment has facebook_user_id
-            // 2. session_index is not already set
-            if (comment.facebook_user_id && !comment.session_index) {
-              try {
-                const prediction = await predictNextSessionIndex(
-                  comment.facebook_user_id,
-                  supabaseClient
-                );
-                
-                comment.session_index = prediction.predicted;
-                
-                console.log(`✅ User ${comment.facebook_user_id}: session_index = ${prediction.predicted} (${prediction.confidence})`);
-                
-                // Optional: Log low-confidence predictions for monitoring
-                if (prediction.confidence === 'low') {
-                  console.warn(`⚠️ Low confidence prediction: ${prediction.reasoning}`);
-                }
-              } catch (error) {
-                console.error(`❌ Failed to predict session_index for user ${comment.facebook_user_id}:`, error);
-                // Don't block the entire operation if prediction fails
-                // Comment will be inserted without session_index (trigger can handle it)
-              }
-            }
-          }
-
-          console.log(`✅ Finished predicting session_index`);
-          // ========== END AUTO-GENERATE session_index ==========
           
           const { error: archiveError } = await supabaseClient
             .from('facebook_comments_archive')

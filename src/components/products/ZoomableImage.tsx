@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Package } from "lucide-react";
 import { toast } from "sonner";
 
@@ -10,27 +10,8 @@ interface ZoomableImageProps {
 
 export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
   const [isZoomed, setIsZoomed] = useState(false);
-  const [isZoomImageLoaded, setIsZoomImageLoaded] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
-  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-
-  // Preload zoom image
-  useEffect(() => {
-    if (!src || isZoomImageLoaded) return;
-    const img = new Image();
-    img.src = src;
-    img.onload = () => setIsZoomImageLoaded(true);
-  }, [src, isZoomImageLoaded]);
-
-  // Cleanup hover timeout
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout) {
-        clearTimeout(hoverTimeout);
-      }
-    };
-  }, [hoverTimeout]);
 
   const handleImageClick = async () => {
     if (!src) return;
@@ -81,50 +62,34 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
   };
 
   const handleMouseEnter = () => {
-    if (!imgRef.current || !src) return;
+    if (!imgRef.current) return;
     
-    // Clear existing timeout
-    if (hoverTimeout) {
-      clearTimeout(hoverTimeout);
+    const rect = imgRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const zoomedHeight = 600; // Approximate zoomed image height
+    
+    // Calculate vertical position
+    let top = rect.top;
+    
+    // If zoomed image would overflow bottom, align to bottom edge of original image
+    if (rect.top + zoomedHeight > viewportHeight) {
+      top = rect.bottom - zoomedHeight;
     }
     
-    // Delay zoom by 300ms
-    const timeout = setTimeout(() => {
-      if (!imgRef.current) return;
-      
-      const rect = imgRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const zoomedHeight = 600;
-      
-      // Calculate position for zoom
-      let top = rect.top;
-      
-      // If zoom would overflow bottom, adjust upward
-      if (rect.top + zoomedHeight > viewportHeight) {
-        top = viewportHeight - zoomedHeight - 10;
-      }
-      
-      // Ensure zoom doesn't overflow top
-      if (top < 10) {
-        top = 10;
-      }
-      
-      setZoomPosition({
-        top: top,
-        left: rect.right + 10
-      });
-      
-      setIsZoomed(true);
-    }, 300);
+    // If still overflows top, align to top edge of original image
+    if (top < 0) {
+      top = rect.top;
+    }
     
-    setHoverTimeout(timeout);
+    setZoomPosition({
+      top: top,
+      left: rect.right + 10 // 10px gap from original image
+    });
+    
+    setIsZoomed(true);
   };
 
   const handleMouseLeave = () => {
-    if (hoverTimeout) {
-      clearTimeout(hoverTimeout);
-      setHoverTimeout(null);
-    }
     setIsZoomed(false);
   };
 
@@ -142,9 +107,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
         ref={imgRef}
         src={src}
         alt={alt}
-        loading="lazy"
-        decoding="async"
-        className={`${sizeClasses[size]} object-cover rounded cursor-zoom-in transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-primary hover:ring-offset-1`}
+        className={`${sizeClasses[size]} object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleImageClick}
@@ -152,27 +115,20 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
       
       {isZoomed && (
         <div
-          className="fixed pointer-events-none z-[9999] animate-in fade-in-0 zoom-in-95 duration-200"
+          className="fixed pointer-events-none z-[9999]"
           style={{
             top: `${zoomPosition.top}px`,
             left: `${zoomPosition.left}px`,
             maxWidth: '600px',
-            maxHeight: '600px',
-            opacity: isZoomImageLoaded ? 1 : 0
+            maxHeight: '600px'
           }}
+          onMouseEnter={handleMouseLeave}
         >
-          {isZoomImageLoaded ? (
-            <img
-              src={src}
-              alt={alt}
-              loading="eager"
-              className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-2 border-background backdrop-blur-sm"
-            />
-          ) : (
-            <div className="w-[600px] h-[600px] flex items-center justify-center bg-muted/50 rounded-lg">
-              <Package className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )}
+          <img
+            src={src}
+            alt={alt}
+            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
+          />
         </div>
       )}
     </div>

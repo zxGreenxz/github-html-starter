@@ -238,9 +238,7 @@ export function SelectProductFromInventoryDialog({
     toast.success("Đã thêm sản phẩm", {
       description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.updatedCount}`,
     });
-      // Invalidate both products list and product details
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["products-details-for-live", phaseId, sessionId] });
       onOpenChange(false);
       setSearchQuery("");
     },
@@ -301,9 +299,8 @@ export function SelectProductFromInventoryDialog({
         description: `${result.product_code} - ${result.product_name}`,
       });
       
-      // Reload live products list and product details
+      // Reload live products list
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["products-details-for-live", phaseId, sessionId] });
       
       onOpenChange(false);
       setSearchQuery("");

@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,22 +81,6 @@ interface PurchaseOrderItem {
   
   // UI only
   _tempTotalPrice: number;
-  
-  // Variant generation metadata (not saved to DB)
-  _variantMetadata?: {
-    attributeLines: AttributeLine[];
-    generatedVariants: Array<{
-      product_code: string;
-      product_name: string;
-      variant: string;
-      quantity: number;
-      purchase_price: number | string;
-      selling_price: number | string;
-      product_images: string[];
-      price_images: string[];
-      _tempTotalPrice: number;
-    }>;
-  };
 }
 
 interface CreatePurchaseOrderDialogProps {
@@ -149,14 +132,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
-  const [enabledCodeEditing, setEnabledCodeEditing] = useState<Set<number>>(new Set());
-  const [validationDialogState, setValidationDialogState] = useState<{
-    open: boolean;
-    itemIndex: number;
-    productCode: string;
-    gap: number;
-    maxCode: string;
-  } | null>(null);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -200,24 +175,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
-      // Only auto-generate if user hasn't manually focused on the product_code field AND checkbox is unchecked
-      if (
-        item.product_name.trim() && 
-        !item.product_code.trim() && 
-        !manualProductCodes.has(index) &&
-        !enabledCodeEditing.has(index)
-      ) {
+      // Only auto-generate if user hasn't manually focused on the product_code field
+      if (item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)) {
         try {
           const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
           const code = await generateProductCodeFromMax(item.product_name, tempItems);
           setItems(prev => {
             const newItems = [...prev];
-            if (
-              newItems[index] && 
-              !newItems[index].product_code.trim() && 
-              !manualProductCodes.has(index) &&
-              !enabledCodeEditing.has(index)
-            ) {
+            if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
               newItems[index] = { ...newItems[index], product_code: code };
             }
             return newItems;
@@ -227,65 +192,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
     });
-  }, [debouncedProductNames, manualProductCodes, enabledCodeEditing]);
-
-  // Validation: Check if product code gap > 10
-  const validateProductCodeGap = async (productCode: string, itemIndex: number) => {
-    if (!productCode.trim()) return;
-    
-    try {
-      // Extract category and number from code
-      const category = productCode.match(/^[NP]/)?.[0] as 'N' | 'P';
-      if (!category) return;
-      
-      const numberMatch = productCode.match(/\d+$/);
-      if (!numberMatch) return;
-      
-      const currentNumber = parseInt(numberMatch[0], 10);
-      
-      // Get max from 3 sources
-      const { getMaxNumberFromItems, getMaxNumberFromProducts, getMaxNumberFromPurchaseOrderItems } = await import("@/lib/product-code-generator");
-      
-      const maxFromForm = getMaxNumberFromItems(
-        items.map(i => ({ product_code: i.product_code })),
-        category
-      );
-      
-      const maxFromProducts = await getMaxNumberFromProducts(category);
-      const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
-      
-      const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders);
-      const gap = currentNumber - maxNumber;
-      
-      // Show dialog if gap > 10
-      if (gap > 10) {
-        const maxCode = `${category}${maxNumber.toString().padStart(4, '0')}`;
-        setValidationDialogState({
-          open: true,
-          itemIndex,
-          productCode,
-          gap,
-          maxCode
-        });
-      }
-    } catch (error) {
-      console.error("Error validating product code:", error);
-    }
-  };
-
-  // Debounced validation trigger
-  const debouncedProductCodes = useDebounce(
-    items.map((item, idx) => enabledCodeEditing.has(idx) ? item.product_code : '').join('|'),
-    500
-  );
-
-  useEffect(() => {
-    items.forEach((item, index) => {
-      if (enabledCodeEditing.has(index) && item.product_code.trim()) {
-        validateProductCodeGap(item.product_code, index);
-      }
-    });
-  }, [debouncedProductCodes]);
+  }, [debouncedProductNames, manualProductCodes]);
 
 
   const saveDraftMutation = useMutation({
@@ -520,23 +427,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         if (itemsError) throw itemsError;
 
-        // Insert variants from metadata
-        console.log('🔄 Processing variant metadata for edited draft items...');
-        console.log('📊 Draft items to check:', items.map(i => ({
-          product_code: i.product_code,
-          has_metadata: !!i._variantMetadata,
-          variants_count: i._variantMetadata?.generatedVariants?.length || 0
-        })));
-        
-        for (const item of items.filter(i => i.product_name.trim())) {
-          if (item._variantMetadata) {
-            console.log('✅ Found metadata for draft item:', item.product_code);
-            await insertVariantsFromMetadata(item, formData.supplier_name);
-          } else {
-            console.log('❌ No metadata for draft item:', item.product_code);
-          }
-        }
-
         // Create parent products (same logic as before)
         const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
@@ -611,8 +501,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           discount_amount: discountAmount,
           shipping_fee: shippingFee,
           invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
-          notes: formData.notes.trim().toUpperCase(),
-          status: 'pending' // ✅ Set status to pending for new orders
+          notes: formData.notes.trim().toUpperCase()
         })
         .select()
         .single();
@@ -647,23 +536,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           .insert(orderItems);
 
         if (itemsError) throw itemsError;
-      }
-
-      // Step 2.5: Insert variants from metadata
-      console.log('🔄 Processing variant metadata for items...');
-      console.log('📊 Items to check:', items.map(i => ({
-        product_code: i.product_code,
-        has_metadata: !!i._variantMetadata,
-        variants_count: i._variantMetadata?.generatedVariants?.length || 0
-      })));
-      
-      for (const item of items.filter(i => i.product_name.trim())) {
-        if (item._variantMetadata) {
-          console.log('✅ Found metadata for:', item.product_code);
-          await insertVariantsFromMetadata(item, formData.supplier_name);
-        } else {
-          console.log('❌ No metadata for:', item.product_code);
-        }
       }
 
       // Step 3: Create parent products in inventory
@@ -736,16 +608,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: () => {
-      // Count variants created
-      const variantsCount = items.reduce((sum, item) => {
-        return sum + (item._variantMetadata?.generatedVariants.length || 0);
-      }, 0);
-      
-      const successMessage = variantsCount > 0
-        ? `Đã tạo đơn hàng và ${variantsCount} biến thể vào kho`
-        : "Tạo đơn đặt hàng thành công!";
-      
-      toast({ title: successMessage });
+      toast({ title: "Tạo đơn đặt hàng thành công!" });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -859,45 +722,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         price_images: [],
         _tempTotalPrice: 0,
       }]);
-    }
-  };
-
-  const handleProductNameBlur = async (index: number) => {
-    const item = items[index];
-    
-    // Only auto-generate if:
-    // 1. Product name is filled
-    // 2. Product code is empty
-    // 3. User hasn't manually edited the code (checkbox unchecked)
-    if (
-      item.product_name.trim() && 
-      !item.product_code.trim() && 
-      !manualProductCodes.has(index) &&
-      !enabledCodeEditing.has(index)
-    ) {
-      try {
-        const tempItems = items.map(i => ({ 
-          product_name: i.product_name, 
-          product_code: i.product_code 
-        }));
-        
-        const code = await generateProductCodeFromMax(item.product_name, tempItems);
-        
-        setItems(prev => {
-          const newItems = [...prev];
-          if (
-            newItems[index] && 
-            !newItems[index].product_code.trim() && 
-            !manualProductCodes.has(index) &&
-            !enabledCodeEditing.has(index)
-          ) {
-            newItems[index] = { ...newItems[index], product_code: code };
-          }
-          return newItems;
-        });
-      } catch (error) {
-        console.error("Error generating product code on blur:", error);
-      }
     }
   };
 
@@ -1035,79 +859,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       attributeLines: AttributeLine[];
     }
   ) => {
-    console.log('🎯 handleVariantsGenerated - Saving metadata only:', { index, data });
+    console.log('🎯 handleVariantsGenerated:', { index, data });
 
     const { variants, attributeLines } = data;
+    const parentItem = items[index];
 
     try {
-      // ✅ 1. Format variant text by groups
+      // ✅ Format variant text by groups
       const variantText = formatVariantTextByGroups(attributeLines);
       
-      // ✅ 2. Calculate total quantity
-      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
-      
-      // ✅ 3. Update item with metadata (NO database insert)
-      const newItems = [...items];
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-        quantity: totalQuantity,
-        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity,
-        // ✅ Save metadata for later
-        _variantMetadata: {
-          attributeLines,
-          generatedVariants: variants
-        }
-      };
-      setItems(newItems);
-
-      toast({
-        title: "✅ Đã cấu hình biến thể",
-        description: `Đã chuẩn bị ${variants.length} biến thể. Sẽ tạo vào kho khi bạn click "Tạo đơn hàng".`,
-      });
-
-    } catch (error: any) {
-      console.error('❌ Error saving variant metadata:', error);
-      toast({
-        title: "Lỗi cấu hình biến thể",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
-  /**
-   * Helper function: Insert parent + child variants vào database từ metadata
-   * Called in createOrderMutation when clicking "Tạo đơn hàng"
-   */
-  const insertVariantsFromMetadata = async (
-    item: PurchaseOrderItem,
-    supplierName: string
-  ) => {
-    // Skip if no metadata
-    if (!item._variantMetadata) {
-      return;
-    }
-
-    const { attributeLines, generatedVariants } = item._variantMetadata;
-    
-    try {
-      console.log('🔄 Inserting variants from metadata:', {
-        product_code: item.product_code,
-        variants_count: generatedVariants.length
-      });
-
-      // ✅ 1. Insert parent product
+      // ✅ 1. Insert parent product vào kho
       const parentProductData = {
-        product_code: item.product_code.trim().toUpperCase(),
-        product_name: item.product_name.trim().toUpperCase(),
-        base_product_code: item.product_code.trim().toUpperCase(),
-        variant: item.variant, // Already formatted in handleVariantsGenerated
-        purchase_price: Number(item.purchase_price || 0) * 1000,
-        selling_price: Number(item.selling_price || 0) * 1000,
-        supplier_name: supplierName.trim().toUpperCase(),
-        product_images: item.product_images || [],
-        price_images: item.price_images || [],
+        product_code: parentItem.product_code.trim().toUpperCase(),
+        product_name: parentItem.product_name.trim().toUpperCase(),
+        base_product_code: parentItem.product_code.trim().toUpperCase(),
+        variant: variantText,
+        purchase_price: Number(parentItem.purchase_price || 0) * 1000,
+        selling_price: Number(parentItem.selling_price || 0) * 1000,
+        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
+        product_images: parentItem.product_images || [],
+        price_images: parentItem.price_images || [],
         stock_quantity: 0,
         unit: 'Cái'
       };
@@ -1120,17 +891,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         throw parentError;
       }
 
-      // ✅ 2. Insert child variants
+      // ✅ 2. Insert variant products vào kho
       // Check if only Size Số (attributeId = 4)
       const hasOnlySizeNumber = attributeLines.length === 1 && 
         attributeLines[0].attributeId === 4;
 
-      const variantProductsData = generatedVariants.map(v => {
+      const variantProductsData = variants.map(v => {
         let finalProductCode = v.product_code;
         
         // If only Size Số → Add "A" between base code and number
         if (hasOnlySizeNumber) {
-          const baseCode = item.product_code.trim().toUpperCase();
+          const baseCode = parentItem.product_code.trim().toUpperCase();
           const sizeNumber = v.variant.toUpperCase();
           finalProductCode = `${baseCode}A${sizeNumber}`;
         }
@@ -1138,11 +909,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         return {
           product_code: finalProductCode,
           product_name: v.product_name,
-          base_product_code: item.product_code.trim().toUpperCase(),
+          base_product_code: parentItem.product_code.trim().toUpperCase(),
           variant: v.variant.toUpperCase(),
           purchase_price: Number(v.purchase_price || 0) * 1000,
           selling_price: Number(v.selling_price || 0) * 1000,
-          supplier_name: supplierName.trim().toUpperCase(),
+          supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
           product_images: v.product_images || [],
           price_images: v.price_images || [],
           stock_quantity: 0,
@@ -1156,12 +927,34 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       if (variantsError) throw variantsError;
 
-      console.log(`✅ Inserted parent + ${generatedVariants.length} child variants for ${item.product_code}`);
+      // ✅ 3. Update parent item's variant field and quantity in form
+      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
+      
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        variant: variantText,
+        quantity: totalQuantity,  // Update quantity to sum of all variants
+        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
+      };
+      setItems(newItems);
+
+      // ✅ 4. Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products-select"] });
+
+      toast({
+        title: "✅ Đã tạo biến thể",
+        description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
+      });
 
     } catch (error: any) {
-      console.error('❌ Error inserting variants from metadata:', error);
-      // Re-throw to let createOrderMutation handle it
-      throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${error.message}`);
+      console.error('❌ Error creating variants:', error);
+      toast({
+        title: "Lỗi tạo biến thể",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
@@ -1204,62 +997,37 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-hidden flex flex-col">
-        {/* Sticky Header Section */}
-        <div className="sticky top-0 bg-background z-10 border-b pb-3">
-          <DialogHeader className="flex flex-row items-center justify-between pr-10 pb-3">
-            <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
-            <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">
-                  <RotateCcw className="w-4 h-4" />
-                  Clear
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Xóa toàn bộ dữ liệu?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Bạn có chắc muốn xóa toàn bộ dữ liệu đã nhập? Hành động này không thể hoàn tác.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Hủy</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => {
-                    resetForm();
-                    setShowClearConfirm(false);
-                  }}>
-                    Xóa
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </DialogHeader>
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="flex flex-row items-center justify-between pr-10">
+          <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
+          <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">
+                <RotateCcw className="w-4 h-4" />
+                Clear
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Xóa toàn bộ dữ liệu?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Bạn có chắc muốn xóa toàn bộ dữ liệu đã nhập? Hành động này không thể hoàn tác.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                <AlertDialogAction onClick={() => {
+                  resetForm();
+                  setShowClearConfirm(false);
+                }}>
+                  Xóa
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </DialogHeader>
 
-          {/* Action Bar */}
-          <div className="flex gap-2 justify-end pt-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Hủy
-            </Button>
-            <Button 
-              variant="secondary"
-              onClick={() => saveDraftMutation.mutate()}
-              disabled={saveDraftMutation.isPending}
-            >
-              {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
-            </Button>
-            <Button 
-              onClick={() => createOrderMutation.mutate()}
-              disabled={createOrderMutation.isPending}
-            >
-              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="space-y-6 p-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="supplier">Nhà cung cấp *</Label>
@@ -1364,40 +1132,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           placeholder="Nhập tên sản phẩm"
                           value={item.product_name}
                           onChange={(e) => updateItem(index, "product_name", e.target.value)}
-                          onBlur={() => handleProductNameBlur(index)}
                           className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
                           rows={2}
                         />
                       </TableCell>
             <TableCell>
-              <div className="flex items-start gap-1 mb-1">
-                <Label className="text-xs text-muted-foreground">Mã SP</Label>
-                <Checkbox
-                  checked={enabledCodeEditing.has(index)}
-                  onCheckedChange={(checked) => {
-                    setEnabledCodeEditing(prev => {
-                      const newSet = new Set(prev);
-                      if (checked) {
-                        newSet.add(index);
-                        setManualProductCodes(prevManual => new Set(prevManual).add(index));
-                      } else {
-                        newSet.delete(index);
-                      }
-                      return newSet;
-                    });
-                  }}
-                  className="h-3 w-3 mt-0.5"
-                />
-              </div>
               <Input
                 placeholder="Mã SP"
                 value={item.product_code}
                 onChange={(e) => updateItem(index, "product_code", e.target.value)}
-                disabled={!enabledCodeEditing.has(index)}
-                className={cn(
-                  "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs",
-                  !enabledCodeEditing.has(index) && "bg-muted cursor-not-allowed opacity-60"
-                )}
+                onFocus={() => {
+                  setManualProductCodes(prev => new Set(prev).add(index));
+                }}
+                className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs"
                 maxLength={10}
               />
             </TableCell>
@@ -1641,8 +1388,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               </div>
             </div>
           </div>
+
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Hủy
+            </Button>
+            <Button 
+              variant="secondary"
+              onClick={() => saveDraftMutation.mutate()}
+              disabled={saveDraftMutation.isPending}
+            >
+              {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
+            </Button>
+            <Button 
+              onClick={() => createOrderMutation.mutate()}
+              disabled={createOrderMutation.isPending}
+            >
+              {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
+            </Button>
+          </div>
         </div>
-      </div>
       </DialogContent>
 
       <SelectProductDialog
@@ -1673,55 +1438,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }}
         />
       )}
-
-      <AlertDialog 
-        open={validationDialogState?.open ?? false} 
-        onOpenChange={(open) => {
-          if (!open) setValidationDialogState(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>⚠️ Xác nhận mã sản phẩm</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                Mã sản phẩm <span className="font-semibold text-foreground">{validationDialogState?.productCode}</span> chênh lệch{" "}
-                <span className="font-bold text-destructive">{validationDialogState?.gap}</span> so với mã cao nhất hiện tại.
-              </p>
-              <p className="text-sm">
-                Mã cao nhất: <span className="font-mono font-semibold text-foreground">{validationDialogState?.maxCode}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Việc sử dụng mã chênh lệch lớn có thể gây khó khăn trong quản lý. Bạn có chắc muốn tiếp tục?
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={() => {
-                if (validationDialogState) {
-                  setItems(prev => {
-                    const newItems = [...prev];
-                    if (newItems[validationDialogState.itemIndex]) {
-                      newItems[validationDialogState.itemIndex] = {
-                        ...newItems[validationDialogState.itemIndex],
-                        product_code: ''
-                      };
-                    }
-                    return newItems;
-                  });
-                }
-                setValidationDialogState(null);
-              }}
-            >
-              Sửa lại
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => setValidationDialogState(null)}>
-              Tiếp tục
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   );
 }
