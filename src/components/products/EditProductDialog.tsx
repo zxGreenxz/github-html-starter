@@ -542,11 +542,43 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
     setIsSubmitting(true);
 
+    // ========== LƯU ORIGINAL DATA ĐỂ ROLLBACK ==========
+    const originalData = {
+      product_name: product.product_name,
+      variant: product.variant,
+      selling_price: product.selling_price,
+      purchase_price: product.purchase_price,
+      unit: product.unit,
+      category: product.category,
+      barcode: product.barcode,
+      stock_quantity: product.stock_quantity,
+      supplier_name: product.supplier_name,
+      base_product_code: product.base_product_code,
+    };
+
     try {
       const updatedSellingPrice = parseFloat(formData.selling_price) || 0;
       const updatedPurchasePrice = parseFloat(formData.purchase_price) || 0;
 
-      // STEP 1: Update local DB
+      // ========== STEP 1: UPLOAD TPOS TRƯỚC ==========
+      setUploadProgress('🚀 Đang upload lên TPOS...');
+      const baseCode = formData.base_product_code || product.product_code;
+      
+      const uploadResult = await uploadTPOSFromInventoryVariants(
+        baseCode,
+        (message) => {
+          setUploadProgress(message);
+        }
+      );
+
+      // ❌ Nếu TPOS fail → DỪNG, không update local
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || "TPOS upload failed");
+      }
+
+      // ========== STEP 2: UPDATE LOCAL DB (SAU KHI TPOS THÀNH CÔNG) ==========
+      setUploadProgress('💾 Đang cập nhật local database...');
+      
       const { error } = await supabase
         .from("products")
         .update({
@@ -563,9 +595,23 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         })
         .eq("id", product.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Local DB update failed:", error);
+        
+        // ⚠️ TPOS đã OK nhưng local DB fail
+        toast({
+          title: "⚠️ Cảnh báo",
+          description: `Đã upload lên TPOS thành công nhưng không thể cập nhật local DB: ${error.message}`,
+          variant: "default",
+        });
+        
+        setIsSubmitting(false);
+        onSuccess();
+        onOpenChange(false);
+        return;
+      }
 
-      // STEP 2: Cập nhật giá cho child variants có giá = 0 (nếu là parent)
+      // ========== STEP 3: Cập nhật child variants (nếu là parent) ==========
       const isParentProduct = product.base_product_code === product.product_code;
       if (isParentProduct && product.product_code) {
         await supabase
@@ -581,48 +627,37 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           .eq("purchase_price", 0);
       }
 
-      // STEP 3: Upload lên TPOS (cho cả parent và child)
-      setUploadProgress('Đang upload lên TPOS...');
-      const baseCode = formData.base_product_code || product.product_code;
-      
-      try {
-        const uploadResult = await uploadTPOSFromInventoryVariants(
-          baseCode,
-          (message) => {
-            setUploadProgress(message);
-          }
-        );
-
-        if (uploadResult.success) {
-          toast({
-            title: "✅ Hoàn tất",
-            description: `Đã cập nhật và đồng bộ ${uploadResult.variantsUploaded || 0} variants lên TPOS`,
-          });
-        } else {
-          // Upload failed nhưng local DB đã update
-          toast({
-            title: "⚠️ Cảnh báo",
-            description: "Đã cập nhật local nhưng không thể đồng bộ TPOS: " + (uploadResult.error || "Unknown error"),
-            variant: "default",
-          });
-        }
-      } catch (uploadError: any) {
-        console.error("Upload to TPOS error:", uploadError);
-        toast({
-          title: "⚠️ Cảnh báo",
-          description: "Đã cập nhật local nhưng không thể đồng bộ TPOS: " + uploadError.message,
-          variant: "default",
-        });
-      }
+      // ========== SUCCESS ==========
+      toast({
+        title: "✅ Hoàn tất",
+        description: `Đã cập nhật và đồng bộ ${uploadResult.variantsUploaded || 0} variants lên TPOS`,
+      });
 
       setIsSubmitting(false);
       onSuccess();
       onOpenChange(false);
+
     } catch (error: any) {
+      console.error("❌ Upload to TPOS failed:", error);
+      
+      // ========== ROLLBACK LOCAL DB VỀ ORIGINAL DATA ==========
+      setUploadProgress('🔄 Đang rollback về dữ liệu cũ...');
+      
+      try {
+        await supabase
+          .from("products")
+          .update(originalData)
+          .eq("id", product.id);
+        
+        console.log("✅ Đã rollback thành công");
+      } catch (rollbackError: any) {
+        console.error("❌ Rollback failed:", rollbackError);
+      }
+      
       setIsSubmitting(false);
       toast({
-        title: "❌ Lỗi",
-        description: error.message,
+        title: "❌ Lỗi upload lên TPOS",
+        description: `Không thể đồng bộ lên TPOS: ${error.message}. Đã rollback về dữ liệu cũ.`,
         variant: "destructive",
       });
     } finally {
