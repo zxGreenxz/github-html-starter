@@ -510,6 +510,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     },
     onSuccess: async (insertData) => {
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
+      queryClient.invalidateQueries({ queryKey: ["products-details-for-live", sessionId] });
       
       // Tạo toast message với format mới
       const baseProductCode = insertData[0]?.base_product_code || insertData[0]?.product_code.split('X')[0];
