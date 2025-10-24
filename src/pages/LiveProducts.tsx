@@ -64,6 +64,46 @@ const filterProductsBySearch = <T extends {
     });
   }
 };
+
+/**
+ * Get inventory image URL for a product with fallback logic
+ */
+const getInventoryImageUrl = async (
+  productCode: string,
+  productsDetailsMap: Map<string, any>
+): Promise<string | null> => {
+  const productDetail = productsDetailsMap.get(productCode);
+  if (!productDetail) return null;
+
+  // Priority 1: product_images[0]
+  if (productDetail.product_images?.[0]) {
+    return productDetail.product_images[0];
+  }
+
+  // Priority 2: tpos_image_url
+  if (productDetail.tpos_image_url) {
+    return productDetail.tpos_image_url;
+  }
+
+  // Priority 3: Parent product images (if variant)
+  if (productDetail.base_product_code && productDetail.base_product_code !== productCode) {
+    const { data: parentData } = await supabase
+      .from("products")
+      .select("product_images, tpos_image_url")
+      .eq("product_code", productDetail.base_product_code)
+      .maybeSingle();
+
+    if (parentData?.product_images?.[0]) {
+      return parentData.product_images[0];
+    }
+    if (parentData?.tpos_image_url) {
+      return parentData.tpos_image_url;
+    }
+  }
+
+  return null;
+};
+
 interface LiveSession {
   id: string;
   session_date: string;
@@ -1826,11 +1866,12 @@ export default function LiveProducts() {
                                     toast.error("Số lượng phải lớn hơn 0");
                                     return;
                                   }
-                                  if (!product.image_url) {
-                                    toast.error("Sản phẩm chưa có hình ảnh");
+                                  const inventoryImageUrl = await getInventoryImageUrl(product.product_code, productsDetailsMap);
+                                  if (!inventoryImageUrl) {
+                                    toast.error("Sản phẩm chưa có hình ảnh trong kho");
                                     return;
                                   }
-                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                                  await generateOrderImage(inventoryImageUrl, product.variant || "", qty, product.product_name);
                                   // Update copy total
                                   setCopyTotals(prev => ({
                                     ...prev,
@@ -1841,7 +1882,7 @@ export default function LiveProducts() {
                                     ...prev,
                                     [product.id]: 0
                                   }));
-                                }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
+                                }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
                                         <Copy className="h-3 w-3" />
                                       </Button>
                                       <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
@@ -2016,11 +2057,12 @@ export default function LiveProducts() {
                                 toast.error("Số lượng phải lớn hơn 0");
                                 return;
                               }
-                              if (!product.image_url) {
-                                toast.error("Sản phẩm chưa có hình ảnh");
+                              const inventoryImageUrl = await getInventoryImageUrl(product.product_code, productsDetailsMap);
+                              if (!inventoryImageUrl) {
+                                toast.error("Sản phẩm chưa có hình ảnh trong kho");
                                 return;
                               }
-                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                              await generateOrderImage(inventoryImageUrl, product.variant || "", qty, product.product_name);
                               setCopyTotals(prev => ({
                                 ...prev,
                                 [product.id]: (prev[product.id] || 0) + qty
@@ -2030,7 +2072,7 @@ export default function LiveProducts() {
                                 ...prev,
                                 [product.id]: 0
                               }));
-                            }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
+                            }} disabled={!productsDetailsMap.get(product.product_code)} title={productsDetailsMap.get(product.product_code) ? "Copy hình order" : "Chưa có hình ảnh"}>
                                   <Copy className="h-3 w-3" />
                                 </Button>
                                  <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
