@@ -72,6 +72,40 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
     enabled: open && !!product?.product_code && !!product?.live_phase_id,
   });
 
+  // Load inventory product images
+  const { data: inventoryProduct } = useQuery({
+    queryKey: ["inventory-product-image", product?.product_code],
+    queryFn: async () => {
+      if (!product?.product_code) return null;
+      
+      const { data, error } = await supabase
+        .from("products")
+        .select("product_images, tpos_image_url, base_product_code")
+        .eq("product_code", product.product_code)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      // If product has base_product_code, fetch parent image
+      if (data?.base_product_code && data.base_product_code !== product.product_code) {
+        const { data: parentData } = await supabase
+          .from("products")
+          .select("product_images, tpos_image_url")
+          .eq("product_code", data.base_product_code)
+          .maybeSingle();
+        
+        return {
+          ...data,
+          parentImages: parentData?.product_images,
+          parentTposImage: parentData?.tpos_image_url
+        };
+      }
+      
+      return data;
+    },
+    enabled: open && !!product?.product_code,
+  });
+
   // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
@@ -100,9 +134,33 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
         variants: variants.length > 0 ? variants : [{ name: "", quantity: 0 }],
       });
       setDuplicateWarning("");
-      setImageUrl(allVariants[0]?.image_url || "");
+      
+      // Priority logic for image URL:
+      // 1. live_products.image_url (already uploaded for this live session)
+      const liveImageUrl = allVariants[0]?.image_url;
+      
+      // 2. Inventory product images
+      const inventoryImageUrl = inventoryProduct?.product_images?.[0];
+      
+      // 3. TPOS image from inventory
+      const tposImageUrl = inventoryProduct?.tpos_image_url;
+      
+      // 4. Parent product images (if variant)
+      const parentImageUrl = (inventoryProduct as any)?.parentImages?.[0];
+      
+      // 5. Parent TPOS image
+      const parentTposUrl = (inventoryProduct as any)?.parentTposImage;
+      
+      setImageUrl(
+        liveImageUrl || 
+        inventoryImageUrl || 
+        tposImageUrl || 
+        parentImageUrl || 
+        parentTposUrl || 
+        ""
+      );
     }
-  }, [allVariants, product?.product_code, open, form]);
+  }, [allVariants, product?.product_code, open, form, inventoryProduct]);
 
   const addVariant = () => {
     const currentVariants = form.getValues("variants");
