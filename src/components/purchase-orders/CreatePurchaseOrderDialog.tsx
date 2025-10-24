@@ -669,7 +669,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             : (item.product_images ? [item.product_images] : []),
           price_images: Array.isArray(item.price_images) 
             ? item.price_images 
-            : (item.price_images ? [item.price_images] : [])
+            : (item.price_images ? [item.price_images] : []),
+          variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null
         }));
 
       if (orderItems.length > 0) {
