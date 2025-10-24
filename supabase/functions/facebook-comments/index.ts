@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { predictNextSessionIndex } from './session-index-predictor.ts';
 
 // Updated: 2025-01-15 - Use tpos_credentials table
 const corsHeaders = {
@@ -241,41 +242,38 @@ serve(async (req) => {
             return baseData;
           });
           
-          // ========== OPTIMIZATION: Pre-fill session_index to avoid trigger overhead ==========
-          const uniqueUserIds = [...new Set(commentsToInsert.map((c: any) => c.facebook_user_id).filter(Boolean))];
-          
-          if (uniqueUserIds.length > 0) {
-            console.log(`🔍 Looking up session_index for ${uniqueUserIds.length} users...`);
-            
-            const { data: existingSessions } = await supabaseClient
-              .from('facebook_comments_archive')
-              .select('facebook_user_id, session_index')
-              .eq('facebook_post_id', postId)
-              .in('facebook_user_id', uniqueUserIds)
-              .not('session_index', 'is', null);
-            
-            // Build lookup map
-            const sessionIndexMap = new Map<string, string>();
-            if (existingSessions) {
-              existingSessions.forEach((row: any) => {
-                if (row.facebook_user_id && row.session_index) {
-                  sessionIndexMap.set(row.facebook_user_id, row.session_index);
+          // ========== AUTO-GENERATE session_index using predictor ==========
+          console.log(`🔮 Predicting session_index for ${commentsToInsert.length} comments...`);
+
+          for (const comment of commentsToInsert) {
+            // Only predict if:
+            // 1. Comment has facebook_user_id
+            // 2. session_index is not already set
+            if (comment.facebook_user_id && !comment.session_index) {
+              try {
+                const prediction = await predictNextSessionIndex(
+                  comment.facebook_user_id,
+                  supabaseClient
+                );
+                
+                comment.session_index = prediction.predicted;
+                
+                console.log(`✅ User ${comment.facebook_user_id}: session_index = ${prediction.predicted} (${prediction.confidence})`);
+                
+                // Optional: Log low-confidence predictions for monitoring
+                if (prediction.confidence === 'low') {
+                  console.warn(`⚠️ Low confidence prediction: ${prediction.reasoning}`);
                 }
-              });
-            }
-            
-            console.log(`✅ Found ${sessionIndexMap.size} existing session_index values`);
-            
-            // Apply to comments
-            commentsToInsert.forEach((comment: any) => {
-              if (!comment.session_index && comment.facebook_user_id) {
-                const existingIndex = sessionIndexMap.get(comment.facebook_user_id);
-                if (existingIndex) {
-                  comment.session_index = existingIndex;
-                }
+              } catch (error) {
+                console.error(`❌ Failed to predict session_index for user ${comment.facebook_user_id}:`, error);
+                // Don't block the entire operation if prediction fails
+                // Comment will be inserted without session_index (trigger can handle it)
               }
-            });
+            }
           }
+
+          console.log(`✅ Finished predicting session_index`);
+          // ========== END AUTO-GENERATE session_index ==========
           
           const { error: archiveError } = await supabaseClient
             .from('facebook_comments_archive')
