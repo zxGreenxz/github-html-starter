@@ -667,14 +667,14 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Chỉnh sửa sản phẩm</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           {/* ===== PHẦN TRÊN: Fixed Header ===== */}
-          <div className="space-y-4 pb-4 border-b">
+          <div className="space-y-4 pb-4 border-b shrink-0">
             <div>
               <Label>Mã sản phẩm</Label>
               <Input value={product?.product_code || ""} disabled className="bg-muted" />
@@ -704,13 +704,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           </div>
 
           {/* ===== PREVIEW SECTION ===== */}
-          <div className="space-y-2 pb-4 border-b">
+          <div className="space-y-2 pb-3 border-b shrink-0">
             <h3 className="text-sm font-semibold text-muted-foreground">Preview Sản Phẩm</h3>
             <div className="border rounded-md overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="w-16">Hình ảnh</TableHead>
                     <TableHead>Mã SP</TableHead>
                     <TableHead>Tên sản phẩm</TableHead>
                     <TableHead>Variant</TableHead>
@@ -718,19 +717,10 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                     <TableHead className="text-right">Giá bán</TableHead>
                     <TableHead className="text-right">Giá mua</TableHead>
                     <TableHead className="text-right">Tồn kho</TableHead>
-                    <TableHead>Nhóm</TableHead>
-                    <TableHead>NCC</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    {/* Hình ảnh */}
-                    <TableCell>
-                      <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-                        📷
-                      </div>
-                    </TableCell>
-                    
                     {/* Mã SP */}
                     <TableCell className="font-medium">
                       {product?.product_code || "-"}
@@ -742,12 +732,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                     </TableCell>
                     
                     {/* Variant */}
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground">
                       {formData.variant ? formatVariantForDisplay(formData.variant) : "-"}
                     </TableCell>
                     
                     {/* Base */}
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground">
                       {formData.base_product_code || "-"}
                     </TableCell>
                     
@@ -771,16 +761,6 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                     <TableCell className="text-right">
                       {formData.stock_quantity || "0"}
                     </TableCell>
-                    
-                    {/* Nhóm */}
-                    <TableCell className="text-muted-foreground">
-                      {formData.category || "-"}
-                    </TableCell>
-                    
-                    {/* NCC */}
-                    <TableCell>
-                      {formData.supplier_name || "-"}
-                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -789,7 +769,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
           {/* Upload Progress */}
           {uploadProgress && (
-            <Alert className="mb-4">
+            <Alert className="mb-4 shrink-0">
               <AlertDescription className="text-sm">
                 ⏳ {uploadProgress}
               </AlertDescription>
@@ -797,15 +777,17 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           )}
 
           {/* ===== PHẦN DƯỚI: Tabs ===== */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-3 shrink-0">
               <TabsTrigger value="price">Giá</TabsTrigger>
               <TabsTrigger value="variants">Biến thể</TabsTrigger>
               <TabsTrigger value="general">Thông tin chung</TabsTrigger>
             </TabsList>
 
-            {/* TAB 1: Giá */}
-            <TabsContent value="price" className="space-y-4 mt-4">
+            {/* Scrollable content wrapper */}
+            <div className="flex-1 overflow-y-auto mt-4">
+              {/* TAB 1: Giá */}
+              <TabsContent value="price" className="space-y-4 mt-0">
               <div>
                 <Label htmlFor="selling_price">Giá bán</Label>
                 <Input
@@ -828,8 +810,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               </div>
             </TabsContent>
 
-            {/* TAB 2: Biến thể */}
-            <TabsContent value="variants" className="space-y-6 mt-4">
+              {/* TAB 2: Biến thể */}
+              <TabsContent value="variants" className="space-y-6 mt-0">
               {/* Sync Status Indicator */}
               {isSyncingTPOS && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
@@ -980,8 +962,8 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               )}
             </TabsContent>
 
-            {/* TAB 3: Thông tin chung */}
-            <TabsContent value="general" className="space-y-4 mt-4">
+              {/* TAB 3: Thông tin chung */}
+              <TabsContent value="general" className="space-y-4 mt-0">
               <div>
                 <Label htmlFor="unit">Đơn vị</Label>
                 <Input
@@ -1042,11 +1024,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
                   placeholder="Nhập tên nhà cung cấp"
                 />
               </div>
-            </TabsContent>
+              </TabsContent>
+            </div>
           </Tabs>
 
           {/* ===== FOOTER: Action buttons ===== */}
-          <div className="flex gap-2 justify-end pt-4 border-t">
+          <div className="flex gap-2 justify-end pt-4 border-t shrink-0 bg-background">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Hủy
             </Button>
