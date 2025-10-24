@@ -11,10 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Upload } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Upload, Search } from "lucide-react";
 import { uploadOrderToTPOS } from "@/lib/tpos-order-uploader";
 
 interface OrderWithProduct {
@@ -67,6 +68,7 @@ export function UploadLiveOrdersToTPOSDialog({
   const [uploadProgress, setUploadProgress] = useState<Record<number, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [allowDuplicate, setAllowDuplicate] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch session data
   const { data: sessionData } = useQuery({
@@ -92,19 +94,36 @@ export function UploadLiveOrdersToTPOSDialog({
       setUploadProgress({});
       setIsUploading(false);
       setAllowDuplicate(true);
+      setSearchQuery("");
     }
   }, [open]);
 
   // Flatten products into individual rows with unique keys
   const flattenedProducts = useMemo(() => {
-    return ordersWithProducts
+    const allProducts = ordersWithProducts
       .filter(order => order.upload_status !== 'success')
       .map((order, idx) => ({
         ...order,
         uniqueKey: `${order.session_index}-${order.product_code}-${order.id}`,
       }))
       .sort((a, b) => a.session_index - b.session_index);
-  }, [ordersWithProducts]);
+
+    // Apply search filter
+    if (!searchQuery.trim()) {
+      return allProducts;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return allProducts.filter(product => {
+      const sessionIndexMatch = product.session_index.toString().includes(query);
+      const productCodeMatch = product.product_code.toLowerCase().includes(query);
+      const productNameMatch = product.product_name.toLowerCase().includes(query);
+      const variantMatch = product.variant?.toLowerCase().includes(query) || false;
+      const noteMatch = product.note?.toLowerCase().includes(query) || false;
+      
+      return sessionIndexMatch || productCodeMatch || productNameMatch || variantMatch || noteMatch;
+    });
+  }, [ordersWithProducts, searchQuery]);
 
   // Calculate rowSpan for session_index column
   const sessionIndexRowSpans = useMemo(() => {
@@ -352,6 +371,18 @@ export function UploadLiveOrdersToTPOSDialog({
             >
               Cho phép upload đơn trùng (bỏ qua kiểm tra đã upload)
             </label>
+          </div>
+
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Tìm kiếm theo SessionIndex, sản phẩm hoặc ghi chú..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              disabled={isUploading}
+            />
           </div>
           {sessionData && (
             <div className="bg-muted p-3 rounded-md">
