@@ -522,9 +522,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         // Insert variants from metadata
         console.log('🔄 Processing variant metadata for edited draft items...');
+        console.log('📊 Draft items to check:', items.map(i => ({
+          product_code: i.product_code,
+          has_metadata: !!i._variantMetadata,
+          variants_count: i._variantMetadata?.generatedVariants?.length || 0
+        })));
+        
         for (const item of items.filter(i => i.product_name.trim())) {
           if (item._variantMetadata) {
+            console.log('✅ Found metadata for draft item:', item.product_code);
             await insertVariantsFromMetadata(item, formData.supplier_name);
+          } else {
+            console.log('❌ No metadata for draft item:', item.product_code);
           }
         }
 
@@ -602,7 +611,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           discount_amount: discountAmount,
           shipping_fee: shippingFee,
           invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
-          notes: formData.notes.trim().toUpperCase()
+          notes: formData.notes.trim().toUpperCase(),
+          status: 'pending' // ✅ Set status to pending for new orders
         })
         .select()
         .single();
@@ -641,9 +651,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Step 2.5: Insert variants from metadata
       console.log('🔄 Processing variant metadata for items...');
+      console.log('📊 Items to check:', items.map(i => ({
+        product_code: i.product_code,
+        has_metadata: !!i._variantMetadata,
+        variants_count: i._variantMetadata?.generatedVariants?.length || 0
+      })));
+      
       for (const item of items.filter(i => i.product_name.trim())) {
         if (item._variantMetadata) {
+          console.log('✅ Found metadata for:', item.product_code);
           await insertVariantsFromMetadata(item, formData.supplier_name);
+        } else {
+          console.log('❌ No metadata for:', item.product_code);
         }
       }
 
