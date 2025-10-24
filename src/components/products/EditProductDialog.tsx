@@ -673,37 +673,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          {/* ===== PHẦN TRÊN: Fixed Header ===== */}
-          <div className="space-y-4 pb-4 border-b shrink-0">
-            <div>
-              <Label>Mã sản phẩm</Label>
-              <Input value={product?.product_code || ""} disabled className="bg-muted" />
-            </div>
-
-            <div>
-              <Label htmlFor="product_name">Tên sản phẩm *</Label>
-              <Input
-                id="product_name"
-                value={formData.product_name}
-                onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>Base Product Code</Label>
-              <Input
-                value={formData.base_product_code}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Có thể giống với Mã sản phẩm (parent tự trỏ chính nó)
-              </p>
-            </div>
-          </div>
-
-          {/* ===== PREVIEW SECTION ===== */}
+        {/* ===== PREVIEW SECTION ===== */}
           <div className="space-y-2 pb-3 border-b shrink-0">
             <h3 className="text-sm font-semibold text-muted-foreground">Preview Sản Phẩm</h3>
             <div className="border rounded-md overflow-hidden">
@@ -963,7 +933,34 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
             </TabsContent>
 
               {/* TAB 3: Thông tin chung */}
-              <TabsContent value="general" className="space-y-4 mt-0">
+            <TabsContent value="general" className="space-y-4 mt-0">
+              <div>
+                <Label>Mã sản phẩm</Label>
+                <Input value={product?.product_code || ""} disabled className="bg-muted" />
+              </div>
+
+              <div>
+                <Label htmlFor="product_name">Tên sản phẩm *</Label>
+                <Input
+                  id="product_name"
+                  value={formData.product_name}
+                  onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>Base Product Code</Label>
+                <Input
+                  value={formData.base_product_code}
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Có thể giống với Mã sản phẩm (parent tự trỏ chính nó)
+                </p>
+              </div>
+
               <div>
                 <Label htmlFor="unit">Đơn vị</Label>
                 <Input
