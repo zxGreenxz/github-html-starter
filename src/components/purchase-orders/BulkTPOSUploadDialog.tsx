@@ -825,17 +825,37 @@ export function BulkTPOSUploadDialog({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Upload sản phẩm lên TPOS</DialogTitle>
-          <DialogDescription>
-            {selectedIds.size > 0 
-              ? `Đã chọn ${selectedIds.size}/${totalProducts} sản phẩm để upload` 
-              : `${totalProducts} sản phẩm có sẵn`}
-          </DialogDescription>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="sticky top-0 z-10 bg-background border-b pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>Upload sản phẩm lên TPOS</DialogTitle>
+              <DialogDescription>
+                {selectedIds.size > 0 
+                  ? `Đã chọn ${selectedIds.size}/${totalProducts} sản phẩm để upload` 
+                  : `${totalProducts} sản phẩm có sẵn`}
+              </DialogDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isUploading}
+              >
+                Đóng
+              </Button>
+              <Button
+                onClick={handleUpload}
+                disabled={isUploading || selectedIds.size === 0}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isUploading ? `Đang upload (${currentIndex}/${selectedIds.size})` : `Upload ${selectedIds.size} sản phẩm`}
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1">
           {/* Upload Mode Selection */}
           <div className="border rounded-lg p-4 bg-muted/30">
             <Label className="text-sm font-semibold mb-3 block">Chế độ upload</Label>
@@ -957,24 +977,6 @@ export function BulkTPOSUploadDialog({
               </Table>
             </div>
           )}
-          
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isUploading}
-            >
-              Đóng
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={isUploading || selectedIds.size === 0}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {isUploading ? 'Đang upload...' : `Upload ${selectedIds.size} sản phẩm`}
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
