@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
-import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
+import { detectVariantsFromText } from "@/lib/variant-detector";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
@@ -60,19 +60,6 @@ const getProductImages = async (product: any): Promise<string[]> => {
   return [];
 };
 
-interface AttributeLine {
-  attributeId: number;
-  attributeName: string;
-  values: string[];
-}
-
-// Attribute ID to TPOS_ATTRIBUTES key mapping
-const ATTRIBUTE_KEY_MAP: Record<number, 'sizeText' | 'color' | 'sizeNumber'> = {
-  1: 'sizeText',
-  3: 'color',
-  4: 'sizeNumber'
-};
-
 interface PurchaseOrderItem {
   quantity: number;
   notes: string;
@@ -91,11 +78,6 @@ interface PurchaseOrderItem {
   // UI only
   _tempTotalPrice: number;
   _manualCodeEdit?: boolean;
-  
-  // ✅ Variant config: Only store attribute metadata
-  variantConfig?: {
-    attributeLines: AttributeLine[];
-  };
 }
 
 interface CreatePurchaseOrderDialogProps {
@@ -144,8 +126,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
-  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [productsWithVariants, setProductsWithVariants] = useState<Set<string>>(new Set());
 
@@ -180,10 +160,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         product_images: item.product_images || [],
         price_images: item.price_images || [],
         _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
-        variantConfig: item.variant_config || undefined, // ✅ Restore variant config
       }));
       setItems(loadedItems);
-      console.log('📂 Loading draft - Items with variantConfig:', loadedItems.filter(i => i.variantConfig).length);
     }
       
       setShowShippingFee((initialData.shipping_fee || 0) > 0);
@@ -334,30 +312,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (items.some(item => item.product_name.trim())) {
     const orderItems = items
       .filter(item => item.product_name.trim())
-      .map((item, index) => {
-        console.log(`💾 Saving item ${item.product_code}:`, {
-          hasVariantConfig: !!item.variantConfig,
-          variantConfig: item.variantConfig
-        });
-        
-        return {
-          purchase_order_id: order.id,
-          quantity: item.quantity,
-          position: index + 1,
-          notes: item.notes.trim().toUpperCase() || null,
-          product_code: item.product_code.trim().toUpperCase() || null,
-          product_name: item.product_name.trim().toUpperCase(),
-          variant: item.variant?.trim().toUpperCase() || null,
-          purchase_price: Number(item.purchase_price || 0) * 1000,
-          selling_price: Number(item.selling_price || 0) * 1000,
-          product_images: Array.isArray(item.product_images) ? item.product_images : [],
-          price_images: Array.isArray(item.price_images) ? item.price_images : [],
-          variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null, // ✅ Save variant config as JSON
-        };
-      });
-
-    console.log('💾 Total items to save:', orderItems.length);
-    console.log('💾 Items with variant_config:', orderItems.filter(i => i.variant_config).length);
+      .map((item, index) => ({
+        purchase_order_id: order.id,
+        quantity: item.quantity,
+        position: index + 1,
+        notes: item.notes.trim().toUpperCase() || null,
+        product_code: item.product_code.trim().toUpperCase() || null,
+        product_name: item.product_name.trim().toUpperCase(),
+        variant: item.variant?.trim().toUpperCase() || null,
+        purchase_price: Number(item.purchase_price || 0) * 1000,
+        selling_price: Number(item.selling_price || 0) * 1000,
+        product_images: Array.isArray(item.product_images) ? item.product_images : [],
+        price_images: Array.isArray(item.price_images) ? item.price_images : [],
+      }));
 
         const { error: itemsError } = await supabase
           .from("purchase_order_items")
@@ -553,89 +520,112 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }
         }
 
-        // Step 2.5: Create child variant products from variantConfig
-        console.log('🔨 Checking items with variantConfig...');
-        for (const item of items.filter(i => i.product_name.trim() && i.variantConfig)) {
-          console.log(`🎯 Creating variants for ${item.product_code}:`, item.variantConfig);
+        // Step 2.5: Auto-detect and create variants from variant column
+        console.log('🔨 Auto-detecting variants from variant text...');
+        for (const item of items.filter(i => i.product_name.trim() && i.variant?.trim())) {
+          const variantText = item.variant.trim();
           
-          const { attributeLines } = item.variantConfig;
+          // Auto-detect variants from text
+          const detected = detectVariantsFromText(variantText);
           
-          // Convert attributeLines → TPOSAttributeLine[]
-          const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
-            const attrKey = ATTRIBUTE_KEY_MAP[line.attributeId];
-            if (!attrKey) return null;
+          // Build attributeLines from detected variants
+          const attributeLines: Array<{id: string; attributeId: number; attributeName: string; values: string[]}> = [];
+          
+          if (detected.sizeNumber.length > 0) {
+            attributeLines.push({
+              id: `size-number-${Date.now()}`,
+              attributeId: 4,
+              attributeName: "Size Số",
+              values: detected.sizeNumber.map(s => s.value)
+            });
+          }
+          
+          if (detected.sizeText.length > 0) {
+            attributeLines.push({
+              id: `size-text-${Date.now()}`,
+              attributeId: 1,
+              attributeName: "Size Chữ",
+              values: detected.sizeText.map(s => s.value)
+            });
+          }
+          
+          if (detected.colors.length > 0) {
+            attributeLines.push({
+              id: `color-${Date.now()}`,
+              attributeId: 2,
+              attributeName: "Màu",
+              values: detected.colors.map(c => c.value)
+            });
+          }
 
-            const values: TPOSAttributeValue[] = line.values
-              .map(valueName => {
-                const value = TPOS_ATTRIBUTES[attrKey].find(v => v.Name === valueName);
-                return value ? {
-                  ...value,
-                  AttributeId: line.attributeId,
-                  AttributeName: line.attributeName
-                } : null;
-              })
-              .filter(Boolean) as TPOSAttributeValue[];
+          if (detected.modelCodes.length > 0) {
+            attributeLines.push({
+              id: `model-${Date.now()}`,
+              attributeId: 3,
+              attributeName: "Mã Model",
+              values: detected.modelCodes.map(m => m.value)
+            });
+          }
 
-            return {
-              Attribute: {
-                Id: line.attributeId,
-                Name: line.attributeName
-              },
-              Values: values
-            };
-          }).filter(Boolean) as TPOSAttributeLine[];
-          
-          // Prepare ProductData from current form item
-          const productData: ProductData = {
-            Id: 0,
-            Name: item.product_name.trim().toUpperCase(),
-            DefaultCode: item.product_code.trim().toUpperCase(),
-            ListPrice: Number(item.selling_price || 0) * 1000
+          // Skip if no variants detected
+          if (attributeLines.length === 0) {
+            console.log(`⚠️ No variants detected for ${item.product_code}`);
+            continue;
+          }
+
+          console.log(`🎯 Creating variants for ${item.product_code}:`, attributeLines);
+
+          const baseProduct = {
+            product_code: item.product_code.trim().toUpperCase(),
+            product_name: item.product_name.trim().toUpperCase(),
+            base_product_code: item.product_code.trim().toUpperCase(),
+            purchase_price: Number(item.purchase_price || 0) * 1000,
+            selling_price: Number(item.selling_price || 0) * 1000,
+            product_images: item.product_images || [],
+            price_images: item.price_images || [],
+            supplier_name: formData.supplier_name.toUpperCase(),
           };
-          
-          // Generate variants using variant-generator.ts
-          const generatedVariants = generateVariants(productData, tposAttributeLines);
-          
-          // Check if this is Size Number only (attributeId === 4)
-          const hasOnlySizeNumber = attributeLines.length === 1 && 
-            attributeLines[0].attributeId === 4;
-          
-          // Prepare variant products data
-          const variantProductsData = generatedVariants.map(v => {
-            let finalProductCode = v.DefaultCode;
-            
-            // If only Size Số → Add "A" between base code and number
-            if (hasOnlySizeNumber) {
-              const baseCode = item.product_code.trim().toUpperCase();
-              const sizeNumber = v.AttributeValues?.[0]?.Name || '';
-              finalProductCode = `${baseCode}A${sizeNumber}`;
-            }
-            
-            return {
-              product_code: finalProductCode.trim().toUpperCase(),
-              product_name: v.Name.trim().toUpperCase(),
-              base_product_code: item.product_code.trim().toUpperCase(),
-              variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
-              purchase_price: Number(item.purchase_price || 0) * 1000,
-              selling_price: Number(item.selling_price || 0) * 1000,
-              supplier_name: formData.supplier_name.trim().toUpperCase(),
-              product_images: item.product_images || [],
-              price_images: item.price_images || [],
-              stock_quantity: 0,
-              unit: 'Cái'
-            };
-          });
-          
-          // Insert variant products (ignore duplicates)
-          const { error: variantsError } = await supabase
+
+          // Generate variant combinations
+          const generateCombinations = (lines: typeof attributeLines): string[][] => {
+            if (lines.length === 0) return [[]];
+            const [first, ...rest] = lines;
+            const restCombinations = generateCombinations(rest);
+            return first.values.flatMap(value =>
+              restCombinations.map(combo => [value, ...combo])
+            );
+          };
+
+          const combinations = generateCombinations(attributeLines);
+
+          // Create parent product
+          const { data: parentProduct, error: parentError } = await supabase
             .from("products")
-            .insert(variantProductsData)
-            .select();
-          
-          if (variantsError && variantsError.code !== '23505') {
-            console.error('❌ Error creating variant products:', variantsError);
+            .insert(baseProduct)
+            .select()
+            .single();
+
+          if (parentError && parentError.code !== '23505') {
+            console.error("Failed to create parent product:", parentError);
+            continue;
+          }
+
+          // Create child variants
+          const childProducts = combinations.map(combo => ({
+            ...baseProduct,
+            product_code: `${baseProduct.product_code}-${combo.join("-")}`,
+            variant: combo.join(" | "),
+            base_product_code: baseProduct.product_code,
+          }));
+
+          const { error: childError } = await supabase
+            .from("products")
+            .insert(childProducts);
+
+          if (childError && childError.code !== '23505') {
+            console.error("Failed to create child products:", childError);
           } else {
-            console.log(`✅ Created ${variantProductsData.length} variants for ${item.product_code}`);
+            console.log(`✅ Created ${childProducts.length} variants for ${item.product_code}`);
           }
         }
 
@@ -679,8 +669,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             : (item.product_images ? [item.product_images] : []),
           price_images: Array.isArray(item.price_images) 
             ? item.price_images 
-            : (item.price_images ? [item.price_images] : []),
-          variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null
+            : (item.price_images ? [item.price_images] : [])
         }));
 
       if (orderItems.length > 0) {
@@ -758,89 +747,112 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
 
-      // Step 3.5: Create child variant products from variantConfig
-      console.log('🔨 Checking items with variantConfig...');
-      for (const item of items.filter(i => i.product_name.trim() && i.variantConfig)) {
-        console.log(`🎯 Creating variants for ${item.product_code}:`, item.variantConfig);
+      // Step 3.5: Auto-detect and create variants from variant column
+      console.log('🔨 Auto-detecting variants from variant text...');
+      for (const item of items.filter(i => i.product_name.trim() && i.variant?.trim())) {
+        const variantText = item.variant.trim();
         
-        const { attributeLines } = item.variantConfig;
+        // Auto-detect variants from text
+        const detected = detectVariantsFromText(variantText);
         
-        // Convert attributeLines → TPOSAttributeLine[]
-        const tposAttributeLines: TPOSAttributeLine[] = attributeLines.map(line => {
-          const attrKey = ATTRIBUTE_KEY_MAP[line.attributeId];
-          if (!attrKey) return null;
+        // Build attributeLines from detected variants
+        const attributeLines: Array<{id: string; attributeId: number; attributeName: string; values: string[]}> = [];
+        
+        if (detected.sizeNumber.length > 0) {
+          attributeLines.push({
+            id: `size-number-${Date.now()}`,
+            attributeId: 4,
+            attributeName: "Size Số",
+            values: detected.sizeNumber.map(s => s.value)
+          });
+        }
+        
+        if (detected.sizeText.length > 0) {
+          attributeLines.push({
+            id: `size-text-${Date.now()}`,
+            attributeId: 1,
+            attributeName: "Size Chữ",
+            values: detected.sizeText.map(s => s.value)
+          });
+        }
+        
+        if (detected.colors.length > 0) {
+          attributeLines.push({
+            id: `color-${Date.now()}`,
+            attributeId: 2,
+            attributeName: "Màu",
+            values: detected.colors.map(c => c.value)
+          });
+        }
 
-          const values: TPOSAttributeValue[] = line.values
-            .map(valueName => {
-              const value = TPOS_ATTRIBUTES[attrKey].find(v => v.Name === valueName);
-              return value ? {
-                ...value,
-                AttributeId: line.attributeId,
-                AttributeName: line.attributeName
-              } : null;
-            })
-            .filter(Boolean) as TPOSAttributeValue[];
+        if (detected.modelCodes.length > 0) {
+          attributeLines.push({
+            id: `model-${Date.now()}`,
+            attributeId: 3,
+            attributeName: "Mã Model",
+            values: detected.modelCodes.map(m => m.value)
+          });
+        }
 
-          return {
-            Attribute: {
-              Id: line.attributeId,
-              Name: line.attributeName
-            },
-            Values: values
-          };
-        }).filter(Boolean) as TPOSAttributeLine[];
-        
-        // Prepare ProductData from current form item
-        const productData: ProductData = {
-          Id: 0,
-          Name: item.product_name.trim().toUpperCase(),
-          DefaultCode: item.product_code.trim().toUpperCase(),
-          ListPrice: Number(item.selling_price || 0) * 1000
+        // Skip if no variants detected
+        if (attributeLines.length === 0) {
+          console.log(`⚠️ No variants detected for ${item.product_code}`);
+          continue;
+        }
+
+        console.log(`🎯 Creating variants for ${item.product_code}:`, attributeLines);
+
+        const baseProduct = {
+          product_code: item.product_code.trim().toUpperCase(),
+          product_name: item.product_name.trim().toUpperCase(),
+          base_product_code: item.product_code.trim().toUpperCase(),
+          purchase_price: Number(item.purchase_price || 0) * 1000,
+          selling_price: Number(item.selling_price || 0) * 1000,
+          product_images: item.product_images || [],
+          price_images: item.price_images || [],
+          supplier_name: formData.supplier_name.toUpperCase(),
         };
-        
-        // Generate variants using variant-generator.ts
-        const generatedVariants = generateVariants(productData, tposAttributeLines);
-        
-        // Check if this is Size Number only (attributeId === 4)
-        const hasOnlySizeNumber = attributeLines.length === 1 && 
-          attributeLines[0].attributeId === 4;
-        
-        // Prepare variant products data
-        const variantProductsData = generatedVariants.map(v => {
-          let finalProductCode = v.DefaultCode;
-          
-          // If only Size Số → Add "A" between base code and number
-          if (hasOnlySizeNumber) {
-            const baseCode = item.product_code.trim().toUpperCase();
-            const sizeNumber = v.AttributeValues?.[0]?.Name || '';
-            finalProductCode = `${baseCode}A${sizeNumber}`;
-          }
-          
-          return {
-            product_code: finalProductCode.trim().toUpperCase(),
-            product_name: v.Name.trim().toUpperCase(),
-            base_product_code: item.product_code.trim().toUpperCase(),
-            variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
-            purchase_price: Number(item.purchase_price || 0) * 1000,
-            selling_price: Number(item.selling_price || 0) * 1000,
-            supplier_name: formData.supplier_name.trim().toUpperCase(),
-            product_images: item.product_images || [],
-            price_images: item.price_images || [],
-            stock_quantity: 0,
-            unit: 'Cái'
-          };
-        });
-        
-        // Insert variant products (ignore duplicates)
-        const { error: variantsError } = await supabase
+
+        // Generate variant combinations
+        const generateCombinations = (lines: typeof attributeLines): string[][] => {
+          if (lines.length === 0) return [[]];
+          const [first, ...rest] = lines;
+          const restCombinations = generateCombinations(rest);
+          return first.values.flatMap(value =>
+            restCombinations.map(combo => [value, ...combo])
+          );
+        };
+
+        const combinations = generateCombinations(attributeLines);
+
+        // Create parent product
+        const { data: parentProduct, error: parentError } = await supabase
           .from("products")
-          .insert(variantProductsData)
-          .select();
-        
-        if (variantsError && variantsError.code !== '23505') {
-          console.error('❌ Error creating variant products:', variantsError);
+          .insert(baseProduct)
+          .select()
+          .single();
+
+        if (parentError && parentError.code !== '23505') {
+          console.error("Failed to create parent product:", parentError);
+          continue;
+        }
+
+        // Create child variants
+        const childProducts = combinations.map(combo => ({
+          ...baseProduct,
+          product_code: `${baseProduct.product_code}-${combo.join("-")}`,
+          variant: combo.join(" | "),
+          base_product_code: baseProduct.product_code,
+        }));
+
+        const { error: childError } = await supabase
+          .from("products")
+          .insert(childProducts);
+
+        if (childError && childError.code !== '23505') {
+          console.error("Failed to create child products:", childError);
         } else {
-          console.log(`✅ Created ${variantProductsData.length} variants for ${item.product_code}`);
+          console.log(`✅ Created ${childProducts.length} variants for ${item.product_code}`);
         }
       }
 
@@ -1067,112 +1079,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     setIsSelectProductOpen(true);
   };
 
-  /**
-   * Format variant text by attribute groups
-   * Input: attributeLines = [
-   *   { attributeName: "Màu", values: ["Đen", "Trắng"] },
-   *   { attributeName: "Size Số", values: ["S", "M", "L"] }
-   * ]
-   * Output: "(Đen Trắng) (S M L)"
-   */
-  const formatVariantTextByGroups = (attributeLines: AttributeLine[]): string => {
-    return attributeLines
-      .map(line => `(${line.values.join(' | ')})`)
-      .join(' ');
-  };
-
-  const handleVariantsGenerated = async (
-    index: number,
-    data: {
-      attributeLines: AttributeLine[];
-    }
-  ) => {
-    console.log('🎯 handleVariantsGenerated - SAVE CONFIG ONLY:', { index, data });
-
-    const { attributeLines } = data;
-
-    try {
-      // ✅ Format variant text by groups
-      const variantText = formatVariantTextByGroups(attributeLines);
-      
-      // Calculate total quantity from attributeLines
-      const totalQuantity = attributeLines.reduce((total, line) => {
-        return total * line.values.length;
-      }, 1);
-      
-      // ✅ ONLY save attributeLines to form state
-      const newItems = [...items];
-      console.log('🎯 handleVariantTextGenerated - BEFORE UPDATE:', {
-        index,
-        itemCode: newItems[index].product_code,
-        hasVariantConfigBefore: !!newItems[index].variantConfig
-      });
-
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-        quantity: totalQuantity,
-        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity,
-        variantConfig: {
-          attributeLines
-        }
-      };
-      setItems(newItems);
-      
-      console.log('🎯 handleVariantTextGenerated - AFTER UPDATE:', {
-        index,
-        itemCode: newItems[index].product_code,
-        hasVariantConfigAfter: !!newItems[index].variantConfig,
-        variantConfig: newItems[index].variantConfig
-      });
-
-      toast({
-        title: "✅ Đã cấu hình biến thể",
-        description: `Đã cấu hình ${totalQuantity} biến thể. Sẽ tạo vào kho khi bấm "Tạo Đơn Hàng".`,
-      });
-
-    } catch (error: any) {
-      console.error('❌ Error creating variants:', error);
-      toast({
-        title: "Lỗi tạo biến thể",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Helper function to check if item has all required fields for variant generation
-  const canGenerateVariant = (item: PurchaseOrderItem): { valid: boolean; missing: string[] } => {
-    const missing: string[] = [];
-    
-    if (!item.product_name?.trim()) missing.push("Tên SP");
-    if (!item.product_code?.trim()) missing.push("Mã SP");
-    if (!item.product_images || item.product_images.length === 0) missing.push("Hình ảnh SP");
-    if (!item.purchase_price || Number(item.purchase_price) <= 0) missing.push("Giá mua");
-    if (!item.selling_price || Number(item.selling_price) <= 0) missing.push("Giá bán");
-    
-    return {
-      valid: missing.length === 0,
-      missing
-    };
-  };
-
-  const openVariantGenerator = (index: number) => {
-    const item = items[index];
-    const validation = canGenerateVariant(item);
-    
-    if (!validation.valid) {
-      toast({
-        title: "⚠️ Thiếu thông tin",
-        description: `Vui lòng điền đầy đủ: ${validation.missing.join(", ")}`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setVariantGeneratorIndex(index);
-    setIsVariantDialogOpen(true);
-  };
 
 
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
@@ -1420,43 +1326,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   }}
                   className="flex-1"
                 />
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        {!productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
-                          <>
-                            {canGenerateVariant(item).valid ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={() => openVariantGenerator(index)}
-                                title="Tạo biến thể tự động"
-                              >
-                                <Sparkles className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                                <Sparkles className="h-4 w-4" />
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    {!canGenerateVariant(item).valid && !productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
-                      <TooltipContent side="top" className="max-w-[250px]">
-                        <p className="font-semibold mb-1">Thiếu thông tin:</p>
-                        <ul className="list-disc list-inside text-sm">
-                          {canGenerateVariant(item).missing.map((field, i) => (
-                            <li key={i}>{field}</li>
-                          ))}
-                        </ul>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
               </div>
             </TableCell>
                       <TableCell className="text-center">
@@ -1626,27 +1495,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         onSelectMultiple={handleSelectMultipleProducts}
       />
 
-      {variantGeneratorIndex !== null && items[variantGeneratorIndex] && (
-        <VariantGeneratorDialog
-          open={isVariantDialogOpen}
-          onOpenChange={setIsVariantDialogOpen}
-          currentItem={{
-            product_code: items[variantGeneratorIndex].product_code,
-            product_name: items[variantGeneratorIndex].product_name,
-            variant: items[variantGeneratorIndex].variant,
-            quantity: items[variantGeneratorIndex].quantity,
-            purchase_price: items[variantGeneratorIndex].purchase_price,
-            selling_price: items[variantGeneratorIndex].selling_price,
-            product_images: items[variantGeneratorIndex].product_images,
-            price_images: items[variantGeneratorIndex].price_images
-          }}
-          onVariantsGenerated={(data) => {
-            handleVariantsGenerated(variantGeneratorIndex, data);
-            setIsVariantDialogOpen(false);
-            setVariantGeneratorIndex(null);
-          }}
-        />
-      )}
     </Dialog>
   );
 }
