@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { useProductVariants, ProductVariant } from "@/hooks/use-product-variants";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface VariantDropdownSelectorProps {
   baseProductCode: string;
@@ -54,68 +56,60 @@ export function VariantDropdownSelector({
   }
   
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative">
-          <Input
-            value={value}
-            onChange={(e) => onChange(e.target.value.toUpperCase())}
-            placeholder="Chọn hoặc nhập biến thể..."
-            className={className}
-            onFocus={() => setOpen(true)}
-          />
-          {variants.length > 0 && (
-            <Badge 
-              variant="secondary" 
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none"
+    <div className={cn("flex items-center gap-1", className)}>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value.toUpperCase())}
+        placeholder="Chọn hoặc nhập biến thể..."
+        className="flex-1"
+      />
+      
+      {variants.length > 0 && (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              title={`${variants.length} biến thể có sẵn trong kho`}
             >
-              {variants.length}
-            </Badge>
-          )}
-        </div>
-      </PopoverTrigger>
-      <PopoverContent 
-        className="p-0 w-80" 
-        align="start"
-        onInteractOutside={(e) => {
-          // Prevent closing when clicking inside the popover content
-          const target = e.target as HTMLElement;
-          if (target.closest('[role="option"]')) {
-            e.preventDefault();
-          }
-        }}
-      >
-        <Command>
-          <CommandList>
-            {isLoading && <CommandEmpty>Đang tải...</CommandEmpty>}
-            {!isLoading && variants.length === 0 && (
-              <CommandEmpty>Chưa có biến thể trong kho</CommandEmpty>
-            )}
-            {variants.length > 0 && (
-              <CommandGroup heading={`${variants.length} biến thể có sẵn`}>
-                {variants.map((variant) => (
-                  <CommandItem
-                    key={variant.id}
-                    onSelect={() => handleSelectVariant(variant)}
-                    onMouseDown={(e) => {
-                      // Prevent default to avoid popover closing during click
-                      e.preventDefault();
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <span className="font-medium">{variant.variant}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {variant.product_code}
-                      </span>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0 w-80" align="start">
+            <Command>
+              <CommandList>
+                {isLoading && <CommandEmpty>Đang tải...</CommandEmpty>}
+                {!isLoading && variants.length === 0 && (
+                  <CommandEmpty>Chưa có biến thể trong kho</CommandEmpty>
+                )}
+                {variants.length > 0 && (
+                  <CommandGroup heading={`${variants.length} biến thể có sẵn`}>
+                    {variants.map((variant) => (
+                      <CommandItem
+                        key={variant.id}
+                        onSelect={() => handleSelectVariant(variant)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="font-medium">{variant.variant}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {variant.product_code}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
   );
 }
