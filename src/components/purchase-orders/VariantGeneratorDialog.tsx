@@ -13,12 +13,14 @@ interface VariantGeneratorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (result: { variantString: string; totalQuantity: number }) => void;
+  productCode?: string;
 }
 
 export function VariantGeneratorDialog({
   open,
   onOpenChange,
   onSubmit,
+  productCode,
 }: VariantGeneratorDialogProps) {
   const [selectedValues, setSelectedValues] = useState<Record<string, string[]>>({});
   const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
@@ -123,6 +125,11 @@ export function VariantGeneratorDialog({
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Tạo biến thể từ thuộc tính</DialogTitle>
+          {productCode && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Mã sản phẩm: <span className="font-semibold text-foreground">{productCode}</span>
+            </p>
+          )}
         </DialogHeader>
 
         {isLoading ? (

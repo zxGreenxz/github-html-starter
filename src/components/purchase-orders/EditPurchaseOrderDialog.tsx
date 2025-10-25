@@ -1036,6 +1036,11 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       <VariantGeneratorDialog
         open={isVariantGeneratorOpen}
         onOpenChange={setIsVariantGeneratorOpen}
+        productCode={
+          variantGeneratorIndex !== null 
+            ? items[variantGeneratorIndex]?._tempProductCode 
+            : undefined
+        }
         onSubmit={(result) => {
           if (variantGeneratorIndex !== null) {
             // Update both variant and quantity in a single batch

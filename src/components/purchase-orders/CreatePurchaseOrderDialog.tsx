@@ -1259,6 +1259,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       <VariantGeneratorDialog
         open={isVariantGeneratorOpen}
         onOpenChange={setIsVariantGeneratorOpen}
+        productCode={
+          variantGeneratorIndex !== null 
+            ? items[variantGeneratorIndex]?.product_code 
+            : undefined
+        }
         onSubmit={(result) => {
           if (variantGeneratorIndex !== null) {
             // Update both variant and quantity in a single batch
