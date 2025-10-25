@@ -77,9 +77,24 @@ export function VariantGeneratorDialog({
       return;
     }
 
-    onSubmit({ variantString, totalQuantity });
+    // Calculate and capture values BEFORE resetting state
+    const finalVariantString = Object.entries(selectedValues)
+      .filter(([_, values]) => values.length > 0)
+      .map(([_, values]) => `(${values.join(" | ")})`)
+      .join(" ");
 
-    // Reset state
+    const finalTotalQuantity = Object.values(selectedValues)
+      .filter((values) => values.length > 0)
+      .map((values) => values.length)
+      .reduce((acc, count) => acc * count, 1);
+
+    // Submit with captured values - not dependent on useMemo
+    onSubmit({
+      variantString: finalVariantString,
+      totalQuantity: finalTotalQuantity,
+    });
+
+    // Reset state AFTER capturing values
     setSelectedValues({});
     setSearchQueries({});
   };
