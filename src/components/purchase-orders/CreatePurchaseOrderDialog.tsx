@@ -647,18 +647,30 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
-    console.log(`🟡 updateItem called:`, { index, field, value, currentValue: items[index]?.[field] });
-    
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    
-    if (field === "quantity" || field === "purchase_price") {
-      newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index].purchase_price || 0);
-    }
-    
-    console.log(`🟡 updateItem after:`, { newValue: newItems[index][field], fullItem: newItems[index] });
-    
-    setItems(newItems);
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+      newItems[index] = { ...newItems[index], [field]: value };
+      
+      if (field === "quantity" || field === "purchase_price") {
+        newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index].purchase_price || 0);
+      }
+      
+      return newItems;
+    });
+  };
+
+  // Update multiple fields at once (for variant generator)
+  const updateItemMultiple = (index: number, updates: Partial<PurchaseOrderItem>) => {
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+      newItems[index] = { ...newItems[index], ...updates };
+      
+      if ('quantity' in updates || 'purchase_price' in updates) {
+        newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index].purchase_price || 0);
+      }
+      
+      return newItems;
+    });
   };
 
   const addItem = () => {
@@ -1248,17 +1260,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         open={isVariantGeneratorOpen}
         onOpenChange={setIsVariantGeneratorOpen}
         onSubmit={(result) => {
-          console.log("🟢 CreatePurchaseOrderDialog onSubmit received:", {
-            result,
-            variantGeneratorIndex,
-            currentItem: items[variantGeneratorIndex!]
-          });
-
           if (variantGeneratorIndex !== null) {
-            updateItem(variantGeneratorIndex, 'variant', result.variantString);
-            updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
-            
-            console.log("🟢 After updateItem, item is:", items[variantGeneratorIndex]);
+            // Update both variant and quantity in a single batch
+            updateItemMultiple(variantGeneratorIndex, {
+              variant: result.variantString,
+              quantity: result.totalQuantity,
+            });
 
             toast({
               title: "Đã tạo biến thể",

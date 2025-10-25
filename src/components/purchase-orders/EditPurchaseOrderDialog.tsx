@@ -262,16 +262,34 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    
-    if (field === 'quantity' || field === '_tempUnitPrice') {
-      const qty = field === 'quantity' ? value : newItems[index].quantity;
-      const price = field === '_tempUnitPrice' ? value : newItems[index]._tempUnitPrice;
-      newItems[index]._tempTotalPrice = qty * Number(price || 0);
-    }
-    
-    setItems(newItems);
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+      newItems[index] = { ...newItems[index], [field]: value };
+      
+      if (field === 'quantity' || field === '_tempUnitPrice') {
+        const qty = field === 'quantity' ? value : newItems[index].quantity;
+        const price = field === '_tempUnitPrice' ? value : newItems[index]._tempUnitPrice;
+        newItems[index]._tempTotalPrice = qty * Number(price || 0);
+      }
+      
+      return newItems;
+    });
+  };
+
+  // Update multiple fields at once (for variant generator)
+  const updateItemMultiple = (index: number, updates: Partial<PurchaseOrderItem>) => {
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+      newItems[index] = { ...newItems[index], ...updates };
+      
+      if ('quantity' in updates || '_tempUnitPrice' in updates) {
+        const qty = 'quantity' in updates ? updates.quantity : newItems[index].quantity;
+        const price = '_tempUnitPrice' in updates ? updates._tempUnitPrice : newItems[index]._tempUnitPrice;
+        newItems[index]._tempTotalPrice = (qty || 0) * Number(price || 0);
+      }
+      
+      return newItems;
+    });
   };
 
   const toggleExpandVariants = (index: number, open: boolean) => {
@@ -1020,9 +1038,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         onOpenChange={setIsVariantGeneratorOpen}
         onSubmit={(result) => {
           if (variantGeneratorIndex !== null) {
-            updateItem(variantGeneratorIndex, '_tempVariant', result.variantString);
-            updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
-            
+            // Update both variant and quantity in a single batch
+            updateItemMultiple(variantGeneratorIndex, {
+              _tempVariant: result.variantString,
+              quantity: result.totalQuantity,
+            });
+
             toast({
               title: "Đã tạo biến thể",
               description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
