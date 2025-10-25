@@ -91,6 +91,17 @@ export function VariantGeneratorDialog({
     );
   }, [selectedValues]);
 
+  // Group selected values by attribute for display
+  const selectedGroups = useMemo(() => {
+    return Object.entries(selectedValues)
+      .filter(([_, values]) => values.length > 0)
+      .map(([attrName, values]) => ({
+        attributeName: attrName,
+        values: values,
+        displayText: `(${values.join(' | ')})`
+      }));
+  }, [selectedValues]);
+
   // Calculate total quantity (Cartesian product)
   const totalQuantity = useMemo(() => {
     const counts = Object.values(selectedValues)
@@ -179,22 +190,28 @@ export function VariantGeneratorDialog({
         </DialogHeader>
 
         {/* Selected badges */}
-        {allSelectedValues.length > 0 && (
+        {selectedGroups.length > 0 && (
           <div className="border-b pb-4">
             <div className="text-sm text-muted-foreground mb-2">
-              Đã chọn ({allSelectedValues.length}):
+              Đã chọn ({selectedGroups.length} nhóm):
             </div>
             <div className="flex flex-wrap gap-2">
-              {allSelectedValues.map((item, idx) => (
+              {selectedGroups.map((group) => (
                 <Badge
-                  key={`${item.attributeName}-${item.value}-${idx}`}
+                  key={group.attributeName}
                   variant="secondary"
-                  className="gap-1"
+                  className="gap-1 text-base px-3 py-1"
                 >
-                  {item.value}
+                  {group.displayText}
                   <button
                     type="button"
-                    onClick={() => removeValue(item.attributeName, item.value)}
+                    onClick={() => {
+                      setSelectedValues((prev) => {
+                        const newValues = { ...prev };
+                        delete newValues[group.attributeName];
+                        return newValues;
+                      });
+                    }}
                     className="ml-1 hover:bg-muted rounded-full"
                   >
                     <X className="h-3 w-3" />
