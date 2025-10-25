@@ -15,8 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Upload, Search } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Upload, Search, Eye } from "lucide-react";
 import { uploadOrderToTPOS } from "@/lib/tpos-order-uploader";
+import { TPOSOrderComparisonPanel } from "./TPOSOrderComparisonPanel";
+import { cn } from "@/lib/utils";
 
 interface OrderWithProduct {
   id: string;
@@ -70,6 +72,8 @@ export function UploadLiveOrdersToTPOSDialog({
   const [allowDuplicate, setAllowDuplicate] = useState(true);
   const [sessionIndexSearch, setSessionIndexSearch] = useState("");
   const [contentSearch, setContentSearch] = useState("");
+  const [showTPOSComparison, setShowTPOSComparison] = useState(false);
+  const [selectedSessionIndexForComparison, setSelectedSessionIndexForComparison] = useState<number | null>(null);
 
   // Fetch session data
   const { data: sessionData } = useQuery({
@@ -97,6 +101,8 @@ export function UploadLiveOrdersToTPOSDialog({
       setAllowDuplicate(true);
       setSessionIndexSearch("");
       setContentSearch("");
+      setShowTPOSComparison(false);
+      setSelectedSessionIndexForComparison(null);
     }
   }, [open]);
 
@@ -387,29 +393,44 @@ export function UploadLiveOrdersToTPOSDialog({
     }
   };
 
+  // Get local products for comparison
+  const localProductsForComparison = useMemo(() => {
+    if (!selectedSessionIndexForComparison) return [];
+    
+    return flattenedProducts
+      .filter(p => p.session_index === selectedSessionIndexForComparison)
+      .map(p => ({
+        product_code: p.product_code,
+        product_name: p.product_name,
+        quantity: p.quantity,
+      }));
+  }, [flattenedProducts, selectedSessionIndexForComparison]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh]">
+      <DialogContent className={cn("max-h-[90vh]", showTPOSComparison ? "max-w-[95vw]" : "max-w-6xl")}>
         <DialogHeader>
           <DialogTitle>Upload đơn hàng lên TPOS</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Checkbox for allowing duplicate uploads */}
-          <div className="flex items-center space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-            <Checkbox
-              id="allow-duplicate"
-              checked={allowDuplicate}
-              onCheckedChange={(checked) => setAllowDuplicate(!!checked)}
-              disabled={isUploading}
-            />
-            <label
-              htmlFor="allow-duplicate"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              Cho phép upload đơn trùng (bỏ qua kiểm tra đã upload)
-            </label>
-          </div>
+        <div className={cn("space-y-4", showTPOSComparison && "grid grid-cols-2 gap-4")}>
+          {/* Left side: Upload interface */}
+          <div className={cn(showTPOSComparison && "space-y-4")}>
+            {/* Checkbox for allowing duplicate uploads */}
+            <div className="flex items-center space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <Checkbox
+                id="allow-duplicate"
+                checked={allowDuplicate}
+                onCheckedChange={(checked) => setAllowDuplicate(!!checked)}
+                disabled={isUploading}
+              />
+              <label
+                htmlFor="allow-duplicate"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Cho phép upload đơn trùng (bỏ qua kiểm tra đã upload)
+              </label>
+            </div>
 
           {/* Search inputs */}
           <div className="grid grid-cols-2 gap-3">
@@ -482,13 +503,28 @@ export function UploadLiveOrdersToTPOSDialog({
 
                     return (
                       <TableRow key={product.uniqueKey}>
-                        {/* Merge SessionIndex cell */}
+                        {/* Merge SessionIndex cell with Eye button */}
                         {isFirstInSessionGroup && (
                           <TableCell 
                             className="font-medium align-top border-r" 
                             rowSpan={rowSpan}
                           >
-                            {product.session_index}
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{product.session_index}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  setSelectedSessionIndexForComparison(product.session_index);
+                                  setShowTPOSComparison(true);
+                                }}
+                                disabled={isUploading}
+                                title="Xem đơn TPOS"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                         
@@ -553,6 +589,21 @@ export function UploadLiveOrdersToTPOSDialog({
               </TableBody>
             </Table>
           </ScrollArea>
+          </div>
+
+          {/* Right side: TPOS comparison panel */}
+          {showTPOSComparison && selectedSessionIndexForComparison && sessionData && (
+            <TPOSOrderComparisonPanel
+              sessionIndex={selectedSessionIndexForComparison}
+              startDate={sessionData.start_date}
+              endDate={sessionData.end_date || sessionData.start_date}
+              localProducts={localProductsForComparison}
+              onClose={() => {
+                setShowTPOSComparison(false);
+                setSelectedSessionIndexForComparison(null);
+              }}
+            />
+          )}
         </div>
 
         <DialogFooter>
