@@ -334,20 +334,30 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (items.some(item => item.product_name.trim())) {
     const orderItems = items
       .filter(item => item.product_name.trim())
-      .map((item, index) => ({
-        purchase_order_id: order.id,
-        quantity: item.quantity,
-        position: index + 1,
-        notes: item.notes.trim().toUpperCase() || null,
-        product_code: item.product_code.trim().toUpperCase() || null,
-        product_name: item.product_name.trim().toUpperCase(),
-        variant: item.variant?.trim().toUpperCase() || null,
-        purchase_price: Number(item.purchase_price || 0) * 1000,
-        selling_price: Number(item.selling_price || 0) * 1000,
-        product_images: Array.isArray(item.product_images) ? item.product_images : [],
-        price_images: Array.isArray(item.price_images) ? item.price_images : [],
-        variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null, // ✅ Save variant config as JSON
-      }));
+      .map((item, index) => {
+        console.log(`💾 Saving item ${item.product_code}:`, {
+          hasVariantConfig: !!item.variantConfig,
+          variantConfig: item.variantConfig
+        });
+        
+        return {
+          purchase_order_id: order.id,
+          quantity: item.quantity,
+          position: index + 1,
+          notes: item.notes.trim().toUpperCase() || null,
+          product_code: item.product_code.trim().toUpperCase() || null,
+          product_name: item.product_name.trim().toUpperCase(),
+          variant: item.variant?.trim().toUpperCase() || null,
+          purchase_price: Number(item.purchase_price || 0) * 1000,
+          selling_price: Number(item.selling_price || 0) * 1000,
+          product_images: Array.isArray(item.product_images) ? item.product_images : [],
+          price_images: Array.isArray(item.price_images) ? item.price_images : [],
+          variant_config: item.variantConfig ? JSON.parse(JSON.stringify(item.variantConfig)) : null, // ✅ Save variant config as JSON
+        };
+      });
+
+    console.log('💾 Total items to save:', orderItems.length);
+    console.log('💾 Items with variant_config:', orderItems.filter(i => i.variant_config).length);
 
         const { error: itemsError } = await supabase
           .from("purchase_order_items")
@@ -1092,6 +1102,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       
       // ✅ ONLY save attributeLines to form state
       const newItems = [...items];
+      console.log('🎯 handleVariantTextGenerated - BEFORE UPDATE:', {
+        index,
+        itemCode: newItems[index].product_code,
+        hasVariantConfigBefore: !!newItems[index].variantConfig
+      });
+
       newItems[index] = {
         ...newItems[index],
         variant: variantText,
@@ -1103,7 +1119,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       };
       setItems(newItems);
       
-      console.log('✅ Variant config saved to form:', newItems[index].variantConfig);
+      console.log('🎯 handleVariantTextGenerated - AFTER UPDATE:', {
+        index,
+        itemCode: newItems[index].product_code,
+        hasVariantConfigAfter: !!newItems[index].variantConfig,
+        variantConfig: newItems[index].variantConfig
+      });
 
       toast({
         title: "✅ Đã cấu hình biến thể",
