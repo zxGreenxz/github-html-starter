@@ -6,8 +6,7 @@
 import { 
   generateVariants, 
   TPOSAttributeLine, 
-  ProductData,
-  TPOS_ATTRIBUTES_DATA 
+  ProductData
 } from "./variant-generator";
 import { TPOS_ATTRIBUTES } from "./tpos-attributes";
 
