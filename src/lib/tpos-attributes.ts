@@ -1,7 +1,6 @@
 // TPOS Attributes from TPOS system - Using new variant generator data structure
 export const TPOS_ATTRIBUTES = {
   sizeText: [
-    { Id: 5, Name: "Free Size", Code: "FS", Sequence: null },
     { Id: 1, Name: "S", Code: "S", Sequence: null },
     { Id: 2, Name: "M", Code: "M", Sequence: null },
     { Id: 3, Name: "L", Code: "L", Sequence: null },
@@ -103,11 +102,11 @@ export const TPOS_ATTRIBUTES = {
     { Id: 92, Name: "42", Code: "42", Sequence: null },
     { Id: 93, Name: "43", Code: "43", Sequence: null },
     { Id: 94, Name: "44", Code: "44", Sequence: null },
-  ]
+  ],
 };
 
 export const DEFAULT_SELECTIONS = {
   sizeText: ["M", "L", "XL", "XXL", "XXXL"],
   color: ["Cam", "Xanh Đậu", "Xanh Đen"],
-  sizeNumber: ["29", "30", "32"]
+  sizeNumber: ["29", "30", "32"],
 };
