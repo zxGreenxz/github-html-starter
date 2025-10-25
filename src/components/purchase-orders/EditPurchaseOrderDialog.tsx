@@ -16,7 +16,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
-import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -598,109 +597,10 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         return;
       }
 
-      toast({
-        title: "✅ Tạo vào kho thành công",
-        description: `${productData.product_code}`,
-      });
-    }
-    
-    // Upload to TPOS and create variants
-    try {
-      const { uploadToTPOSAndCreateVariants } = await import('@/lib/tpos-variant-uploader');
-      
-      const createdVariants = await uploadToTPOSAndCreateVariants(
-        productData.product_code,
-        productData.product_name,
-        variantText,
-        {
-          selling_price: productData.selling_price * 1000,
-          purchase_price: productData.purchase_price * 1000,
-          product_images: productData.product_images,
-          price_images: productData.price_images,
-          supplier_name: productData.supplier_name
-        },
-        (message) => {
-          toast({ description: message, duration: 1500 });
-        }
-      );
-      
-      console.log('🔍 Created variants from TPOS:', createdVariants);
-      
-      // Add created variants to items list
-      if (createdVariants && createdVariants.length > 0) {
-        console.log(`📦 Adding ${createdVariants.length} variants to purchase order`);
-        
-        const newVariantItems = createdVariants.map(variant => ({
-          id: undefined,
-          purchase_order_id: order.id,
-          quantity: 1,
-          notes: "",
-          position: 0,
-          created_at: new Date().toISOString(),
-          tpos_product_id: variant.tpos_product_id,
-          tpos_deleted: false,
-          tpos_deleted_at: null,
-          _isNew: true,
-          _tempProductCode: variant.product_code,
-          _tempProductName: variant.product_name,
-          _tempVariant: variant.variant,
-          _tempUnitPrice: variant.purchase_price / 1000, // Convert from VND to thousands for form display
-          _tempSellingPrice: variant.selling_price / 1000, // Convert from VND to thousands for form display
-          _tempProductImages: variant.product_images,
-          _tempPriceImages: variant.price_images,
-          _tempTotalPrice: variant.purchase_price / 1000, // Convert from VND to thousands for form display
-          product_code: variant.product_code,
-          product_name: variant.product_name,
-          variant: variant.variant,
-          purchase_price: variant.purchase_price / 1000, // Convert from VND to thousands for form display
-          selling_price: variant.selling_price / 1000, // Convert from VND to thousands for form display
-          product_images: variant.product_images,
-          price_images: variant.price_images,
-        }));
-        
-        // Insert new variant items after the current base item
-        setItems(prev => {
-          const newItems = [...prev];
-          // Update the base item with variant text and total quantity
-          const totalQuantity = createdVariants.length; // Each variant has quantity 1
-          newItems[index] = {
-            ...newItems[index],
-            _tempVariant: variantText,
-            quantity: totalQuantity,  // Update quantity to total variants
-            _tempTotalPrice: Number(newItems[index]._tempUnitPrice || 0) * totalQuantity  // Recalculate total
-          };
-          // Insert variant items after the base item
-          newItems.splice(index + 1, 0, ...newVariantItems);
-          console.log('✅ Updated items list:', newItems);
-          return newItems;
-        });
-        
-        // Update productsWithVariants to hide the button immediately
-        setProductsWithVariants(prev => new Set([...prev, baseItem._tempProductCode.trim().toUpperCase()]));
-        
-        toast({
-          title: "✅ Đã thêm variants vào danh sách",
-          description: `Đã thêm ${createdVariants.length} variants vào đơn đặt hàng`,
-        });
-      }
-    } catch (error: any) {
-      console.error("TPOS upload error:", error);
-      toast({
-        variant: "destructive",
-        title: "⚠️ Lỗi upload TPOS",
-        description: error.message
-      });
-      
-      // Still update the variant field even if TPOS upload fails
-      setItems(prev => {
-        const newItems = [...prev];
-        newItems[index] = {
-          ...newItems[index],
-          _tempVariant: variantText,
-        };
-        return newItems;
-      });
-    }
+    toast({
+      title: "✅ Tạo vào kho thành công",
+      description: `${productData.product_code}`,
+    });
   };
 
   // Helper function to check if item has all required fields for variant generation
@@ -1354,22 +1254,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         onSelect={handleSelectProduct}
         onSelectMultiple={handleSelectMultipleProducts}
       />
-
-      {variantGeneratorIndex !== null && items[variantGeneratorIndex] && (
-        <VariantGeneratorDialog
-          open={isVariantDialogOpen}
-          onOpenChange={setIsVariantDialogOpen}
-          currentItem={{
-            product_code: items[variantGeneratorIndex]._tempProductCode,
-            product_name: items[variantGeneratorIndex]._tempProductName,
-            variant: parentProductVariant
-          }}
-          onVariantTextGenerated={(variantText) => {
-            handleVariantsGenerated(variantGeneratorIndex, variantText);
-            setVariantGeneratorIndex(null);
-          }}
-        />
-      )}
     </Dialog>
   );
 }
