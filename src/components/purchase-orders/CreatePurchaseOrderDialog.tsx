@@ -16,11 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
-import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { detectAttributesFromText } from "@/lib/tpos-api";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 
@@ -1485,28 +1483,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         onSelect={handleSelectProduct}
         onSelectMultiple={handleSelectMultipleProducts}
       />
-
-      {variantGeneratorIndex !== null && items[variantGeneratorIndex] && (
-        <VariantGeneratorDialog
-          open={isVariantDialogOpen}
-          onOpenChange={setIsVariantDialogOpen}
-          currentItem={{
-            product_code: items[variantGeneratorIndex].product_code,
-            product_name: items[variantGeneratorIndex].product_name,
-            variant: items[variantGeneratorIndex].variant,
-            quantity: items[variantGeneratorIndex].quantity,
-            purchase_price: items[variantGeneratorIndex].purchase_price,
-            selling_price: items[variantGeneratorIndex].selling_price,
-            product_images: items[variantGeneratorIndex].product_images,
-            price_images: items[variantGeneratorIndex].price_images
-          }}
-          onVariantsGenerated={(data) => {
-            handleVariantsGenerated(variantGeneratorIndex, data);
-            setIsVariantDialogOpen(false);
-            setVariantGeneratorIndex(null);
-          }}
-        />
-      )}
     </Dialog>
   );
 }
