@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Download } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { formatVND } from "@/lib/currency-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EditProductDialog } from "./EditProductDialog";
@@ -12,8 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ProductImage } from "./ProductImage";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
-import { toast } from "sonner";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import {
   AlertDialog,
@@ -75,36 +73,6 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
   const [childVariantsCount, setChildVariantsCount] = useState(0);
   const [bulkDeleteInfo, setBulkDeleteInfo] = useState({ parents: 0, total: 0 });
 
-  const importFromTPOSMutation = useMutation({
-    mutationFn: async (productCode: string) => {
-      // Step 1: Search in TPOS
-      const tposProduct = await searchTPOSProduct(productCode);
-      if (!tposProduct) {
-        throw new Error(`Không tìm thấy sản phẩm "${productCode}" trong TPOS`);
-      }
-
-      // Step 2: Import to database
-      return await importProductFromTPOS(tposProduct);
-    },
-    onSuccess: (data) => {
-      toast.success(`✅ Đã import sản phẩm: ${data.product_name}`);
-      // Refresh search results
-      queryClient.invalidateQueries({ queryKey: ["products-search"] });
-      onRefetch();
-    },
-    onError: (error: Error) => {
-      toast.error(`❌ Lỗi: ${error.message}`);
-      console.error(error);
-    },
-  });
-
-  const handleImportFromTPOS = () => {
-    if (!searchQuery || searchQuery.trim().length === 0) {
-      toast.error("Vui lòng nhập mã sản phẩm");
-      return;
-    }
-    importFromTPOSMutation.mutate(searchQuery.trim());
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === products.length) {
@@ -231,21 +199,8 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
   if (products.length === 0) {
     return (
       <Card className="p-8">
-        <div className="text-center space-y-4">
-          <div className="text-muted-foreground">
-            Không có sản phẩm nào
-          </div>
-          {searchQuery && searchQuery.trim().length >= 2 && isAdmin && (
-            <Button
-              onClick={handleImportFromTPOS}
-              disabled={importFromTPOSMutation.isPending}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              {importFromTPOSMutation.isPending ? "Đang lấy từ TPOS..." : "Lấy sản phẩm từ TPOS"}
-            </Button>
-          )}
+        <div className="text-center text-muted-foreground">
+          Không có sản phẩm nào
         </div>
       </Card>
     );

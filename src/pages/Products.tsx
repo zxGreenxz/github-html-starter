@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Download, RefreshCw } from "lucide-react";
-import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
+import { Package } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,6 @@ import { ProductStats } from "@/components/products/ProductStats";
 import { ProductList } from "@/components/products/ProductList";
 import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
-import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
-import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -30,9 +27,6 @@ export default function Products() {
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [isImportVariantsDialogOpen, setIsImportVariantsDialogOpen] = useState(false);
-  const [isSyncTPOSDialogOpen, setIsSyncTPOSDialogOpen] = useState(false);
-  const [isSyncVariantsDialogOpen, setIsSyncVariantsDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -108,37 +102,6 @@ export default function Products() {
     staleTime: 60000,
   });
 
-  // Mutation to import from TPOS
-  const importFromTPOSMutation = useMutation({
-    mutationFn: async (productCode: string) => {
-      const tposProduct = await searchTPOSProduct(productCode);
-      if (!tposProduct) {
-        throw new Error("Không tìm thấy sản phẩm trên TPOS");
-      }
-      const result = await importProductFromTPOS(tposProduct);
-      return { tposProduct, result };
-    },
-    onSuccess: ({ tposProduct, result }) => {
-      const message = result.isUpdated 
-        ? `Đã cập nhật sản phẩm: ${tposProduct.Name}` 
-        : `Đã thêm sản phẩm mới: ${tposProduct.Name}`;
-      toast.success(message);
-      queryClient.invalidateQueries({ queryKey: ["products-search"] });
-      queryClient.invalidateQueries({ queryKey: ["products-stats"] });
-      refetch();
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Có lỗi khi lấy sản phẩm từ TPOS");
-    },
-  });
-
-  const handleImportFromTPOS = () => {
-    if (debouncedSearch.length < 2) {
-      toast.error("Vui lòng nhập mã sản phẩm cần tìm");
-      return;
-    }
-    importFromTPOSMutation.mutate(debouncedSearch.trim());
-  };
 
   const handleSupplierClick = (supplierName: string) => {
     setSupplierFilter(supplierName);
@@ -227,44 +190,6 @@ export default function Products() {
                       Import Excel
                     </Button>
                     <Button
-                      onClick={() => setIsImportVariantsDialogOpen(true)}
-                      variant="outline"
-                      size={isMobile ? "sm" : "default"}
-                      className={isMobile ? "flex-1 text-xs" : ""}
-                    >
-                      Import Biến Thể
-                    </Button>
-                    <Button
-                      onClick={() => setIsSyncTPOSDialogOpen(true)}
-                      variant="outline"
-                      size={isMobile ? "sm" : "default"}
-                      className={isMobile ? "flex-1 text-xs" : ""}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Đồng bộ TPOS
-                    </Button>
-                    <Button
-                      onClick={() => setIsSyncVariantsDialogOpen(true)}
-                      variant="outline"
-                      size={isMobile ? "sm" : "default"}
-                      className={isMobile ? "flex-1 text-xs" : ""}
-                    >
-                      <Package className="h-4 w-4 mr-2" />
-                      Đồng bộ Biến thể
-                    </Button>
-                    {debouncedSearch.length >= 2 && (
-                      <Button
-                        onClick={handleImportFromTPOS}
-                        variant="default"
-                        size={isMobile ? "sm" : "default"}
-                        className={isMobile ? "flex-1 text-xs" : ""}
-                        disabled={importFromTPOSMutation.isPending}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        {importFromTPOSMutation.isPending ? "Đang lấy..." : "Lấy từ TPOS"}
-                      </Button>
-                    )}
-                    <Button
                       onClick={() => setIsCreateDialogOpen(true)}
                       className={isMobile ? "flex-1" : ""}
                     >
@@ -319,18 +244,6 @@ export default function Products() {
         <ImportProductsDialog
           open={isImportDialogOpen}
           onOpenChange={setIsImportDialogOpen}
-          onSuccess={refetch}
-        />
-        
-        <ImportTPOSVariantsDialog
-          open={isImportVariantsDialogOpen}
-          onOpenChange={setIsImportVariantsDialogOpen}
-          onSuccess={refetch}
-        />
-        
-        <SyncTPOSDialog
-          open={isSyncTPOSDialogOpen}
-          onOpenChange={setIsSyncTPOSDialogOpen}
           onSuccess={refetch}
         />
       </div>
