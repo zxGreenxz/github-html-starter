@@ -142,7 +142,6 @@ export function AttributeValueTable({ values, isLoading, onEdit }: AttributeValu
               >
                 Ngày tạo <SortIcon column="created_at" />
               </TableHead>
-              <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -160,26 +159,6 @@ export function AttributeValueTable({ values, isLoading, onEdit }: AttributeValu
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {format(new Date(item.created_at), 'dd/MM/yyyy HH:mm')}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      onClick={() => onEdit(item)}
-                      className="h-8 w-8"
-                    >
-                      <Pencil className="h-4 w-4 text-blue-600" />
-                    </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      onClick={() => setDeleteId(item.id)}
-                      className="h-8 w-8"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
                 </TableCell>
               </TableRow>
             ))}
