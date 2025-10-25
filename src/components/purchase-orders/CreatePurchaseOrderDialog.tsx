@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-
+import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -121,6 +121,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
+  const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
+  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
 
@@ -938,6 +940,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                     <TableHead className="w-16">STT</TableHead>
               <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
               <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
+              <TableHead className="w-[150px]">Biến thể</TableHead>
               <TableHead className="w-[60px]">SL</TableHead>
               <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
               <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
@@ -997,6 +1000,25 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 </Button>
               </div>
             </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start text-left h-auto py-2 px-3"
+                          onClick={() => {
+                            setVariantGeneratorIndex(index);
+                            setIsVariantGeneratorOpen(true);
+                          }}
+                        >
+                          {item.variant ? (
+                            <span className="font-medium text-xs">{item.variant}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">
+                              Nhấn để tạo biến thể
+                            </span>
+                          )}
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         <Input
                           type="number"
@@ -1216,6 +1238,24 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         onOpenChange={setIsSelectProductOpen}
         onSelect={handleSelectProduct}
         onSelectMultiple={handleSelectMultipleProducts}
+      />
+
+      <VariantGeneratorDialog
+        open={isVariantGeneratorOpen}
+        onOpenChange={setIsVariantGeneratorOpen}
+        onSubmit={(result) => {
+          if (variantGeneratorIndex !== null) {
+            updateItem(variantGeneratorIndex, 'variant', result.variantString);
+            updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
+            
+            toast({
+              title: "Đã tạo biến thể",
+              description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
+            });
+          }
+          setIsVariantGeneratorOpen(false);
+          setVariantGeneratorIndex(null);
+        }}
       />
     </Dialog>
   );
