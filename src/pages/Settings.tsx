@@ -6,9 +6,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Key, Printer } from "lucide-react";
+import { Key, Printer, Book } from "lucide-react";
 import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
+import { BarcodeScannerSettings } from "@/components/settings/BarcodeScannerSettings";
 import { PrinterConfigManager } from "@/components/settings/PrinterConfigManager";
+import { TPOSAPIReference } from "@/components/settings/TPOSAPIReference";
+import { SystemDocumentation } from "@/components/settings/SystemDocumentation";
 import { PredictionStatsMonitor } from "@/components/settings/PredictionStatsMonitor";
 
 const Settings = () => {
@@ -30,14 +33,26 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="w-full flex gap-1">
-          <TabsTrigger value="general" className="gap-2 flex-1">
+        <TabsList className="w-full grid grid-cols-5 gap-1">
+          <TabsTrigger value="general" className="gap-2">
             <Key className="h-4 w-4" />
-            Cấu hình chung
+            <span className={isMobile ? "hidden" : "inline"}>Cấu hình chung</span>
+            <span className={isMobile ? "inline" : "hidden"}>Chung</span>
           </TabsTrigger>
-          <TabsTrigger value="printer" className="gap-2 flex-1">
+          <TabsTrigger value="barcode" className="gap-2">
+            Barcode
+          </TabsTrigger>
+          <TabsTrigger value="printer" className="gap-2">
             <Printer className="h-4 w-4" />
-            Máy in
+            <span className={isMobile ? "hidden" : "inline"}>Máy in</span>
+            <span className={isMobile ? "inline" : "hidden"}>In</span>
+          </TabsTrigger>
+          <TabsTrigger value="api-reference" className="gap-2">
+            API
+          </TabsTrigger>
+          <TabsTrigger value="documentation" className="gap-2">
+            <span className={isMobile ? "hidden" : "inline"}>Tài liệu</span>
+            <span className={isMobile ? "inline" : "hidden"}>Docs</span>
           </TabsTrigger>
         </TabsList>
 
@@ -94,8 +109,20 @@ const Settings = () => {
           )}
         </TabsContent>
 
+        <TabsContent value="barcode" className="space-y-6 mt-4">
+          <BarcodeScannerSettings />
+        </TabsContent>
+
         <TabsContent value="printer" className="space-y-6 mt-4">
           <PrinterConfigManager />
+        </TabsContent>
+
+        <TabsContent value="api-reference" className="space-y-6 mt-4">
+          <TPOSAPIReference />
+        </TabsContent>
+
+        <TabsContent value="documentation" className="space-y-6 mt-4">
+          <SystemDocumentation />
         </TabsContent>
       </Tabs>
     </div>
