@@ -520,56 +520,92 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }
         }
 
-        // Step 2.5: Auto-detect and create variants from variant column
-        console.log('🔨 Auto-detecting variants from variant text...');
+        // Step 2.5: Parse and create variants from variant column
+        console.log('🔨 Parsing variants from variant text...');
         for (const item of items.filter(i => i.product_name.trim() && i.variant?.trim())) {
           const variantText = item.variant.trim();
           
-          // Auto-detect variants from text
-          const detected = detectVariantsFromText(variantText);
-          
-          // Build attributeLines from detected variants
+          // Build attributeLines based on variant format
           const attributeLines: Array<{id: string; attributeId: number; attributeName: string; values: string[]}> = [];
           
-          if (detected.sizeNumber.length > 0) {
-            attributeLines.push({
-              id: `size-number-${Date.now()}`,
-              attributeId: 4,
-              attributeName: "Size Số",
-              values: detected.sizeNumber.map(s => s.value)
-            });
-          }
-          
-          if (detected.sizeText.length > 0) {
-            attributeLines.push({
-              id: `size-text-${Date.now()}`,
-              attributeId: 1,
-              attributeName: "Size Chữ",
-              values: detected.sizeText.map(s => s.value)
-            });
-          }
-          
-          if (detected.colors.length > 0) {
-            attributeLines.push({
-              id: `color-${Date.now()}`,
-              attributeId: 2,
-              attributeName: "Màu",
-              values: detected.colors.map(c => c.value)
-            });
-          }
+          // Strategy 1: Parse if separated by "|" (manual input format like "1 | 2 | 3 | 4")
+          if (variantText.includes('|')) {
+            const values = variantText.split('|').map(v => v.trim()).filter(v => v);
+            
+            // Detect type from first value
+            const firstValue = values[0];
+            const isNumeric = /^\d+$/.test(firstValue);
+            const isTextSize = /^[SMLX]{1,4}$/i.test(firstValue);
+            
+            if (isNumeric) {
+              // Size Number
+              attributeLines.push({
+                id: `size-number-${Date.now()}`,
+                attributeId: 4,
+                attributeName: "Size Số",
+                values
+              });
+            } else if (isTextSize) {
+              // Size Text
+              attributeLines.push({
+                id: `size-text-${Date.now()}`,
+                attributeId: 1,
+                attributeName: "Size Chữ",
+                values: values.map(v => v.toUpperCase())
+              });
+            } else {
+              // Colors
+              attributeLines.push({
+                id: `color-${Date.now()}`,
+                attributeId: 2,
+                attributeName: "Màu",
+                values
+              });
+            }
+          } else {
+            // Strategy 2: Auto-detect from text
+            const detected = detectVariantsFromText(variantText);
+            
+            if (detected.sizeNumber.length > 0) {
+              attributeLines.push({
+                id: `size-number-${Date.now()}`,
+                attributeId: 4,
+                attributeName: "Size Số",
+                values: detected.sizeNumber.map(s => s.value)
+              });
+            }
+            
+            if (detected.sizeText.length > 0) {
+              attributeLines.push({
+                id: `size-text-${Date.now()}`,
+                attributeId: 1,
+                attributeName: "Size Chữ",
+                values: detected.sizeText.map(s => s.value)
+              });
+            }
+            
+            if (detected.colors.length > 0) {
+              attributeLines.push({
+                id: `color-${Date.now()}`,
+                attributeId: 2,
+                attributeName: "Màu",
+                values: detected.colors.map(c => c.value)
+              });
+            }
 
-          if (detected.modelCodes.length > 0) {
-            attributeLines.push({
-              id: `model-${Date.now()}`,
-              attributeId: 3,
-              attributeName: "Mã Model",
-              values: detected.modelCodes.map(m => m.value)
-            });
+            if (detected.modelCodes.length > 0) {
+              attributeLines.push({
+                id: `model-${Date.now()}`,
+                attributeId: 3,
+                attributeName: "Mã Model",
+                values: detected.modelCodes.map(m => m.value)
+              });
+            }
           }
 
           // Skip if no variants detected
           if (attributeLines.length === 0) {
-            console.log(`⚠️ No variants detected for ${item.product_code}`);
+            console.log(`⚠️ No variants detected for ${item.product_code}, variant text: "${variantText}"`);
             continue;
           }
 
@@ -747,56 +783,92 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
 
-      // Step 3.5: Auto-detect and create variants from variant column
-      console.log('🔨 Auto-detecting variants from variant text...');
+      // Step 3.5: Parse and create variants from variant column
+      console.log('🔨 Parsing variants from variant text...');
       for (const item of items.filter(i => i.product_name.trim() && i.variant?.trim())) {
         const variantText = item.variant.trim();
         
-        // Auto-detect variants from text
-        const detected = detectVariantsFromText(variantText);
-        
-        // Build attributeLines from detected variants
+        // Build attributeLines based on variant format
         const attributeLines: Array<{id: string; attributeId: number; attributeName: string; values: string[]}> = [];
         
-        if (detected.sizeNumber.length > 0) {
-          attributeLines.push({
-            id: `size-number-${Date.now()}`,
-            attributeId: 4,
-            attributeName: "Size Số",
-            values: detected.sizeNumber.map(s => s.value)
-          });
-        }
-        
-        if (detected.sizeText.length > 0) {
-          attributeLines.push({
-            id: `size-text-${Date.now()}`,
-            attributeId: 1,
-            attributeName: "Size Chữ",
-            values: detected.sizeText.map(s => s.value)
-          });
-        }
-        
-        if (detected.colors.length > 0) {
-          attributeLines.push({
-            id: `color-${Date.now()}`,
-            attributeId: 2,
-            attributeName: "Màu",
-            values: detected.colors.map(c => c.value)
-          });
-        }
+        // Strategy 1: Parse if separated by "|" (manual input format like "1 | 2 | 3 | 4")
+        if (variantText.includes('|')) {
+          const values = variantText.split('|').map(v => v.trim()).filter(v => v);
+          
+          // Detect type from first value
+          const firstValue = values[0];
+          const isNumeric = /^\d+$/.test(firstValue);
+          const isTextSize = /^[SMLX]{1,4}$/i.test(firstValue);
+          
+          if (isNumeric) {
+            // Size Number
+            attributeLines.push({
+              id: `size-number-${Date.now()}`,
+              attributeId: 4,
+              attributeName: "Size Số",
+              values
+            });
+          } else if (isTextSize) {
+            // Size Text
+            attributeLines.push({
+              id: `size-text-${Date.now()}`,
+              attributeId: 1,
+              attributeName: "Size Chữ",
+              values: values.map(v => v.toUpperCase())
+            });
+          } else {
+            // Colors
+            attributeLines.push({
+              id: `color-${Date.now()}`,
+              attributeId: 2,
+              attributeName: "Màu",
+              values
+            });
+          }
+        } else {
+          // Strategy 2: Auto-detect from text
+          const detected = detectVariantsFromText(variantText);
+          
+          if (detected.sizeNumber.length > 0) {
+            attributeLines.push({
+              id: `size-number-${Date.now()}`,
+              attributeId: 4,
+              attributeName: "Size Số",
+              values: detected.sizeNumber.map(s => s.value)
+            });
+          }
+          
+          if (detected.sizeText.length > 0) {
+            attributeLines.push({
+              id: `size-text-${Date.now()}`,
+              attributeId: 1,
+              attributeName: "Size Chữ",
+              values: detected.sizeText.map(s => s.value)
+            });
+          }
+          
+          if (detected.colors.length > 0) {
+            attributeLines.push({
+              id: `color-${Date.now()}`,
+              attributeId: 2,
+              attributeName: "Màu",
+              values: detected.colors.map(c => c.value)
+            });
+          }
 
-        if (detected.modelCodes.length > 0) {
-          attributeLines.push({
-            id: `model-${Date.now()}`,
-            attributeId: 3,
-            attributeName: "Mã Model",
-            values: detected.modelCodes.map(m => m.value)
-          });
+          if (detected.modelCodes.length > 0) {
+            attributeLines.push({
+              id: `model-${Date.now()}`,
+              attributeId: 3,
+              attributeName: "Mã Model",
+              values: detected.modelCodes.map(m => m.value)
+            });
+          }
         }
 
         // Skip if no variants detected
         if (attributeLines.length === 0) {
-          console.log(`⚠️ No variants detected for ${item.product_code}`);
+          console.log(`⚠️ No variants detected for ${item.product_code}, variant text: "${variantText}"`);
           continue;
         }
 
