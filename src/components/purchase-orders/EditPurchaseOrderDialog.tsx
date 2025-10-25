@@ -597,10 +597,11 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         return;
       }
 
-    toast({
-      title: "✅ Tạo vào kho thành công",
-      description: `${productData.product_code}`,
-    });
+      toast({
+        title: "✅ Tạo vào kho thành công",
+        description: `${productData.product_code}`,
+      });
+    }
   };
 
   // Helper function to check if item has all required fields for variant generation

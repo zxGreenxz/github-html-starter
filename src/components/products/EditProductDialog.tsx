@@ -44,13 +44,6 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     base_product_code: "",
   });
 
-  // Auto-detect variants from product name
-  const { detectionResult, hasDetections } = useVariantDetector({
-    productName: formData.product_name,
-    variant: formData.variant,
-    enabled: open,
-  });
-
   useEffect(() => {
     if (product) {
       setFormData({
@@ -67,11 +60,6 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
       });
     }
   }, [product]);
-
-  const handleVariantTextGenerated = (variantText: string) => {
-    setFormData({ ...formData, variant: variantText });
-    setShowVariantGenerator(false);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

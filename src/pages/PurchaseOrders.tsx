@@ -545,8 +545,6 @@ const PurchaseOrders = () => {
       deleteBulkOrdersMutation.mutate(selectedOrders);
     }
   };
-    return items;
-  };
 
   return (
     <div className={cn(
