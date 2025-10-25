@@ -91,17 +91,6 @@ export function VariantGeneratorDialog({
     );
   }, [selectedValues]);
 
-  // Group selected values by attribute for display
-  const selectedGroups = useMemo(() => {
-    return Object.entries(selectedValues)
-      .filter(([_, values]) => values.length > 0)
-      .map(([attrName, values]) => ({
-        attributeName: attrName,
-        values: values,
-        displayText: `(${values.join(' | ')})`
-      }));
-  }, [selectedValues]);
-
   // Calculate total quantity (Cartesian product)
   const totalQuantity = useMemo(() => {
     const counts = Object.values(selectedValues)
@@ -143,26 +132,14 @@ export function VariantGeneratorDialog({
       return;
     }
 
-    // Calculate final values BEFORE resetting state
-    const finalVariantString = Object.entries(selectedValues)
-      .filter(([_, values]) => values.length > 0)
-      .map(([_, values]) => `(${values.join(' | ')})`)
-      .join(' ');
-
-    const finalTotalQuantity = Object.values(selectedValues)
-      .filter((values) => values.length > 0)
-      .map((values) => values.length)
-      .reduce((acc, count) => acc * count, 1);
+    onSubmit({
+      variantString,
+      totalQuantity,
+    });
 
     // Reset state
     setSelectedValues({});
     setSearchQueries({});
-
-    // Submit with calculated values
-    onSubmit({
-      variantString: finalVariantString,
-      totalQuantity: finalTotalQuantity,
-    });
   };
 
   // Handle close
@@ -202,28 +179,22 @@ export function VariantGeneratorDialog({
         </DialogHeader>
 
         {/* Selected badges */}
-        {selectedGroups.length > 0 && (
+        {allSelectedValues.length > 0 && (
           <div className="border-b pb-4">
             <div className="text-sm text-muted-foreground mb-2">
-              Đã chọn ({selectedGroups.length} nhóm):
+              Đã chọn ({allSelectedValues.length}):
             </div>
             <div className="flex flex-wrap gap-2">
-              {selectedGroups.map((group) => (
+              {allSelectedValues.map((item, idx) => (
                 <Badge
-                  key={group.attributeName}
+                  key={`${item.attributeName}-${item.value}-${idx}`}
                   variant="secondary"
-                  className="gap-1 text-base px-3 py-1"
+                  className="gap-1"
                 >
-                  {group.displayText}
+                  {item.value}
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedValues((prev) => {
-                        const newValues = { ...prev };
-                        delete newValues[group.attributeName];
-                        return newValues;
-                      });
-                    }}
+                    onClick={() => removeValue(item.attributeName, item.value)}
                     className="ml-1 hover:bg-muted rounded-full"
                   >
                     <X className="h-3 w-3" />

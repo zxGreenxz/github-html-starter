@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
+import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
@@ -934,24 +935,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
 
             <div className="border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <div className="min-w-max">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-16">STT</TableHead>
-                  <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
-                  <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
-                  <TableHead className="w-[60px]">SL</TableHead>
-                  <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
-                  <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
-                  <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
-                  <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
-                  <TableHead className="w-[100px] border-l-2 border-primary/30">Hình ảnh Giá mua</TableHead>
-                  <TableHead className="w-[300px]">Biến thể</TableHead>
-                  <TableHead className="w-16">Thao tác</TableHead>
-                      </TableRow>
-                    </TableHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">STT</TableHead>
+              <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
+              <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
+              <TableHead className="w-[60px]">SL</TableHead>
+              <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
+              <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
+              <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
+              <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
+              <TableHead className="w-[100px] border-l-2 border-primary/30">Hình ảnh Giá mua</TableHead>
+              <TableHead className="w-[150px]">Biến thể</TableHead>
+              <TableHead className="w-16">Thao tác</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {items.map((item, index) => (
                     <TableRow key={index}>
@@ -1056,13 +1055,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           itemIndex={index}
                         />
                       </TableCell>
-            <TableCell className="min-w-[300px]">
+            <TableCell>
               <div className="flex items-center gap-1">
-                <Input
+                <VariantDropdownSelector
+                  baseProductCode={item.product_code}
                   value={item.variant}
-                  onChange={(e) => updateItem(index, "variant", e.target.value.toUpperCase())}
-                  placeholder="Nhập biến thể hoặc dùng nút Sparkles..."
-                  className="flex-1 min-w-[250px]"
+                  onChange={(value) => updateItem(index, "variant", value)}
+                  onVariantSelect={(data) => {
+                    updateItem(index, "product_code", data.productCode);
+                    updateItem(index, "product_name", data.productName);
+                    updateItem(index, "variant", data.variant);
+                  }}
+                  className="flex-1"
                 />
                 <Button
                   type="button"
@@ -1123,8 +1127,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   </TableRow>
                 </TableBody>
               </Table>
-                </div>
-              </div>
             </div>
 
             <div className="flex justify-center">
