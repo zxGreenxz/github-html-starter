@@ -11,11 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, ChevronDown, Edit, Check } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-import { VariantDropdownSelector } from "./VariantDropdownSelector";
+
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -722,7 +721,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh Giá mua</TableHead>
-                    <TableHead className="w-[150px]">Biến thể</TableHead>
                     <TableHead className="w-16">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -837,68 +835,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           itemIndex={index}
                           disabled={!!item.id}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-2">
-                          {/* Input chính + nút Sparkles */}
-                          <div className="flex items-center gap-1">
-                            <VariantDropdownSelector
-                              disabled={!!item.id}
-                              baseProductCode={item._tempProductCode}
-                              value={item._tempVariant}
-                              onChange={(value) => updateItem(index, "_tempVariant", value)}
-                              onVariantSelect={(data) => {
-                                updateItem(index, "_tempProductCode", data.productCode);
-                                updateItem(index, "_tempProductName", data.productName);
-                                updateItem(index, "_tempVariant", data.variant);
-                              }}
-                              className="flex-1"
-                            />
-                          </div>
-
-                          {/* Collapsible danh sách biến thể */}
-                          {variantsMap[item._tempProductCode] && variantsMap[item._tempProductCode].length > 0 && (
-                            <Collapsible 
-                              open={expandedVariants[index]} 
-                              onOpenChange={(open) => toggleExpandVariants(index, open)}
-                            >
-                              <CollapsibleTrigger asChild>
-                                <div className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors">
-                                  <ChevronDown className={cn(
-                                    "w-3 h-3 transition-transform",
-                                    expandedVariants[index] ? "" : "-rotate-90"
-                                  )} />
-                                  <span>
-                                    {variantsMap[item._tempProductCode].length} biến thể
-                                  </span>
-                                </div>
-                              </CollapsibleTrigger>
-                              
-                              <CollapsibleContent>
-                                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto border rounded p-2 bg-muted/30">
-                                  {variantsMap[item._tempProductCode].map((variant: any) => (
-                                    <div
-                                      key={variant.id}
-                                      onClick={() => {
-                                        updateItem(index, "_tempProductCode", variant.product_code);
-                                        updateItem(index, "_tempProductName", variant.product_name);
-                                        updateItem(index, "_tempVariant", variant.variant);
-                                      }}
-                                      className={cn(
-                                        "flex items-center justify-between p-2 rounded cursor-pointer transition-colors text-xs",
-                                        "hover:bg-accent",
-                                        variant.variant === item._tempVariant && "bg-primary/10 border border-primary/20"
-                                      )}
-                                    >
-                                      <span className="font-medium">{variant.variant}</span>
-                                      <span className="text-muted-foreground">{variant.product_code}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )}
-                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">

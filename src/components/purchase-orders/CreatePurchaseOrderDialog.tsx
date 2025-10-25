@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-import { VariantDropdownSelector } from "./VariantDropdownSelector";
+
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -944,7 +944,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               <TableHead className="w-[130px]">Thành tiền (VND)</TableHead>
               <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
               <TableHead className="w-[100px] border-l-2 border-primary/30">Hình ảnh Giá mua</TableHead>
-              <TableHead className="w-[150px]">Biến thể</TableHead>
               <TableHead className="w-16">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1052,21 +1051,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           itemIndex={index}
                         />
                       </TableCell>
-            <TableCell>
-              <div className="flex items-center gap-1">
-                <VariantDropdownSelector
-                  baseProductCode={item.product_code}
-                  value={item.variant}
-                  onChange={(value) => updateItem(index, "variant", value)}
-                  onVariantSelect={(data) => {
-                    updateItem(index, "product_code", data.productCode);
-                    updateItem(index, "product_name", data.productName);
-                    updateItem(index, "variant", data.variant);
-                  }}
-                  className="flex-1"
-                />
-              </div>
-            </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Button 
