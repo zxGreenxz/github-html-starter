@@ -16,6 +16,7 @@ import SearchProducts from "./pages/SearchProducts";
 import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
+import AttributeWarehouse from "./pages/AttributeWarehouse";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -99,6 +100,13 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <Customers />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/attribute-warehouse" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AttributeWarehouse />
                   </Layout>
                 </ProtectedRoute>
               } />

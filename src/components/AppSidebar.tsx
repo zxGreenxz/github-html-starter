@@ -11,7 +11,8 @@ import {
   MessageSquare,
   LogOut,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  Tags
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,11 @@ const adminItems = [
     title: "Kho Khách Hàng",
     url: "/customers",
     icon: Users,
+  },
+  {
+    title: "Kho Thuộc Tính",
+    url: "/attribute-warehouse",
+    icon: Tags,
   },
   {
     title: "Tìm Kiếm SP",

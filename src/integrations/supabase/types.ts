@@ -724,28 +724,37 @@ export type Database = {
       product_attribute_values: {
         Row: {
           attribute_id: string
+          code: string | null
           created_at: string
           display_order: number
           id: string
           is_active: boolean
+          name_get: string | null
+          price_extra: number | null
           updated_at: string
           value: string
         }
         Insert: {
           attribute_id: string
+          code?: string | null
           created_at?: string
           display_order?: number
           id?: string
           is_active?: boolean
+          name_get?: string | null
+          price_extra?: number | null
           updated_at?: string
           value: string
         }
         Update: {
           attribute_id?: string
+          code?: string | null
           created_at?: string
           display_order?: number
           id?: string
           is_active?: boolean
+          name_get?: string | null
+          price_extra?: number | null
           updated_at?: string
           value?: string
         }

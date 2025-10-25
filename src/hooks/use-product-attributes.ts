@@ -15,6 +15,9 @@ export interface ProductAttributeValue {
   id: string;
   attribute_id: string;
   value: string;
+  code?: string | null;
+  price_extra?: number | null;
+  name_get?: string | null;
   display_order: number;
   is_active: boolean;
   created_at: string;
@@ -109,7 +112,19 @@ export function useProductAttributes() {
 
   // Create attribute value
   const createAttributeValue = useMutation({
-    mutationFn: async ({ attributeId, value }: { attributeId: string; value: string }) => {
+    mutationFn: async ({ 
+      attributeId, 
+      value, 
+      code, 
+      price_extra, 
+      name_get 
+    }: { 
+      attributeId: string; 
+      value: string;
+      code?: string | null;
+      price_extra?: number;
+      name_get?: string;
+    }) => {
       const valuesForAttribute = attributeValues.filter(v => v.attribute_id === attributeId);
       const maxOrder = valuesForAttribute.length > 0 
         ? Math.max(...valuesForAttribute.map(v => v.display_order)) 
@@ -119,7 +134,10 @@ export function useProductAttributes() {
         .from("product_attribute_values")
         .insert({ 
           attribute_id: attributeId, 
-          value, 
+          value,
+          code,
+          price_extra,
+          name_get,
           display_order: maxOrder + 1 
         })
         .select()
@@ -135,6 +153,44 @@ export function useProductAttributes() {
     onError: (error: any) => {
       toast({
         title: "Lỗi thêm giá trị",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update attribute value
+  const updateAttributeValue = useMutation({
+    mutationFn: async ({ id, value, code, price_extra, name_get }: { 
+      id: string; 
+      value: string;
+      code?: string | null;
+      price_extra?: number;
+      name_get?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from("product_attribute_values")
+        .update({ 
+          value, 
+          code,
+          price_extra,
+          name_get,
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-attribute-values"] });
+      toast({ title: "Đã cập nhật giá trị" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Lỗi cập nhật giá trị",
         description: error.message,
         variant: "destructive",
       });
@@ -171,6 +227,7 @@ export function useProductAttributes() {
     createAttribute,
     deleteAttribute,
     createAttributeValue,
+    updateAttributeValue,
     deleteAttributeValue,
   };
 }
