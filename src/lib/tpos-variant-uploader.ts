@@ -87,7 +87,7 @@ export async function uploadToTPOSAndCreateVariants(
       onProgress?.("✅ Cập nhật TPOS thành công");
       
       // Fetch created variants and save to products table
-      const variants = await fetchAndSaveVariantsFromTPOS(tposProductId, productCode, productData, onProgress);
+      const variants = await fetchAndSaveVariantsFromTPOS(tposProductId, productCode, productName, productData, onProgress);
       return variants;
     } else {
       // Product doesn't exist - create new with variants
@@ -210,7 +210,7 @@ async function createNewProductOnTPOS(
 
   if (data.Id) {
     console.log(`🔍 Calling fetchAndSaveVariantsFromTPOS with ID: ${data.Id}`);
-    const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productData, onProgress);
+    const variantProducts = await fetchAndSaveVariantsFromTPOS(data.Id, productCode, productName, productData, onProgress);
     console.log(`✅ fetchAndSaveVariantsFromTPOS returned ${variantProducts.length} variants`);
     return variantProducts;
   }
@@ -222,6 +222,7 @@ async function createNewProductOnTPOS(
 async function fetchAndSaveVariantsFromTPOS(
   tposProductId: number,
   baseProductCode: string,
+  baseProductName: string,
   baseProductData: ProductData,
   onProgress?: (message: string) => void
 ): Promise<VariantProduct[]> {
@@ -304,7 +305,7 @@ async function fetchAndSaveVariantsFromTPOS(
 
       return {
         product_code: variantCode,
-        product_name: variant.Name || variant.NameGet,
+        product_name: baseProductName,
         variant: variantText,
         selling_price: sellingPriceVND, // Store actual VND from TPOS
         purchase_price: purchasePriceVND, // Store actual VND from TPOS
