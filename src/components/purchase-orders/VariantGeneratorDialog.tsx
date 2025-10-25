@@ -88,6 +88,12 @@ export function VariantGeneratorDialog({
       .map((values) => values.length)
       .reduce((acc, count) => acc * count, 1);
 
+    console.log("🔵 VariantGeneratorDialog handleSubmit:", {
+      selectedValues,
+      finalVariantString,
+      finalTotalQuantity
+    });
+
     // Submit with captured values - not dependent on useMemo
     onSubmit({
       variantString: finalVariantString,

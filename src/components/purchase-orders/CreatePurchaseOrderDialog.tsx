@@ -647,12 +647,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
+    console.log(`🟡 updateItem called:`, { index, field, value, currentValue: items[index]?.[field] });
+    
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     
     if (field === "quantity" || field === "purchase_price") {
       newItems[index]._tempTotalPrice = newItems[index].quantity * Number(newItems[index].purchase_price || 0);
     }
+    
+    console.log(`🟡 updateItem after:`, { newValue: newItems[index][field], fullItem: newItems[index] });
     
     setItems(newItems);
   };
@@ -1244,10 +1248,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         open={isVariantGeneratorOpen}
         onOpenChange={setIsVariantGeneratorOpen}
         onSubmit={(result) => {
+          console.log("🟢 CreatePurchaseOrderDialog onSubmit received:", {
+            result,
+            variantGeneratorIndex,
+            currentItem: items[variantGeneratorIndex!]
+          });
+
           if (variantGeneratorIndex !== null) {
             updateItem(variantGeneratorIndex, 'variant', result.variantString);
             updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
             
+            console.log("🟢 After updateItem, item is:", items[variantGeneratorIndex]);
+
             toast({
               title: "Đã tạo biến thể",
               description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
