@@ -15,6 +15,7 @@ import { EditProductDialog } from "@/components/live-products/EditProductDialog"
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
 import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadLiveOrdersToTPOSDialog";
+import { UploadOrdersByProductDialog } from "@/components/live-products/UploadOrdersByProductDialog";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
@@ -236,6 +237,7 @@ export default function LiveProducts() {
     facebook_comment_id?: string | null;
   } | null>(null);
   const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
+  const [isUploadByProductOpen, setIsUploadByProductOpen] = useState(false);
 
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -2353,10 +2355,16 @@ export default function LiveProducts() {
                       <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
                       <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
                     </div>
-                    <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload TPOS
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload theo đơn hàng
+                      </Button>
+                      <Button variant="outline" onClick={() => setIsUploadByProductOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
+                        <Package className="h-4 w-4 mr-2" />
+                        Upload theo sản phẩm
+                      </Button>
+                    </div>
                   </div>
                   <Card>
                     <Table>
@@ -2781,6 +2789,8 @@ export default function LiveProducts() {
       <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
 
       <UploadLiveOrdersToTPOSDialog open={isUploadLiveOrdersOpen} onOpenChange={setIsUploadLiveOrdersOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
+
+      <UploadOrdersByProductDialog open={isUploadByProductOpen} onOpenChange={setIsUploadByProductOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
 
       {/* Floating Action Buttons */}
       {selectedPhase && selectedPhase !== "all" && <div className="fixed top-16 right-6 flex flex-col gap-3 z-50">
