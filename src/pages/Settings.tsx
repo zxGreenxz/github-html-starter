@@ -10,7 +10,6 @@ import { Key, Printer, Book } from "lucide-react";
 import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
 import { BarcodeScannerSettings } from "@/components/settings/BarcodeScannerSettings";
 import { PrinterConfigManager } from "@/components/settings/PrinterConfigManager";
-import { TPOSAPIReference } from "@/components/settings/TPOSAPIReference";
 import { SystemDocumentation } from "@/components/settings/SystemDocumentation";
 import { PredictionStatsMonitor } from "@/components/settings/PredictionStatsMonitor";
 
@@ -33,7 +32,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="w-full grid grid-cols-5 gap-1">
+        <TabsList className="w-full grid grid-cols-4 gap-1">
           <TabsTrigger value="general" className="gap-2">
             <Key className="h-4 w-4" />
             <span className={isMobile ? "hidden" : "inline"}>Cấu hình chung</span>
@@ -46,9 +45,6 @@ const Settings = () => {
             <Printer className="h-4 w-4" />
             <span className={isMobile ? "hidden" : "inline"}>Máy in</span>
             <span className={isMobile ? "inline" : "hidden"}>In</span>
-          </TabsTrigger>
-          <TabsTrigger value="api-reference" className="gap-2">
-            API
           </TabsTrigger>
           <TabsTrigger value="documentation" className="gap-2">
             <span className={isMobile ? "hidden" : "inline"}>Tài liệu</span>
@@ -115,10 +111,6 @@ const Settings = () => {
 
         <TabsContent value="printer" className="space-y-6 mt-4">
           <PrinterConfigManager />
-        </TabsContent>
-
-        <TabsContent value="api-reference" className="space-y-6 mt-4">
-          <TPOSAPIReference />
         </TabsContent>
 
         <TabsContent value="documentation" className="space-y-6 mt-4">
