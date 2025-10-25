@@ -11,12 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, ChevronDown, Edit, Check, Sparkles } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, ChevronDown, Edit, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
-import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -117,8 +116,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }
   ]);
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
-  const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
-  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -857,21 +854,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                               }}
                               className="flex-1"
                             />
-                            {!item.id && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-9 w-9 shrink-0"
-                                onClick={() => {
-                                  setVariantGeneratorIndex(index);
-                                  setIsVariantGeneratorOpen(true);
-                                }}
-                                title="Tạo biến thể từ thuộc tính"
-                              >
-                                <Sparkles className="h-4 w-4" />
-                              </Button>
-                            )}
                           </div>
 
                           {/* Collapsible danh sách biến thể */}
@@ -1070,24 +1052,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         onOpenChange={setIsSelectProductOpen}
         onSelect={handleSelectProduct}
         onSelectMultiple={handleSelectMultipleProducts}
-      />
-
-      <VariantGeneratorDialog
-        open={isVariantGeneratorOpen}
-        onOpenChange={setIsVariantGeneratorOpen}
-        onSubmit={(result) => {
-          if (variantGeneratorIndex !== null) {
-            updateItem(variantGeneratorIndex, '_tempVariant', result.variantString);
-            updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
-            
-            toast({
-              title: "Đã tạo biến thể",
-              description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
-            });
-          }
-          setIsVariantGeneratorOpen(false);
-          setVariantGeneratorIndex(null);
-        }}
       />
     </Dialog>
   );

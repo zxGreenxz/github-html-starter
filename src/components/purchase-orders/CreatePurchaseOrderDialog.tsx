@@ -11,11 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, Sparkles } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-
-import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
+import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
@@ -121,8 +120,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   ]);
 
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
-  const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
-  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
@@ -1055,28 +1052,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           itemIndex={index}
                         />
                       </TableCell>
-            <TableCell className="min-w-[280px]">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-h-[36px] px-3 py-2 rounded-md border bg-muted/50 text-sm flex items-center">
-                  {item.variant ? (
-                    <span className="font-medium">{item.variant}</span>
-                  ) : (
-                    <span className="text-muted-foreground italic">Nhấn nút Sparkles để tạo biến thể</span>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={() => {
-                    setVariantGeneratorIndex(index);
-                    setIsVariantGeneratorOpen(true);
+            <TableCell>
+              <div className="flex items-center gap-1">
+                <VariantDropdownSelector
+                  baseProductCode={item.product_code}
+                  value={item.variant}
+                  onChange={(value) => updateItem(index, "variant", value)}
+                  onVariantSelect={(data) => {
+                    updateItem(index, "product_code", data.productCode);
+                    updateItem(index, "product_name", data.productName);
+                    updateItem(index, "variant", data.variant);
                   }}
-                  title="Tạo biến thể từ thuộc tính"
-                >
-                  <Sparkles className="h-4 w-4" />
-                </Button>
+                  className="flex-1"
+                />
               </div>
             </TableCell>
                       <TableCell className="text-center">
@@ -1244,24 +1232,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         onOpenChange={setIsSelectProductOpen}
         onSelect={handleSelectProduct}
         onSelectMultiple={handleSelectMultipleProducts}
-      />
-
-      <VariantGeneratorDialog
-        open={isVariantGeneratorOpen}
-        onOpenChange={setIsVariantGeneratorOpen}
-        onSubmit={(result) => {
-          if (variantGeneratorIndex !== null) {
-            updateItem(variantGeneratorIndex, 'variant', result.variantString);
-            updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
-            
-            toast({
-              title: "Đã tạo biến thể",
-              description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
-            });
-          }
-          setIsVariantGeneratorOpen(false);
-          setVariantGeneratorIndex(null);
-        }}
       />
     </Dialog>
   );
