@@ -855,7 +855,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                                 updateItem(index, "_tempProductName", data.productName);
                                 updateItem(index, "_tempVariant", data.variant);
                               }}
-                              className="flex-1"
+                              className="flex-1 min-w-[250px]"
                             />
                             {!item.id && (
                               <Button

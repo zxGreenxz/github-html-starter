@@ -1066,7 +1066,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                     updateItem(index, "product_name", data.productName);
                     updateItem(index, "variant", data.variant);
                   }}
-                  className="flex-1"
+                  className="flex-1 min-w-[250px]"
                 />
                 <Button
                   type="button"
