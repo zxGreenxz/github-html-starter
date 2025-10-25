@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, ChevronDown, Edit, Check } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, ChevronDown, Edit, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
@@ -118,52 +118,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
-  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
-  const [productsWithVariants, setProductsWithVariants] = useState<Set<string>>(new Set());
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i._tempProductName).join('|'),
     500
   );
-
-  // Check which products already have variants in database
-  useEffect(() => {
-    const checkProductsWithVariants = async () => {
-      const productCodes = items
-        .map(item => item._tempProductCode?.trim().toUpperCase())
-        .filter(code => code && code.length > 0);
-      
-      if (productCodes.length === 0) {
-        setProductsWithVariants(new Set());
-        return;
-      }
-      
-      // Query for products that are parent products (product_code = base_product_code)
-      // and have variants (variant is not null and not empty)
-      const { data } = await supabase
-        .from("products")
-        .select("product_code, base_product_code, variant")
-        .in("product_code", productCodes)
-        .not("variant", "is", null)
-        .neq("variant", "");
-      
-      if (data) {
-        // Filter to only include products where product_code = base_product_code
-        const codesWithVariants = new Set(
-          data
-            .filter(p => p.product_code === p.base_product_code)
-            .map(p => p.product_code.toUpperCase())
-        );
-        setProductsWithVariants(codesWithVariants);
-      }
-    };
-    
-    if (open) {
-      checkProductsWithVariants();
-    }
-  }, [items.map(i => i._tempProductCode).join(','), open]);
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
@@ -527,129 +487,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const openSelectProduct = (index: number) => {
     setCurrentItemIndex(index);
     setIsSelectProductOpen(true);
-  };
-
-  const handleVariantsGenerated = async (index: number, variantText: string) => {
-    const baseItem = items[index];
-    
-    // Prepare product data for upsert
-    const productData = {
-      product_code: baseItem._tempProductCode.trim().toUpperCase(),
-      product_name: baseItem._tempProductName.trim().toUpperCase(),
-      variant: variantText || null,
-      purchase_price: Number(baseItem._tempUnitPrice) * 1000,
-      selling_price: Number(baseItem._tempSellingPrice) * 1000,
-      supplier_name: supplierName || null,
-      stock_quantity: 0,
-      unit: "Cái",
-      product_images: baseItem._tempProductImages || [],
-      price_images: baseItem._tempPriceImages || [],
-      base_product_code: baseItem._tempProductCode.trim().toUpperCase()
-    };
-
-    // Check if product exists
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("id")
-      .eq("product_code", productData.product_code)
-      .maybeSingle();
-
-    if (existingProduct) {
-      // Update existing product
-      const { error } = await supabase
-        .from("products")
-        .update({
-          variant: productData.variant,
-          product_images: productData.product_images,
-          price_images: productData.price_images,
-          purchase_price: productData.purchase_price,
-          selling_price: productData.selling_price,
-          supplier_name: productData.supplier_name,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", existingProduct.id);
-
-      if (error) {
-        toast({
-          title: "Lỗi cập nhật sản phẩm",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "✅ Cập nhật kho thành công",
-        description: `${productData.product_code}`,
-      });
-    } else {
-      // Insert new product
-      const { error } = await supabase
-        .from("products")
-        .insert(productData);
-
-      if (error) {
-        toast({
-          title: "Lỗi tạo sản phẩm",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "✅ Tạo vào kho thành công",
-        description: `${productData.product_code}`,
-      });
-    }
-  };
-
-  // Helper function to check if item has all required fields for variant generation
-  const canGenerateVariant = (item: PurchaseOrderItem): { valid: boolean; missing: string[] } => {
-    const missing: string[] = [];
-    
-    if (!item._tempProductName?.trim()) missing.push("Tên SP");
-    if (!item._tempProductCode?.trim()) missing.push("Mã SP");
-    if (!item._tempProductImages || item._tempProductImages.length === 0) missing.push("Hình ảnh SP");
-    if (!item._tempUnitPrice || Number(item._tempUnitPrice) <= 0) missing.push("Giá mua");
-    if (!item._tempSellingPrice || Number(item._tempSellingPrice) <= 0) missing.push("Giá bán");
-    
-    return {
-      valid: missing.length === 0,
-      missing
-    };
-  };
-
-  const openVariantGenerator = async (index: number) => {
-    const item = items[index];
-    
-    // Validation: Check all required fields
-    const validation = canGenerateVariant(item);
-    
-    if (!validation.valid) {
-      toast({
-        title: "⚠️ Thiếu thông tin",
-        description: `Vui lòng điền đầy đủ: ${validation.missing.join(", ")}`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Fetch variant string from parent product in database
-    const { data, error } = await supabase
-      .from("products")
-      .select("variant")
-      .eq("product_code", item._tempProductCode)
-      .single();
-    
-    if (!error && data?.variant) {
-      setParentProductVariant(data.variant);
-    } else {
-      setParentProductVariant("");
-    }
-    
-    setVariantGeneratorIndex(index);
-    setIsVariantDialogOpen(true);
   };
 
   const updateOrderMutation = useMutation({
@@ -1017,45 +854,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                               }}
                               className="flex-1"
                             />
-                            {!item.id && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div>
-                                      {!productsWithVariants.has(item._tempProductCode?.trim().toUpperCase()) && (
-                                        <>
-                                          {canGenerateVariant(item).valid ? (
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8 shrink-0"
-                                              onClick={() => openVariantGenerator(index)}
-                                              title="Tạo biến thể tự động"
-                                            >
-                                              <Sparkles className="h-4 w-4" />
-                                            </Button>
-                                          ) : (
-                                            <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                                              <Sparkles className="h-4 w-4" />
-                                            </div>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                  </TooltipTrigger>
-                                  {!canGenerateVariant(item).valid && !productsWithVariants.has(item._tempProductCode?.trim().toUpperCase()) && (
-                                    <TooltipContent side="top" className="max-w-[250px]">
-                                      <p className="font-semibold mb-1">Thiếu thông tin:</p>
-                                      <ul className="list-disc list-inside text-sm">
-                                        {canGenerateVariant(item).missing.map((field, i) => (
-                                          <li key={i}>{field}</li>
-                                        ))}
-                                      </ul>
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
                           </div>
 
                           {/* Collapsible danh sách biến thể */}

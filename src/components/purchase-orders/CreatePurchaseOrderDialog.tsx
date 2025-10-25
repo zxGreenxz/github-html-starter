@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Sparkles, Truck, Edit, Check, Pencil } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantDropdownSelector } from "./VariantDropdownSelector";
@@ -55,12 +55,6 @@ const getProductImages = async (product: any): Promise<string[]> => {
   // No image found
   return [];
 };
-
-interface AttributeLine {
-  attributeId: number;
-  attributeName: string;
-  values: string[];
-}
 
 interface PurchaseOrderItem {
   quantity: number;
@@ -128,10 +122,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
-  const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
-  const [productsWithVariants, setProductsWithVariants] = useState<Set<string>>(new Set());
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -171,43 +162,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       setShowShippingFee((initialData.shipping_fee || 0) > 0);
     }
   }, [open, initialData]);
-
-  // Check which products already have variants in database
-  useEffect(() => {
-    const checkProductsWithVariants = async () => {
-      const productCodes = items
-        .map(item => item.product_code?.trim().toUpperCase())
-        .filter(code => code && code.length > 0);
-      
-      if (productCodes.length === 0) {
-        setProductsWithVariants(new Set());
-        return;
-      }
-      
-      // Query for products that are parent products (product_code = base_product_code)
-      // and have variants (variant is not null and not empty)
-      const { data } = await supabase
-        .from("products")
-        .select("product_code, base_product_code, variant")
-        .in("product_code", productCodes)
-        .not("variant", "is", null)
-        .neq("variant", "");
-      
-      if (data) {
-        // Filter to only include products where product_code = base_product_code
-        const codesWithVariants = new Set(
-          data
-            .filter(p => p.product_code === p.base_product_code)
-            .map(p => p.product_code.toUpperCase())
-        );
-        setProductsWithVariants(codesWithVariants);
-      }
-    };
-    
-    if (open) {
-      checkProductsWithVariants();
-    }
-  }, [items.map(i => i.product_code).join(','), open]);
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
@@ -865,173 +819,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     setIsSelectProductOpen(true);
   };
 
-  /**
-   * Format variant text by attribute groups
-   * Input: attributeLines = [
-   *   { attributeName: "Màu", values: ["Đen", "Trắng"] },
-   *   { attributeName: "Size Số", values: ["S", "M", "L"] }
-   * ]
-   * Output: "(Đen Trắng) (S M L)"
-   */
-  const formatVariantTextByGroups = (attributeLines: AttributeLine[]): string => {
-    return attributeLines
-      .map(line => `(${line.values.join(' | ')})`)
-      .join(' ');
-  };
-
-  const handleVariantsGenerated = async (
-    index: number,
-    data: {
-      variants: Array<{
-        product_code: string;
-        product_name: string;
-        variant: string;
-        quantity: number;
-        purchase_price: number | string;
-        selling_price: number | string;
-        product_images: string[];
-        price_images: string[];
-        _tempTotalPrice: number;
-      }>;
-      attributeLines: AttributeLine[];
-    }
-  ) => {
-    console.log('🎯 handleVariantsGenerated:', { index, data });
-
-    const { variants, attributeLines } = data;
-    const parentItem = items[index];
-
-    try {
-      // ✅ Format variant text by groups
-      const variantText = formatVariantTextByGroups(attributeLines);
-      
-      // ✅ 1. Insert parent product vào kho
-      const parentProductData = {
-        product_code: parentItem.product_code.trim().toUpperCase(),
-        product_name: parentItem.product_name.trim().toUpperCase(),
-        base_product_code: parentItem.product_code.trim().toUpperCase(),
-        variant: variantText,
-        purchase_price: Number(parentItem.purchase_price || 0) * 1000,
-        selling_price: Number(parentItem.selling_price || 0) * 1000,
-        supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-        product_images: parentItem.product_images || [],
-        price_images: parentItem.price_images || [],
-        stock_quantity: 0,
-        unit: 'Cái'
-      };
-
-      const { error: parentError } = await supabase
-        .from("products")
-        .insert(parentProductData);
-
-      if (parentError && parentError.code !== '23505') {
-        throw parentError;
-      }
-
-      // ✅ 2. Insert variant products vào kho
-      // Check if only Size Số (attributeId = 4)
-      const hasOnlySizeNumber = attributeLines.length === 1 && 
-        attributeLines[0].attributeId === 4;
-
-      const variantProductsData = variants.map(v => {
-        let finalProductCode = v.product_code;
-        
-        // If only Size Số → Add "A" between base code and number
-        if (hasOnlySizeNumber) {
-          const baseCode = parentItem.product_code.trim().toUpperCase();
-          const sizeNumber = v.variant.toUpperCase();
-          finalProductCode = `${baseCode}A${sizeNumber}`;
-        }
-
-        return {
-          product_code: finalProductCode,
-          product_name: v.product_name,
-          base_product_code: parentItem.product_code.trim().toUpperCase(),
-          variant: v.variant.toUpperCase(),
-          purchase_price: Number(v.purchase_price || 0) * 1000,
-          selling_price: Number(v.selling_price || 0) * 1000,
-          supplier_name: formData.supplier_name?.trim().toUpperCase() || '',
-          product_images: v.product_images || [],
-          price_images: v.price_images || [],
-          stock_quantity: 0,
-          unit: 'Cái'
-        };
-      });
-
-      const { error: variantsError } = await supabase
-        .from("products")
-        .insert(variantProductsData);
-
-      if (variantsError) throw variantsError;
-
-      // ✅ 3. Update parent item's variant field and quantity in form
-      const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 1), 0);
-      
-      const newItems = [...items];
-      newItems[index] = {
-        ...newItems[index],
-        variant: variantText,
-        quantity: totalQuantity,  // Update quantity to sum of all variants
-        _tempTotalPrice: Number(newItems[index].purchase_price || 0) * totalQuantity  // Recalculate total
-      };
-      setItems(newItems);
-
-      // ✅ 4. Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["products-select"] });
-
-      // ✅ 5. Update productsWithVariants to hide the button immediately
-      setProductsWithVariants(prev => new Set([...prev, parentItem.product_code.trim().toUpperCase()]));
-
-      toast({
-        title: "✅ Đã tạo biến thể",
-        description: `Đã tạo ${variants.length} biến thể và lưu vào kho. Sản phẩm cha vẫn giữ trong đơn hàng.`,
-      });
-
-    } catch (error: any) {
-      console.error('❌ Error creating variants:', error);
-      toast({
-        title: "Lỗi tạo biến thể",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Helper function to check if item has all required fields for variant generation
-  const canGenerateVariant = (item: PurchaseOrderItem): { valid: boolean; missing: string[] } => {
-    const missing: string[] = [];
-    
-    if (!item.product_name?.trim()) missing.push("Tên SP");
-    if (!item.product_code?.trim()) missing.push("Mã SP");
-    if (!item.product_images || item.product_images.length === 0) missing.push("Hình ảnh SP");
-    if (!item.purchase_price || Number(item.purchase_price) <= 0) missing.push("Giá mua");
-    if (!item.selling_price || Number(item.selling_price) <= 0) missing.push("Giá bán");
-    
-    return {
-      valid: missing.length === 0,
-      missing
-    };
-  };
-
-  const openVariantGenerator = (index: number) => {
-    const item = items[index];
-    const validation = canGenerateVariant(item);
-    
-    if (!validation.valid) {
-      toast({
-        title: "⚠️ Thiếu thông tin",
-        description: `Vui lòng điền đầy đủ: ${validation.missing.join(", ")}`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setVariantGeneratorIndex(index);
-    setIsVariantDialogOpen(true);
-  };
-
-
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
   const finalAmount = totalAmount - formData.discount_amount + formData.shipping_fee;
 
@@ -1278,43 +1065,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   }}
                   className="flex-1"
                 />
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        {!productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
-                          <>
-                            {canGenerateVariant(item).valid ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={() => openVariantGenerator(index)}
-                                title="Tạo biến thể tự động"
-                              >
-                                <Sparkles className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <div className="h-8 w-8 shrink-0 flex items-center justify-center opacity-30 cursor-not-allowed">
-                                <Sparkles className="h-4 w-4" />
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    {!canGenerateVariant(item).valid && !productsWithVariants.has(item.product_code?.trim().toUpperCase()) && (
-                      <TooltipContent side="top" className="max-w-[250px]">
-                        <p className="font-semibold mb-1">Thiếu thông tin:</p>
-                        <ul className="list-disc list-inside text-sm">
-                          {canGenerateVariant(item).missing.map((field, i) => (
-                            <li key={i}>{field}</li>
-                          ))}
-                        </ul>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
               </div>
             </TableCell>
                       <TableCell className="text-center">
