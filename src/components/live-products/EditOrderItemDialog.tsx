@@ -167,16 +167,12 @@ export function EditOrderItemDialog({
         return;
       }
 
-      // Update order quantity, note and reset upload status
+      // Update order quantity and note
       const { error: orderError } = await supabase
         .from('live_orders')
         .update({ 
           quantity: values.quantity,
-          note: values.note || null,
-          upload_status: null,
-          uploaded_at: null,
-          tpos_order_id: null,
-          code_tpos_order_id: null
+          note: values.note || null
         })
         .eq('id', orderItem.id);
 

@@ -114,10 +114,6 @@ export function ActivityDetailDialog({
       // Live Orders
       order_count: "Số đơn",
       is_oversell: "Oversell",
-      upload_status: "Trạng thái upload",
-      uploaded_at: "Thời gian upload",
-      tpos_order_id: "ID đơn TPOS",
-      code_tpos_order_id: "Mã đơn TPOS",
       
       // Goods Receiving
       goods_receiving_id: "ID phiếu kiểm",

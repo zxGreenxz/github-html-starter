@@ -20,7 +20,7 @@ import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload, Printer, X } from "lucide-react";
+import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Printer, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -234,8 +234,6 @@ export default function LiveProducts() {
     note?: string | null;
     facebook_comment_id?: string | null;
   } | null>(null);
-  const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
-  const [isUploadByProductOpen, setIsUploadByProductOpen] = useState(false);
 
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -1859,7 +1857,7 @@ export default function LiveProducts() {
                                   return <>
                                             {ordersReversed.map(order => {
                                       const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts, ordersWithProducts);
-                                      const badgeVariant = isOversell ? "destructive" : order.uploaded_at ? "secondary" : "default";
+                                      const badgeVariant = isOversell ? "destructive" : "default";
                                       const getCustomerStatusColor = (status?: string) => {
                                         switch (status) {
                                           case 'bom_hang':
@@ -1874,23 +1872,17 @@ export default function LiveProducts() {
                                       return <TooltipProvider key={order.id}>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => handleEditOrderItem(order)}>
-                                                        {order.session_index}
-                                                        {isOversell && " ⚠️"}
-                                                        {order.uploaded_at && " ✓"}
-                                                      </Badge>
+                                                       <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => handleEditOrderItem(order)}>
+                                                         {order.session_index}
+                                                         {isOversell && " ⚠️"}
+                                                       </Badge>
                                                     </TooltipTrigger>
                                                     <TooltipContent>
                                                       <div className="text-xs">
-                                                        <div>Mã: {order.session_index}</div>
-                                                        <div>SL: {order.quantity}</div>
-                                                        {isOversell && <div className="text-red-500 font-semibold">⚠️ Vượt số lượng chuẩn bị</div>}
-                                                        {order.uploaded_at && <div className="text-green-600 font-semibold">
-                                                            ✓ Đã đẩy lên TPOS {format(new Date(order.uploaded_at), 'dd/MM HH:mm', {
-                                                  locale: vi
-                                                })}
-                                                          </div>}
-                                                        {order.customer_status === 'bom_hang' && <div className="text-red-600 font-semibold">🚫 BOM HÀNG</div>}
+                                                         <div>Mã: {order.session_index}</div>
+                                                         <div>SL: {order.quantity}</div>
+                                                         {isOversell && <div className="text-red-500 font-semibold">⚠️ Vượt số lượng chuẩn bị</div>}
+                                                         {order.customer_status === 'bom_hang' && <div className="text-red-600 font-semibold">🚫 BOM HÀNG</div>}
                                                         {order.customer_status === 'thieu_thong_tin' && <div className="text-yellow-600 font-semibold">⚠️ THIẾU THÔNG TIN</div>}
                                                       </div>
                                                     </TooltipContent>
@@ -2353,16 +2345,6 @@ export default function LiveProducts() {
                       <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
                       <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload theo đơn hàng
-                      </Button>
-                      <Button variant="outline" onClick={() => setIsUploadByProductOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
-                        <Package className="h-4 w-4 mr-2" />
-                        Upload theo sản phẩm
-                      </Button>
-                    </div>
                   </div>
                   <Card>
                     <Table>
@@ -2494,31 +2476,6 @@ export default function LiveProducts() {
                         </div>
                       </TableCell>
                       
-                      <TableCell className="text-center py-2 border-r">
-                        {(() => {
-                          const uploadStatus = order.upload_status;
-                          const uploadedAt = order.uploaded_at;
-                          
-                          if (!uploadStatus) {
-                            return <span className="text-xs text-muted-foreground">Chưa upload</span>;
-                          }
-                          
-                          const timestamp = uploadedAt ? new Date(uploadedAt) : null;
-                          const timeStr = timestamp ? format(timestamp, 'dd/MM HH:mm') : '';
-                          
-                          return (
-                            <div className="flex flex-col gap-1 items-center">
-                              <Badge 
-                                variant={uploadStatus === 'success' ? 'default' : 'destructive'} 
-                                className={uploadStatus === 'success' ? 'bg-green-600' : ''}
-                              >
-                                {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
-                              </Badge>
-                              {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
-                            </div>
-                          );
-                        })()}
-                      </TableCell>
                     </TableRow>
                     );
                   });
@@ -2653,11 +2610,9 @@ export default function LiveProducts() {
                                           liveProducts, 
                                           ordersWithProducts
                                         );
-                                        const badgeVariant = isOversell 
+                                         const badgeVariant = isOversell 
                                           ? "destructive" 
-                                          : order.uploaded_at 
-                                            ? "secondary" 
-                                            : "default";
+                                          : "default";
                                         
                                         const getCustomerStatusColor = (status?: string) => {
                                           switch (status) {
@@ -2676,7 +2631,7 @@ export default function LiveProducts() {
                                           <TooltipProvider key={order.id}>
                                             <Tooltip>
                                               <TooltipTrigger asChild>
-                                                <Badge 
+                                                 <Badge 
                                                   variant={badgeVariant} 
                                                   className={`cursor-pointer text-xs ${customerStatusColor}`}
                                                   onClick={() => handleEditOrderItem(order)}
@@ -2684,7 +2639,6 @@ export default function LiveProducts() {
                                                   {order.session_index}
                                                   {order.quantity > 1 && ` x${order.quantity}`}
                                                   {isOversell && " ⚠️"}
-                                                  {order.uploaded_at && " ✓"}
                                                 </Badge>
                                               </TooltipTrigger>
                                               <TooltipContent>
@@ -2692,21 +2646,12 @@ export default function LiveProducts() {
                                                   <div>Mã: {order.session_index}</div>
                                                   <div>SL: {order.quantity}</div>
                                                   {order.note && <div>Ghi chú: {order.note}</div>}
-                                                  {isOversell && (
-                                                    <div className="text-red-500 font-semibold">
-                                                      ⚠️ Vượt số lượng chuẩn bị
-                                                    </div>
-                                                  )}
-                                                  {order.uploaded_at && (
-                                                    <div className="text-green-600 font-semibold">
-                                                      ✓ Đã đẩy lên TPOS {format(
-                                                        new Date(order.uploaded_at), 
-                                                        'dd/MM HH:mm', 
-                                                        { locale: vi }
-                                                      )}
-                                                    </div>
-                                                  )}
-                                                  {order.customer_status === 'bom_hang' && (
+                                                   {isOversell && (
+                                                     <div className="text-red-500 font-semibold">
+                                                       ⚠️ Vượt số lượng chuẩn bị
+                                                     </div>
+                                                   )}
+                                                   {order.customer_status === 'bom_hang' && (
                                                     <div className="text-red-600 font-semibold">
                                                       🚫 BOM HÀNG
                                                     </div>

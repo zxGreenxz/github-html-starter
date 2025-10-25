@@ -169,7 +169,7 @@ export function PurchaseOrderStats({ filteredOrders, allOrders, isLoading, isMob
             {isLoading ? "..." : `${syncedItems.length}/${allItems.length}`}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            {tposSyncRatio}% đã upload
+            {tposSyncRatio}% đã đồng bộ
           </p>
         </CardContent>
       </Card>
