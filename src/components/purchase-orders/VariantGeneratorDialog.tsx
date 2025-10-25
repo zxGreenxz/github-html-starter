@@ -48,8 +48,9 @@ interface VariantGeneratorDialogProps {
     product_images?: string[];
     price_images?: string[];
   };
-  // New behavior: Only return attributeLines metadata
+  // New behavior: Generate full variant products (for CreatePurchaseOrderDialog)
   onVariantsGenerated?: (data: {
+    variants: GeneratedVariantForForm[];
     attributeLines: AttributeLine[];
   }) => void;
   // Old behavior: Just generate variant text (for EditPurchaseOrderDialog)
@@ -250,10 +251,24 @@ export function VariantGeneratorDialog({
       // ✅ STEP 4: Generate variants - 100% từ variant-generator.ts
       const generatedVariants = generateVariants(productData, tposAttributeLines);
 
-      // ✅ ONLY return attributeLines (metadata) - NO product details
-      console.log('✅ Generated attributeLines:', attributeLines);
+      // ✅ STEP 5: Convert GeneratedVariant[] → GeneratedVariantForForm[]
+      const variantsForForm: GeneratedVariantForForm[] = generatedVariants.map(v => ({
+        product_code: v.DefaultCode,
+        product_name: v.Name,
+        variant: v.AttributeValues?.map(av => av.Name).join(', ') || '',
+        quantity: currentItem.quantity || 1,
+        purchase_price: currentItem.purchase_price || 0,
+        selling_price: currentItem.selling_price || 0,
+        product_images: [...(currentItem.product_images || [])],
+        price_images: [...(currentItem.price_images || [])],
+        _tempTotalPrice: Number(currentItem.purchase_price || 0) * (currentItem.quantity || 1)
+      }));
 
+      console.log('✅ Generated variants:', variantsForForm);
+
+      // ✅ Return both variants and attributeLines for formatting
       onVariantsGenerated({
+        variants: variantsForForm,
         attributeLines: attributeLines
       });
     }
