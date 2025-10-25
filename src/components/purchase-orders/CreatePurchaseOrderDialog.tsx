@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-import { VariantDropdownSelector } from "./VariantDropdownSelector";
+
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
@@ -1055,19 +1055,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           itemIndex={index}
                         />
                       </TableCell>
-            <TableCell>
-              <div className="flex items-center gap-1">
-                <VariantDropdownSelector
-                  baseProductCode={item.product_code}
-                  value={item.variant}
-                  onChange={(value) => updateItem(index, "variant", value)}
-                  onVariantSelect={(data) => {
-                    updateItem(index, "product_code", data.productCode);
-                    updateItem(index, "product_name", data.productName);
-                    updateItem(index, "variant", data.variant);
-                  }}
-                  className="flex-1"
-                />
+            <TableCell className="min-w-[280px]">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-h-[36px] px-3 py-2 rounded-md border bg-muted/50 text-sm flex items-center">
+                  {item.variant ? (
+                    <span className="font-medium">{item.variant}</span>
+                  ) : (
+                    <span className="text-muted-foreground italic">Nhấn nút Sparkles để tạo biến thể</span>
+                  )}
+                </div>
                 <Button
                   type="button"
                   variant="outline"
