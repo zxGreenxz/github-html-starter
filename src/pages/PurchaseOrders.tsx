@@ -13,7 +13,10 @@ import { CreatePurchaseOrderDialog } from "@/components/purchase-orders/CreatePu
 import { PurchaseOrderStats } from "@/components/purchase-orders/PurchaseOrderStats";
 import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
+import { generateVariantCode, generateProductNameWithVariant } from "@/lib/variant-compat-exports";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { BulkTPOSUploadDialog } from "@/components/purchase-orders/BulkTPOSUploadDialog";
+import type { TPOSProductItem } from "@/lib/tpos-api";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -56,6 +59,7 @@ const PurchaseOrders = () => {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [isUploadTPOSDialogOpen, setIsUploadTPOSDialogOpen] = useState(false);
   const [draftToEdit, setDraftToEdit] = useState<PurchaseOrder | null>(null);
   const isMobile = useIsMobile();
   
@@ -546,6 +550,36 @@ const PurchaseOrders = () => {
     }
   };
 
+  // Convert selected purchase orders to TPOSProductItem format
+  const getSelectedTPOSItems = (): TPOSProductItem[] => {
+    // Filter out draft orders - only include pending or other valid statuses
+    const selectedOrdersData = orders?.filter(order => 
+      selectedOrders.includes(order.id) && order.status !== 'draft'
+    ) || [];
+    
+    const items: TPOSProductItem[] = [];
+    selectedOrdersData.forEach(order => {
+      order.items?.forEach(item => {
+        items.push({
+          id: item.id || crypto.randomUUID(),
+          product_code: item.product_code,
+          base_product_code: undefined,
+          product_name: item.product_name,
+          variant: item.variant,
+          quantity: item.quantity,
+          unit_price: item.purchase_price,
+          selling_price: item.selling_price,
+          product_images: item.product_images,
+          price_images: item.price_images,
+          purchase_order_id: order.id,
+          supplier_name: order.supplier_name,
+        });
+      });
+    });
+    
+    return items;
+  };
+
   return (
     <div className={cn(
       "mx-auto space-y-6",
@@ -629,7 +663,15 @@ const PurchaseOrders = () => {
                         Bỏ chọn
                       </Button>
                       <Button 
-                        onClick={handleBulkDelete}
+                        onClick={() => setIsUploadTPOSDialogOpen(true)} 
+                        variant="default" 
+                        size="sm"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload TPOS
+                      </Button>
+                      <Button 
+                        onClick={handleBulkDelete} 
                         variant="destructive" 
                         size="sm"
                         disabled={deleteBulkOrdersMutation.isPending}
@@ -739,6 +781,19 @@ const PurchaseOrders = () => {
         open={isCreateDialogOpen}
         onOpenChange={handleCloseCreateDialog}
         initialData={draftToEdit}
+      />
+
+      <BulkTPOSUploadDialog
+        open={isUploadTPOSDialogOpen}
+        onOpenChange={setIsUploadTPOSDialogOpen}
+        items={getSelectedTPOSItems()}
+        onSuccess={() => {
+          toast({
+            title: "Upload thành công",
+            description: "Các sản phẩm đã được upload lên TPOS",
+          });
+          setIsUploadTPOSDialogOpen(false);
+        }}
       />
 
     </div>

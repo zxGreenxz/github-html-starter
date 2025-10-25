@@ -14,6 +14,8 @@ import { SelectProductFromInventoryDialog } from "@/components/live-products/Sel
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
+import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadLiveOrdersToTPOSDialog";
+import { UploadOrdersByProductDialog } from "@/components/live-products/UploadOrdersByProductDialog";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
@@ -2785,6 +2787,10 @@ export default function LiveProducts() {
       <EditProductDialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen} product={editingProduct} />
 
       <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
+
+      <UploadLiveOrdersToTPOSDialog open={isUploadLiveOrdersOpen} onOpenChange={setIsUploadLiveOrdersOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
+
+      <UploadOrdersByProductDialog open={isUploadByProductOpen} onOpenChange={setIsUploadByProductOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
 
       {/* Floating Action Buttons */}
       {selectedPhase && selectedPhase !== "all" && <div className="fixed top-16 right-6 flex flex-col gap-3 z-50">

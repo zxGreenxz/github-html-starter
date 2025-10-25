@@ -13,6 +13,7 @@ import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { ImportTPOSVariantsDialog } from "@/components/products/ImportTPOSVariantsDialog";
 import { SyncTPOSDialog } from "@/components/products/SyncTPOSDialog";
+import { SyncVariantsDialog } from "@/components/products/SyncVariantsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -331,6 +332,12 @@ export default function Products() {
         <SyncTPOSDialog
           open={isSyncTPOSDialogOpen}
           onOpenChange={setIsSyncTPOSDialogOpen}
+          onSuccess={refetch}
+        />
+        
+        <SyncVariantsDialog
+          open={isSyncVariantsDialogOpen}
+          onOpenChange={setIsSyncVariantsDialogOpen}
           onSuccess={refetch}
         />
       </div>

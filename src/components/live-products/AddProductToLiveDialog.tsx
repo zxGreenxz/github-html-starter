@@ -23,10 +23,13 @@ import { toast } from "sonner";
 import { Warehouse, Package, ChevronDown, Loader2 } from "lucide-react";
 import { UnifiedImageUpload } from "@/components/ui/unified-image-upload";
 import { generateProductCode, getNextNACode } from "@/lib/product-code-generator";
+import { useVariantDetector } from "@/hooks/use-variant-detector";
+import { VariantDetectionBadge } from "@/components/products/VariantDetectionBadge";
 import { useDebounce } from "@/hooks/use-debounce";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { detectSupplierFromProductName } from "@/lib/supplier-detector";
 import { Badge } from "@/components/ui/badge";
+import { detectVariantsFromText } from "@/lib/variant-detector";
 import { formatVariant } from "@/lib/variant-utils";
 import { Store } from "lucide-react";
 import { useProductVariants } from "@/hooks/use-product-variants";
@@ -72,8 +75,14 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     },
   });
 
-  // Auto-detect supplier from product name
+  // Auto-detect variants from product name
   const productName = form.watch("product_name");
+  const { detectionResult, hasDetections } = useVariantDetector({
+    productName,
+    enabled: open,
+  });
+
+  // Auto-detect supplier from product name
   const detectedSupplier = productName ? detectSupplierFromProductName(productName) : null;
 
   // Fetch variants from inventory when base product code is entered
@@ -667,6 +676,9 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
                     />
                   </FormControl>
                   <div className="flex gap-2 flex-wrap mt-2">
+                    {hasDetections && (
+                      <VariantDetectionBadge detectionResult={detectionResult} />
+                    )}
                     {detectedSupplier && (
                       <Badge variant="outline" className="gap-1">
                         <Store className="h-3 w-3" />

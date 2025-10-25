@@ -1,7 +1,21 @@
 import * as XLSX from "xlsx";
 import { TPOS_CONFIG, getTPOSHeaders, getActiveTPOSToken, cleanBase64, randomDelay } from "./tpos-config";
+import { 
+  getVariantType,
+  TPOS_ATTRIBUTE_IDS,
+  TPOS_COLOR_MAP,
+  TPOS_SIZE_TEXT_MAP,
+  TPOS_SIZE_NUMBER_MAP
+} from "./tpos-variant-attributes-compat";
+import { TPOS_ATTRIBUTES } from "./tpos-attributes";
+import { detectVariantsFromText, getSimpleDetection } from "./variant-detector";
 import { supabase } from "@/integrations/supabase/client";
 import { getVariantName } from "@/lib/variant-utils";
+
+// Extract variant lists from TPOS_ATTRIBUTES
+const COLORS = TPOS_ATTRIBUTES.color.map(c => c.Name);
+const TEXT_SIZES = TPOS_ATTRIBUTES.sizeText.map(s => s.Name);
+const NUMBER_SIZES = TPOS_ATTRIBUTES.sizeNumber.map(s => s.Name);
 
 // =====================================================
 // CACHE MANAGEMENT
@@ -798,8 +812,502 @@ export interface DetectedAttributes {
   color?: string[];
 }
 
+/**
+ * Load danh sách thuộc tính từ TPOS
+ */
+export async function getTPOSAttributes(): Promise<TPOSAttributesResponse> {
+  console.log("🎨 [TPOS] Loading attributes...");
+  
+  await randomDelay(300, 700);
+
+  try {
+    // Lấy danh sách attribute lines/values từ TPOS nếu có API
+    // Hiện tại return data từ local constants
+    const sizeText: TPOSAttribute[] = TEXT_SIZES.map((size, idx) => ({
+      Id: 1000 + idx,
+      Name: size,
+      Code: size
+    }));
+
+    const sizeNumber: TPOSAttribute[] = NUMBER_SIZES.map((size, idx) => ({
+      Id: 2000 + idx,
+      Name: size,
+      Code: `A${size}`
+    }));
+
+    const color: TPOSAttribute[] = COLORS.map((color, idx) => ({
+      Id: 3000 + idx,
+      Name: color,
+      Code: color.substring(0, 2).toUpperCase()
+    }));
+
+    console.log(`✅ [TPOS] Loaded ${sizeText.length} size text, ${sizeNumber.length} size number, ${color.length} colors`);
+
+    return { sizeText, sizeNumber, color };
+  } catch (error) {
+    console.error("❌ getTPOSAttributes error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Tự động detect thuộc tính từ text (tên sản phẩm, ghi chú)
+ * 
+ * REFACTORED: Now uses improved variant-detector.ts
+ */
+export function detectAttributesFromText(text: string): DetectedAttributes {
+  if (!text) return {};
+
+  // Use new detection logic
+  const result = detectVariantsFromText(text);
+  const simple = getSimpleDetection(result);
+  
+  // Map to old format for backward compatibility
+  const detected: DetectedAttributes = {};
+  
+  if (simple.color.length > 0) detected.color = simple.color;
+  if (simple.sizeText.length > 0) detected.sizeText = simple.sizeText;
+  if (simple.sizeNumber.length > 0) detected.sizeNumber = simple.sizeNumber;
+
+  console.log("🎯 [TPOS] Detected attributes:", detected);
+  return detected;
+}
+
+/**
+ * Tạo AttributeValues cho TPOS product
+ */
+export function createAttributeValues(detected: DetectedAttributes): any[] {
+  const attributeValues: any[] = [];
+
+  // Helper để tìm attribute config
+  const getAttributeConfig = (type: 'sizeText' | 'color' | 'sizeNumber') => {
+    switch (type) {
+      case 'sizeText':
+        return { id: TPOS_ATTRIBUTE_IDS.SIZE_TEXT, name: "Size Chữ" };
+      case 'color':
+        return { id: TPOS_ATTRIBUTE_IDS.COLOR, name: "Màu" };
+      case 'sizeNumber':
+        return { id: TPOS_ATTRIBUTE_IDS.SIZE_NUMBER, name: "Size Số" };
+    }
+  };
+
+  // Process size text
+  if (detected.sizeText && detected.sizeText.length > 0) {
+    const config = getAttributeConfig('sizeText');
+    detected.sizeText.forEach(size => {
+      const valueData = TPOS_SIZE_TEXT_MAP[size];
+      if (valueData) {
+        attributeValues.push({
+          Id: valueData.Id,
+          Name: size,
+          Code: null,
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${size}`,
+          DateCreated: null
+        });
+      }
+    });
+  }
+
+  // Process colors
+  if (detected.color && detected.color.length > 0) {
+    const config = getAttributeConfig('color');
+    detected.color.forEach(color => {
+      const valueData = TPOS_COLOR_MAP[color];
+      if (valueData) {
+        attributeValues.push({
+          Id: valueData.Id,
+          Name: color,
+          Code: null,
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${color}`,
+          DateCreated: null
+        });
+      }
+    });
+  }
+
+  // Process size number
+  if (detected.sizeNumber && detected.sizeNumber.length > 0) {
+    const config = getAttributeConfig('sizeNumber');
+    detected.sizeNumber.forEach(size => {
+      const valueData = TPOS_SIZE_NUMBER_MAP[size];
+      if (valueData) {
+        attributeValues.push({
+          Id: valueData.Id,
+          Name: size,
+          Code: null,
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${size}`,
+          DateCreated: null
+        });
+      }
+    });
+  }
+
+  console.log("🎨 [TPOS] Created AttributeValues:", attributeValues);
+  return attributeValues;
+}
+
+/**
+ * Tạo AttributeLines cho TPOS product (format đầy đủ như backend)
+ */
+export function createAttributeLines(detected: DetectedAttributes): any[] {
+  const attributeLines: any[] = [];
+
+  // Helper để tìm attribute config
+  const getAttributeConfig = (type: 'sizeText' | 'color' | 'sizeNumber') => {
+    switch (type) {
+      case 'sizeText':
+        return { id: TPOS_ATTRIBUTE_IDS.SIZE_TEXT, name: "Size Chữ", code: "SZCh" };
+      case 'color':
+        return { id: TPOS_ATTRIBUTE_IDS.COLOR, name: "Màu", code: "Mau" };
+      case 'sizeNumber':
+        return { id: TPOS_ATTRIBUTE_IDS.SIZE_NUMBER, name: "Size Số", code: "SZNu" };
+    }
+  };
+
+  // Process size text
+  if (detected.sizeText && detected.sizeText.length > 0) {
+    const config = getAttributeConfig('sizeText');
+    const values = detected.sizeText
+      .map(size => {
+        const data = TPOS_SIZE_TEXT_MAP[size];
+        if (!data) return null;
+        return {
+          Id: data.Id,
+          Name: size,
+          Code: size,
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${size}`,
+          DateCreated: null
+        };
+      })
+      .filter(v => v !== null);
+
+    if (values.length > 0) {
+      attributeLines.push({
+        Attribute: {
+          Id: config.id,
+          Name: config.name,
+          Code: config.code,
+          Sequence: 1,
+          CreateVariant: true
+        },
+        Values: values,
+        AttributeId: config.id
+      });
+    }
+  }
+
+  // Process colors
+  if (detected.color && detected.color.length > 0) {
+    const config = getAttributeConfig('color');
+    const values = detected.color
+      .map(color => {
+        const data = TPOS_COLOR_MAP[color];
+        if (!data) return null;
+        return {
+          Id: data.Id,
+          Name: color,
+          Code: color.toLowerCase().replace(/\s+/g, ''),
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${color}`,
+          DateCreated: null
+        };
+      })
+      .filter(v => v !== null);
+
+    if (values.length > 0) {
+      attributeLines.push({
+        Attribute: {
+          Id: config.id,
+          Name: config.name,
+          Code: config.code,
+          Sequence: null,
+          CreateVariant: true
+        },
+        Values: values,
+        AttributeId: config.id
+      });
+    }
+  }
+
+  // Process size number
+  if (detected.sizeNumber && detected.sizeNumber.length > 0) {
+    const config = getAttributeConfig('sizeNumber');
+    const values = detected.sizeNumber
+      .map(size => {
+        const data = TPOS_SIZE_NUMBER_MAP[size];
+        if (!data) return null;
+        return {
+          Id: data.Id,
+          Name: size,
+          Code: size,
+          Sequence: null,
+          AttributeId: config.id,
+          AttributeName: config.name,
+          PriceExtra: null,
+          NameGet: `${config.name}: ${size}`,
+          DateCreated: null
+        };
+      })
+      .filter(v => v !== null);
+
+    if (values.length > 0) {
+      attributeLines.push({
+        Attribute: {
+          Id: config.id,
+          Name: config.name,
+          Code: config.code,
+          Sequence: null,
+          CreateVariant: true
+        },
+        Values: values,
+        AttributeId: config.id
+      });
+    }
+  }
+
+  console.log("🎨 [TPOS] Created AttributeLines:", JSON.stringify(attributeLines, null, 2));
+  return attributeLines;
+}
+
+export async function updateProductWithImage(
+  productDetail: any,
+  base64Image: string,
+  detectedAttributes?: DetectedAttributes
+): Promise<any> {
+  const token = await getActiveTPOSToken();
+  if (!token) {
+    throw new Error("TPOS Bearer Token not found");
+  }
+  
+  console.log(`🖼️ [TPOS] Updating product ${productDetail.Id} with image...`);
+  
+  await randomDelay(300, 700);
+
+  const payload = { ...productDetail };
+  delete payload['@odata.context'];
+  payload.Image = cleanBase64(base64Image);
+
+  // Add attributes if detected
+  if (detectedAttributes) {
+    const attributeLines = createAttributeLines(detectedAttributes);
+    
+    if (attributeLines.length > 0) {
+      payload.AttributeLines = attributeLines;
+      console.log(`🎨 [TPOS] Adding ${attributeLines.length} attribute lines`);
+    }
+  }
+
+  const response = await fetch(`${TPOS_CONFIG.API_BASE}/ODataService.UpdateV2`, {
+    method: "POST",
+    headers: getTPOSHeaders(token),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("❌ TPOS update failed:", errorText);
+    throw new Error(`Failed to update product: ${response.status} - ${errorText}`);
+  }
+
+  console.log(`✅ [TPOS] Product ${productDetail.Id} updated`);
+  return response.json();
+}
+
 // =====================================================
-// VARIANT & UPLOAD FUNCTIONALITY REMOVED
+// MAIN UPLOAD FLOW
 // =====================================================
-// All variant generation and TPOS upload functions have been removed.
-// Only search, sync, and utility functions remain.
+
+export async function uploadToTPOS(
+  items: TPOSProductItem[],
+  onProgress?: (step: number, total: number, message: string) => void
+): Promise<TPOSUploadResult> {
+  const result: TPOSUploadResult = {
+    success: false,
+    totalProducts: items.length,
+    successCount: 0,
+    failedCount: 0,
+    savedIds: 0,
+    errors: [],
+    imageUploadWarnings: [],
+    productIds: [],
+  };
+
+  console.log(`🚀 Bắt đầu upload ${items.length} sản phẩm (InsertV2 Direct)`);
+
+  // ========================================
+  // PHASE 1: Upload từng product bằng InsertV2
+  // ========================================
+  let currentStep = 0;
+  const totalSteps = items.length;
+
+  for (const item of items) {
+    currentStep++;
+    
+    try {
+      onProgress?.(currentStep, totalSteps, `Đang xử lý ${item.product_name}...`);
+      
+      // Step 1: Kiểm tra sản phẩm đã tồn tại
+      const codeToCheck = item.base_product_code || item.product_code;
+      console.log(`📦 [${currentStep}/${totalSteps}] Checking ${codeToCheck}...`);
+      const existingProduct = await checkProductExists(codeToCheck);
+      
+      if (existingProduct) {
+        console.log(`   ✅ Product exists: ${existingProduct.Id} - ${existingProduct.Name}`);
+        
+        // Save to productIds for database update
+        result.productIds.push({
+          itemId: item.id,
+          tposId: existingProduct.Id,
+        });
+        
+        // Update cache
+        const cache = getCachedTPOSIds();
+        cache.set(codeToCheck, existingProduct.Id);
+        saveCachedTPOSIds(cache);
+        
+        result.successCount++;
+        
+        // TODO: Có thể cập nhật ảnh nếu cần
+        if (item.product_images?.[0] && !existingProduct.ImageUrl) {
+          console.log(`   🖼️ Updating image for existing product...`);
+          try {
+            const imageBase64 = await imageUrlToBase64(item.product_images[0]);
+            if (imageBase64) {
+              const detailResponse = await fetch(
+                `${TPOS_CONFIG.API_BASE}(${existingProduct.Id})?$expand=Images,ProductVariants`,
+                { headers: getTPOSHeaders(await getActiveTPOSToken() || '') }
+              );
+              
+              if (detailResponse.ok) {
+                let productDetail = await detailResponse.json();
+                productDetail.Image = cleanBase64(imageBase64);
+                delete productDetail["@odata.context"];
+                
+                const updateResponse = await fetch(
+                  `${TPOS_CONFIG.API_BASE}/ODataService.UpdateV2`,
+                  {
+                    method: "POST",
+                    headers: getTPOSHeaders(await getActiveTPOSToken() || ''),
+                    body: JSON.stringify(productDetail)
+                  }
+                );
+                
+                if (updateResponse.ok) {
+                  console.log(`   ✅ Image updated`);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`   ⚠️ Failed to update image:`, error);
+          }
+        }
+        
+        await randomDelay(300, 500);
+        continue;
+      }
+      
+      // Step 2: Chuyển đổi ảnh sang Base64
+      let imageBase64 = null;
+      if (item.product_images?.[0]) {
+        console.log(`   🖼️ Converting image...`);
+        imageBase64 = await imageUrlToBase64(item.product_images[0]);
+      }
+      
+      // Step 3: Tạo AttributeLines (GIỮ NGUYÊN LOGIC CŨ)
+      const detected = detectAttributesFromText(item.variant || '');
+      const attributeLines = createAttributeLines(detected);
+      
+      if (detected.color && detected.color.length > 0 || detected.sizeText && detected.sizeText.length > 0 || detected.sizeNumber && detected.sizeNumber.length > 0) {
+        console.log(`   🎨 Detected attributes:`, {
+          color: detected.color,
+          sizeText: detected.sizeText,
+          sizeNumber: detected.sizeNumber
+        });
+      }
+      
+      // Step 4: Tạo sản phẩm trực tiếp
+      console.log(`   ⚡ Creating product on TPOS...`);
+      const createdProduct = await createProductDirectly(item, imageBase64, attributeLines);
+      
+      console.log(`   ✅ Created: ${createdProduct.Id} - ${createdProduct.Name}`);
+      
+      // Save to productIds for database update
+      result.productIds.push({
+        itemId: item.id,
+        tposId: createdProduct.Id,
+      });
+      
+      // Update cache
+      const cache = getCachedTPOSIds();
+      cache.set(codeToCheck, createdProduct.Id);
+      saveCachedTPOSIds(cache);
+      
+      result.successCount++;
+      
+      await randomDelay(500, 1000);
+      
+    } catch (error) {
+      console.error(`   ❌ Error processing ${item.product_code}:`, error);
+      result.failedCount++;
+      result.errors.push({
+        productName: item.product_name,
+        productCode: item.product_code,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        fullError: error
+      });
+    }
+  }
+
+  // ========================================
+  // PHASE 2: Update database với tpos_product_id
+  // ========================================
+  console.log(`\n💾 Updating database with ${result.productIds.length} product IDs...`);
+  
+  for (const mapping of result.productIds) {
+    if (!mapping.tposId) continue;
+    
+    try {
+      const { error } = await supabase
+        .from("purchase_order_items")
+        .update({ tpos_product_id: mapping.tposId })
+        .eq("id", mapping.itemId);
+      
+      if (!error) {
+        result.savedIds++;
+      } else {
+        console.warn(`⚠️ Failed to save TPOS ID for item ${mapping.itemId}:`, error);
+      }
+    } catch (error) {
+      console.error(`❌ Database update error for item ${mapping.itemId}:`, error);
+    }
+  }
+
+  result.success = result.failedCount === 0;
+  
+  console.log("=".repeat(60));
+  console.log(`✅ Upload hoàn tất: ${result.successCount}/${items.length} thành công`);
+  console.log(`💾 Saved to DB: ${result.savedIds}/${result.productIds.length} IDs`);
+  console.log(`❌ Thất bại: ${result.failedCount}`);
+  console.log("=".repeat(60));
+  
+  return result;
+}

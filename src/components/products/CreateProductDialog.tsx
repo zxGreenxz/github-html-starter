@@ -6,6 +6,11 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { generateProductCode } from "@/lib/product-code-generator";
+import { useVariantDetector } from "@/hooks/use-variant-detector";
+import { VariantDetectionBadge } from "./VariantDetectionBadge";
+import { VariantGeneratorDialog } from "@/components/purchase-orders/VariantGeneratorDialog";
+import { Sparkles } from "lucide-react";
+import { detectVariantsFromText } from "@/lib/variant-detector";
 
 interface CreateProductDialogProps {
   open: boolean;
@@ -16,6 +21,7 @@ interface CreateProductDialogProps {
 export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreateProductDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVariantGenerator, setShowVariantGenerator] = useState(false);
   const [formData, setFormData] = useState({
     product_code: "",
     product_name: "",
@@ -28,6 +34,18 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
     stock_quantity: "0",
     supplier_name: "",
   });
+
+  // Auto-detect variants from product name
+  const { detectionResult, hasDetections } = useVariantDetector({
+    productName: formData.product_name,
+    variant: formData.variant,
+    enabled: open,
+  });
+
+  const handleVariantTextGenerated = (variantText: string) => {
+    setFormData({ ...formData, variant: variantText });
+    setShowVariantGenerator(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,17 +193,32 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
               onBlur={handleProductNameBlur}
               required
             />
+            {hasDetections && (
+              <VariantDetectionBadge detectionResult={detectionResult} className="mt-2" />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="variant">Variant</Label>
-              <Input
-                id="variant"
-                value={formData.variant}
-                onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                placeholder="Nhập variant thủ công (vd: Đen,L)"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="variant"
+                  value={formData.variant}
+                  onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
+                  placeholder="(1 | 2 | 3) (S | M | L)"
+                  readOnly
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowVariantGenerator(true)}
+                  title="Tạo biến thể tự động"
+                >
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <Label htmlFor="unit">Đơn vị</Label>
@@ -257,6 +290,17 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
           </div>
         </form>
       </DialogContent>
+
+      <VariantGeneratorDialog
+        open={showVariantGenerator}
+        onOpenChange={setShowVariantGenerator}
+        currentItem={{
+          product_code: formData.product_code,
+          product_name: formData.product_name,
+          variant: formData.variant,
+        }}
+        onVariantTextGenerated={handleVariantTextGenerated}
+      />
     </Dialog>
   );
 }
