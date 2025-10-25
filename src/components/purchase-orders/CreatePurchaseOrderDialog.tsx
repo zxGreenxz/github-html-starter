@@ -1254,9 +1254,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         open={isVariantGeneratorOpen}
         onOpenChange={setIsVariantGeneratorOpen}
         onSubmit={(result) => {
+          console.log("🔥 VariantGenerator onSubmit called:", result);
+          console.log("🔥 variantGeneratorIndex:", variantGeneratorIndex);
+          
           if (variantGeneratorIndex !== null) {
+            console.log("🔥 Before update - item:", items[variantGeneratorIndex]);
             updateItem(variantGeneratorIndex, 'variant', result.variantString);
             updateItem(variantGeneratorIndex, 'quantity', result.totalQuantity);
+            console.log("🔥 After update - item:", items[variantGeneratorIndex]);
             
             toast({
               title: "Đã tạo biến thể",

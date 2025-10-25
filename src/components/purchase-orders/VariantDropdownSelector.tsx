@@ -31,6 +31,8 @@ export function VariantDropdownSelector({
   const [open, setOpen] = useState(false);
   const { data: variants = [], isLoading } = useProductVariants(baseProductCode);
   
+  console.log("🎯 VariantDropdownSelector render - value:", value, "baseProductCode:", baseProductCode);
+  
   const handleSelectVariant = (variant: ProductVariant) => {
     if (onVariantSelect) {
       onVariantSelect({
