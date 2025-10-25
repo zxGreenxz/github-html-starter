@@ -1398,6 +1398,35 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   }}
                   className="flex-1"
                 />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => {
+                          // Auto-fill with example format
+                          if (!item.variant?.trim()) {
+                            updateItem(index, "variant", "1 | 2 | 3 | 4");
+                            toast({
+                              title: "✨ Đã thêm mẫu variant",
+                              description: "Bạn có thể chỉnh sửa: 1|2|3|4 (Size Số), S|M|L (Size Chữ), Đỏ|Xanh (Màu)",
+                            });
+                          }
+                        }}
+                        title="Thêm mẫu variant"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[250px]">
+                      <p className="font-semibold mb-1">Thêm mẫu variant</p>
+                      <p className="text-sm">Click để thêm format mẫu: "1 | 2 | 3 | 4"</p>
+                      <p className="text-sm mt-1">Hoặc tự gõ: S|M|L, Đỏ|Xanh, v.v.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </TableCell>
                       <TableCell className="text-center">
