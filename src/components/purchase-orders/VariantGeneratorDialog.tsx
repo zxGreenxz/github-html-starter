@@ -132,12 +132,24 @@ export function VariantGeneratorDialog({
       return;
     }
 
+    // Calculate final values BEFORE resetting state to avoid race condition
+    const finalVariantString = Object.entries(selectedValues)
+      .filter(([_, values]) => values.length > 0)
+      .map(([_, values]) => `(${values.join(' | ')})`)
+      .join(' ');
+
+    const finalTotalQuantity = Object.values(selectedValues)
+      .filter((values) => values.length > 0)
+      .map((values) => values.length)
+      .reduce((acc, count) => acc * count, 1);
+
+    // Submit with captured values
     onSubmit({
-      variantString,
-      totalQuantity,
+      variantString: finalVariantString,
+      totalQuantity: finalTotalQuantity,
     });
 
-    // Reset state
+    // Reset state AFTER capturing values
     setSelectedValues({});
     setSearchQueries({});
   };
