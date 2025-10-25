@@ -468,6 +468,13 @@ export function PurchaseOrderList({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
+                  onCheckedChange={onToggleSelectAll}
+                  aria-label="Chọn tất cả"
+                />
+              </TableHead>
               <TableHead>Ngày đặt</TableHead>
               <TableHead>Nhà cung cấp</TableHead>
               <TableHead>Hóa đơn (VND)</TableHead>
@@ -480,22 +487,13 @@ export function PurchaseOrderList({
               <TableHead>Ghi chú</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead className="border-r text-center">Chỉnh sửa ĐH</TableHead>
-              <TableHead>
-                <div className="flex items-center gap-2">
-                  <span>Thao tác</span>
-                  <Checkbox
-                    checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
-                    onCheckedChange={onToggleSelectAll}
-                    aria-label="Chọn tất cả"
-                  />
-                </div>
-              </TableHead>
+              <TableHead>Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {flattenedItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
                   Không có đơn hàng nào
                 </TableCell>
               </TableRow>
@@ -521,6 +519,17 @@ export function PurchaseOrderList({
                       flatItem.hasDeletedProduct && "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                     )}
                   >
+                    {/* Checkbox column - only on first item with rowSpan */}
+                    {flatItem.isFirstItem && (
+                      <TableCell className="text-center" rowSpan={flatItem.itemCount}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => onToggleSelect(flatItem.id)}
+                          aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
+                        />
+                      </TableCell>
+                    )}
+                    
                     {/* Order-level columns with rowSpan - only show on first item */}
                     {flatItem.isFirstItem && (
                       <>
@@ -715,27 +724,15 @@ export function PurchaseOrderList({
                   
                   {/* Item-level actions - each item has its own buttons */}
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      {/* Delete button for each item */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteItem(flatItem.item!)}
-                        className="text-destructive hover:text-destructive"
-                        title="Xóa sản phẩm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      
-                      {/* Order selection checkbox - only on first item with rowSpan */}
-                      {flatItem.isFirstItem && (
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => onToggleSelect(flatItem.id)}
-                          aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
-                        />
-                      )}
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteItem(flatItem.item!)}
+                      className="text-destructive hover:text-destructive"
+                      title="Xóa sản phẩm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
