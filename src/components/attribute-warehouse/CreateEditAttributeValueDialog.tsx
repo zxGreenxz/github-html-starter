@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProductAttributes, type ProductAttributeValue } from "@/hooks/use-product-attributes";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface CreateEditAttributeValueDialogProps {
   open: boolean;
@@ -18,6 +21,7 @@ export function CreateEditAttributeValueDialog({
   editingValue,
 }: CreateEditAttributeValueDialogProps) {
   const { attributes, createAttributeValue, updateAttributeValue } = useProductAttributes();
+  const { toast } = useToast();
   
   const [formData, setFormData] = useState({
     attribute_id: "",
@@ -26,6 +30,7 @@ export function CreateEditAttributeValueDialog({
     price_extra: 0,
   });
   const [error, setError] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (editingValue) {
@@ -65,6 +70,8 @@ export function CreateEditAttributeValueDialog({
     }
 
     try {
+      setIsSyncing(true);
+      
       if (editingValue) {
         await updateAttributeValue.mutateAsync({
           id: editingValue.id,
@@ -73,7 +80,12 @@ export function CreateEditAttributeValueDialog({
           price_extra: formData.price_extra || 0,
           name_get: autoNameGet,
         });
+        toast({
+          title: "Đã cập nhật",
+          description: `Giá trị "${formData.value}" đã được cập nhật`,
+        });
       } else {
+        // Create in Supabase first
         await createAttributeValue.mutateAsync({
           attributeId: formData.attribute_id,
           value: formData.value.trim(),
@@ -81,10 +93,55 @@ export function CreateEditAttributeValueDialog({
           price_extra: formData.price_extra || 0,
           name_get: autoNameGet,
         });
+
+        // Then sync to TPOS
+        try {
+          const { data: syncResult, error: syncError } = await supabase.functions.invoke(
+            'sync-attribute-value-to-tpos',
+            {
+              body: {
+                attributeName: selectedAttribute?.name,
+                code: formData.code.trim() || formData.value.trim(),
+                value: formData.value.trim(),
+              },
+            }
+          );
+
+          if (syncError) {
+            console.error('TPOS sync error:', syncError);
+            toast({
+              title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
+              description: syncError.message,
+              variant: "destructive",
+            });
+          } else if (!syncResult?.success) {
+            console.error('TPOS sync failed:', syncResult);
+            toast({
+              title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
+              description: syncResult?.error || "Không xác định được lỗi",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "✅ Đã thêm và đồng bộ lên TPOS",
+              description: `Giá trị "${formData.value}" đã được thêm vào ${selectedAttribute?.name}`,
+            });
+          }
+        } catch (syncErr: any) {
+          console.error('Failed to sync to TPOS:', syncErr);
+          toast({
+            title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
+            description: syncErr.message || "Không thể kết nối đến TPOS",
+            variant: "destructive",
+          });
+        }
       }
+      
       onOpenChange(false);
     } catch (err: any) {
       setError(err.message || "Có lỗi xảy ra");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -162,11 +219,18 @@ export function CreateEditAttributeValueDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSyncing}>
               Hủy
             </Button>
-            <Button type="submit">
-              {editingValue ? "Cập nhật" : "Thêm"}
+            <Button type="submit" disabled={isSyncing}>
+              {isSyncing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang đồng bộ TPOS...
+                </>
+              ) : (
+                editingValue ? "Cập nhật" : "Thêm"
+              )}
             </Button>
           </div>
         </form>
