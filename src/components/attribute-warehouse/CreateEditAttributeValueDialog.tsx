@@ -85,7 +85,23 @@ export function CreateEditAttributeValueDialog({
           description: `Giá trị "${formData.value}" đã được cập nhật`,
         });
       } else {
-        // Create in Supabase first
+        // NEW FLOW: Sync to TPOS FIRST, only save to DB if TPOS succeeds
+        const { data: syncResult, error: syncError } = await supabase.functions.invoke(
+          'sync-attribute-value-to-tpos',
+          {
+            body: {
+              attributeName: selectedAttribute?.name,
+              code: formData.code.trim() || formData.value.trim(),
+              value: formData.value.trim(),
+            },
+          }
+        );
+
+        if (syncError || !syncResult?.success) {
+          throw new Error(syncError?.message || syncResult?.error || 'Không thể thêm vào TPOS. Vui lòng thử lại.');
+        }
+
+        // Only save to database if TPOS sync succeeded
         await createAttributeValue.mutateAsync({
           attributeId: formData.attribute_id,
           value: formData.value.trim(),
@@ -94,47 +110,10 @@ export function CreateEditAttributeValueDialog({
           name_get: autoNameGet,
         });
 
-        // Then sync to TPOS
-        try {
-          const { data: syncResult, error: syncError } = await supabase.functions.invoke(
-            'sync-attribute-value-to-tpos',
-            {
-              body: {
-                attributeName: selectedAttribute?.name,
-                code: formData.code.trim() || formData.value.trim(),
-                value: formData.value.trim(),
-              },
-            }
-          );
-
-          if (syncError) {
-            console.error('TPOS sync error:', syncError);
-            toast({
-              title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
-              description: syncError.message,
-              variant: "destructive",
-            });
-          } else if (!syncResult?.success) {
-            console.error('TPOS sync failed:', syncResult);
-            toast({
-              title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
-              description: syncResult?.error || "Không xác định được lỗi",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "✅ Đã thêm và đồng bộ lên TPOS",
-              description: `Giá trị "${formData.value}" đã được thêm vào ${selectedAttribute?.name}`,
-            });
-          }
-        } catch (syncErr: any) {
-          console.error('Failed to sync to TPOS:', syncErr);
-          toast({
-            title: "⚠️ Đã lưu local nhưng lỗi đồng bộ TPOS",
-            description: syncErr.message || "Không thể kết nối đến TPOS",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "✅ Đã thêm thành công",
+          description: `Giá trị "${formData.value}" đã được thêm vào ${selectedAttribute?.name} và đồng bộ lên TPOS`,
+        });
       }
       
       onOpenChange(false);
