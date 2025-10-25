@@ -721,6 +721,71 @@ export type Database = {
         }
         Relationships: []
       }
+      product_attribute_values: {
+        Row: {
+          attribute_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          attribute_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          attribute_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_attribute_values_attribute_id_fkey"
+            columns: ["attribute_id"]
+            isOneToOne: false
+            referencedRelation: "product_attributes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_attributes: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           barcode: string | null

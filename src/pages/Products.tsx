@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package } from "lucide-react";
+import { Package, Settings2 } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { ProductList } from "@/components/products/ProductList";
 import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
+import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -27,6 +28,7 @@ export default function Products() {
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -179,6 +181,16 @@ export default function Products() {
                   )}
                 </div>
 
+                <Button
+                  onClick={() => setIsAttributeDialogOpen(true)}
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  className="gap-2"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Thuộc tính
+                </Button>
+
                 {isAdmin && (
                   <div className={`flex gap-2 ${isMobile ? "w-full flex-wrap" : ""}`}>
                     <Button
@@ -245,6 +257,11 @@ export default function Products() {
           open={isImportDialogOpen}
           onOpenChange={setIsImportDialogOpen}
           onSuccess={refetch}
+        />
+
+        <AttributeManagementDialog
+          open={isAttributeDialogOpen}
+          onOpenChange={setIsAttributeDialogOpen}
         />
       </div>
     </div>
