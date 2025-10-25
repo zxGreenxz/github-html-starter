@@ -23,12 +23,20 @@ function detectAttributeType(values: string[]): number {
     return 4;
   }
   
-  // Rule 2: All short letters (≤ 4 chars, uppercase) → Size Chữ
+  // Rule 2: Check if any value exists in TPOS_ATTRIBUTES.sizeText → Size Chữ
+  const hasSizeText = values.some(v => 
+    TPOS_ATTRIBUTES.sizeText.find(s => s.Name.toLowerCase() === v.toLowerCase())
+  );
+  if (hasSizeText) {
+    return 1;
+  }
+  
+  // Rule 3: All short letters (≤ 4 chars, uppercase) → Size Chữ
   if (values.every(v => v.length <= 4 && /^[A-Z]+$/i.test(v))) {
     return 1;
   }
   
-  // Rule 3: Otherwise → Màu
+  // Rule 4: Otherwise → Màu
   return 3;
 }
 
