@@ -20,11 +20,6 @@ const mainNavItems = [
     icon: ShoppingCart,
   },
   {
-    title: "Báo Cáo",
-    url: "/livestream-reports",
-    icon: BarChart3,
-  },
-  {
     title: "Sản Phẩm",
     url: "/products",
     icon: Warehouse,
@@ -35,9 +30,9 @@ const mainNavItems = [
     icon: Package,
   },
   {
-    title: "Comment",
-    url: "/facebook-comments",
-    icon: MessageSquare,
+    title: "Đặt hàng",
+    url: "/purchase-orders",
+    icon: ShoppingBag,
   },
 ];
 
@@ -77,7 +72,7 @@ export function MobileBottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 pb-safe">
-      <div className="grid grid-cols-6 h-16">
+      <div className="grid grid-cols-5 h-16">
         {mainNavItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.url);

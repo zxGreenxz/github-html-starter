@@ -72,23 +72,8 @@ export function EditOrderItemDialog({
     },
   });
 
-  // Fetch comment info from facebook_pending_orders
-  const { data: pendingOrderInfo } = useQuery({
-    queryKey: ['facebook-pending-order-info', orderItem?.facebook_comment_id],
-    queryFn: async () => {
-      const commentId = orderItem?.facebook_comment_id;
-      if (!commentId) return null;
-      
-      const { data } = await supabase
-        .from('facebook_pending_orders')
-        .select('session_index, name, comment, created_time')
-        .eq('facebook_comment_id', commentId)
-        .maybeSingle();
-      
-      return data || null;
-    },
-    enabled: !!orderItem?.facebook_comment_id,
-  });
+  // ❌ REMOVED: facebook_pending_orders table was deleted
+  const pendingOrderInfo = null;
 
   // Fetch phase data to get phase_date for invalidating facebook_pending_orders query
   const { data: phaseData } = useQuery({

@@ -35,30 +35,9 @@ export function RealtimeProvider() {
       })
       // ❌ REMOVED: live_* tables now use LOCAL filtered subscriptions in LiveProducts.tsx
       // This prevents unnecessary refetches for all sessions when only one is active
-      // Facebook integration
-      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_pages" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["facebook-pages"] });
-      })
-      // ❌ REMOVED: facebook_pending_orders now uses LOCAL filtered subscription in QuickAddOrder.tsx
-      // This prevents unnecessary refetches for all dates when only one phase is active
-      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_comments_archive" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "scanned_barcodes_session" }, (payload) => {
-        console.log("📡 [REALTIME] New barcode scanned:", payload.new);
-        
-        // Dispatch custom event for components to listen
-        const event = new CustomEvent('barcode-synced', {
-          detail: payload.new
-        });
-        window.dispatchEvent(event);
-      })
-      // Customers & reports & activity logs
+      // Customers & activity logs
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "livestream_reports" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["livestream-reports"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
         queryClient.invalidateQueries({ queryKey: ["activity-logs"] });

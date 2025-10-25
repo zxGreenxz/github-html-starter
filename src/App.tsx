@@ -6,20 +6,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { BarcodeScannerProvider } from "@/contexts/BarcodeScannerContext";
-import { CommentsSidebarProvider } from "@/contexts/CommentsSidebarContext";
 import { PrintQueueProvider } from "@/contexts/PrintQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Products from "./pages/Products";
 import LiveProducts from "./pages/LiveProducts";
-import LivestreamReports from "./pages/LivestreamReports";
 import GoodsReceiving from "./pages/GoodsReceiving";
 import SearchProducts from "./pages/SearchProducts";
 import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
-import FacebookComments from "./pages/FacebookComments";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -39,10 +35,8 @@ const App = () => (
     <RealtimeProvider />
     <BrowserRouter>
       <AuthProvider>
-        <BarcodeScannerProvider>
-          <CommentsSidebarProvider>
-            <PrintQueueProvider>
-              <TooltipProvider>
+        <PrintQueueProvider>
+          <TooltipProvider>
               <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={
@@ -73,13 +67,6 @@ const App = () => (
                   </Layout>
                 </ProtectedRoute>
               } />
-              <Route path="/livestream-reports" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <LivestreamReports />
-                  </Layout>
-                </ProtectedRoute>
-              } />
               <Route path="/goods-receiving" element={
                 <ProtectedRoute>
                   <Layout>
@@ -91,13 +78,6 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <SearchProducts />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/facebook-comments" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <FacebookComments />
                   </Layout>
                 </ProtectedRoute>
               } />
@@ -128,9 +108,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               </TooltipProvider>
-            </PrintQueueProvider>
-          </CommentsSidebarProvider>
-        </BarcodeScannerProvider>
+        </PrintQueueProvider>
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>

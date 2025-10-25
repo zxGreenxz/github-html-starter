@@ -16,7 +16,6 @@ import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDia
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
-import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
@@ -239,10 +238,6 @@ export default function LiveProducts() {
   const [productSearch, setProductSearch] = useState("");
   const debouncedProductSearch = useDebounce(productSearch, 300);
   const queryClient = useQueryClient();
-  const {
-    enabledPages,
-    addScannedBarcode
-  } = useBarcodeScanner();
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
@@ -501,183 +496,7 @@ export default function LiveProducts() {
     [liveProducts, debouncedProductSearch]
   );
 
-  // Barcode scanner listener - chỉ hoạt động khi enabledPages bao gồm 'live-products'
-  useEffect(() => {
-    if (!enabledPages.includes('live-products')) return;
-    const handleBarcodeScanned = async (event: CustomEvent) => {
-      const code = event.detail.code;
-
-      // Kiểm tra xem có session và phase được chọn không
-      if (!selectedSession || !selectedPhase || selectedPhase === 'all') {
-        toast.error("Vui lòng chọn session và phase cụ thể để thêm sản phẩm");
-        return;
-      }
-      try {
-        // 1. Tìm sản phẩm được quét (lấy cả product_name để kiểm tra)
-        const {
-          data: scannedProduct,
-          error: productError
-        } = await supabase.from("products").select("*").eq("product_code", code.trim()).maybeSingle();
-        if (productError) throw productError;
-        if (!scannedProduct) {
-          toast.error(`Không tìm thấy sản phẩm: ${code}`);
-          return;
-        }
-
-        let productsToAdd = [];
-
-        // 2. Kiểm tra xem tên sản phẩm có dấu "-" không
-        if (scannedProduct.product_name.includes('-')) {
-          // CASE 1: Tên có dấu "-" → Split và tìm theo tên
-          // Ưu tiên split theo ' - ' (với space) nếu có, fallback về '-' nếu không
-          const baseNamePrefix = scannedProduct.product_name.includes(' - ') ? scannedProduct.product_name.split(' - ')[0].trim() : scannedProduct.product_name.split('-')[0].trim();
-          const {
-            data: matchingProducts,
-            error: matchError
-          } = await supabase.from("products").select("*").ilike("product_name", `${baseNamePrefix}%`);
-          if (matchError) throw matchError;
-          productsToAdd = matchingProducts || [];
-        } else {
-          // CASE 2: Không có "-" → Dùng base_product_code như cũ
-          const baseCode = scannedProduct.base_product_code || scannedProduct.product_code;
-
-          // Lấy TẤT CẢ biến thể (loại trừ sản phẩm gốc mặc định)
-          const {
-            data: variants,
-            error: variantsError
-          } = await supabase.from("products").select("*").eq("base_product_code", baseCode).not("variant", "is", null).neq("variant", "").neq("product_code", baseCode);
-          if (variantsError) throw variantsError;
-
-          // Nếu không tìm thấy biến thể, sử dụng chính sản phẩm được quét
-          productsToAdd = variants && variants.length > 0 ? variants : [scannedProduct];
-        }
-        if (productsToAdd.length === 0) {
-          toast.error("Không tìm thấy sản phẩm hoặc biến thể nào");
-          return;
-        }
-
-        // Add ALL variants to BarcodeScannerContext for display in FacebookComments
-        for (const product of productsToAdd) {
-          addScannedBarcode({
-            code: product.product_code,
-            timestamp: new Date().toISOString(),
-            productInfo: {
-              id: product.id,
-              name: product.product_name,
-              image_url: getProductImageUrl(product.product_images, product.tpos_image_url),
-              product_code: product.product_code
-            }
-          });
-        }
-
-        // 4. Kiểm tra tất cả biến thể đã có trong live_products chưa
-        const variantCodes = productsToAdd.map(v => v.product_code);
-        const {
-          data: existingProducts,
-          error: existingError
-        } = await supabase.from("live_products").select("id, product_code, prepared_quantity").eq("live_phase_id", selectedPhase).in("product_code", variantCodes);
-        if (existingError) throw existingError;
-        const existingMap = new Map((existingProducts || []).map(p => [p.product_code, p]));
-
-        // 5. Chuẩn bị batch insert và update
-        const toInsert = [];
-        const toUpdate = [];
-        for (const variant of productsToAdd) {
-          const existing = existingMap.get(variant.product_code);
-          if (existing) {
-            // Đẩy lên đầu bằng cách update created_at
-            toUpdate.push({
-              id: existing.id,
-              created_at: new Date().toISOString()
-            });
-          } else {
-            // Thêm mới
-            toInsert.push({
-              live_session_id: selectedSession,
-              live_phase_id: selectedPhase,
-              product_code: variant.product_code,
-              product_name: variant.product_name,
-              variant: formatVariant(variant.variant, variant.product_code),
-              base_product_code: variant.base_product_code,
-              prepared_quantity: 1,
-              sold_quantity: 0,
-              image_url: getProductImageUrl(variant.product_images, variant.tpos_image_url),
-              product_type: 'hang_dat'
-            });
-          }
-        }
-
-        // ✅ 6. Thực hiện batch operations IN PARALLEL
-        const perfStart = performance.now();
-        console.log("⚡ [PERF] Barcode: batch operations starting...", {
-          toInsert: toInsert.length,
-          toUpdate: toUpdate.length
-        });
-        
-        await Promise.all([
-          // Insert all new products
-          toInsert.length > 0 
-            ? supabase.from("live_products").insert(toInsert)
-            : Promise.resolve({ error: null }),
-          
-          // Update all existing products IN PARALLEL
-          ...toUpdate.map(update => 
-            supabase
-              .from("live_products")
-              .update({ created_at: update.created_at })
-              .eq("id", update.id)
-          )
-        ]).then(results => {
-          // Check for errors
-          const errors = results.filter(r => r.error);
-          if (errors.length > 0) {
-            throw errors[0].error;
-          }
-        });
-        
-        console.log(`✅ [PERF] Barcode: batch operations done in ${(performance.now() - perfStart).toFixed(0)}ms`);
-
-        // 7. Toast thông báo với format mới
-        const insertedCount = toInsert.length;
-        const updatedCount = toUpdate.length;
-
-        // Lấy thông tin sản phẩm gốc
-        const baseProductCode = productsToAdd[0]?.base_product_code || productsToAdd[0]?.product_code.split('X')[0];
-        const baseProductName = productsToAdd[0]?.product_name;
-        const allVariantCodes = productsToAdd.map(v => v.product_code).join(", ");
-        const message = `Đã thêm ${baseProductCode} ${baseProductName} (${allVariantCodes})`;
-        toast.success(message);
-
-        // 8. Broadcast message to all users
-        const {
-          data: currentUserData
-        } = await supabase.auth.getUser();
-        const currentUserId = currentUserData.user?.id;
-        const broadcastChannel = supabase.channel(`live-session-${selectedSession}`);
-        await broadcastChannel.send({
-          type: 'broadcast',
-          event: 'barcode-scanned',
-          payload: {
-            message: message,
-            scannedBy: currentUserId,
-            timestamp: new Date().toISOString()
-          }
-        });
-
-        // 9. Refresh data
-        queryClient.invalidateQueries({
-          queryKey: ["live-products", selectedPhase, selectedSession]
-        });
-      } catch (error: any) {
-        console.error("Barcode add product error:", error);
-        toast.error("Lỗi thêm sản phẩm: " + error.message);
-      }
-    };
-    window.addEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
-    return () => {
-      window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
-    };
-  }, [enabledPages, selectedSession, selectedPhase, queryClient]);
+  // ❌ REMOVED: Barcode scanner listener (feature deleted)
 
   // Persist state changes to localStorage
   useEffect(() => {
@@ -790,15 +609,8 @@ export default function LiveProducts() {
             .map(o => o.facebook_comment_id)
             .filter(Boolean) as string[];
           
-          if (commentIds.length === 0) return [];
-          
-          const { data, error } = await supabase
-            .from('facebook_pending_orders')
-            .select('facebook_comment_id, comment, created_time')
-            .in('facebook_comment_id', commentIds);
-          
-          if (error) throw error;
-          return data || [];
+          // ❌ REMOVED: facebook_pending_orders table was deleted
+          return [];
         })()
       ]);
       
@@ -850,57 +662,8 @@ export default function LiveProducts() {
     queryFn: async () => {
       console.log("Fetching hang_le comments for phase:", selectedPhase);
       
-      if (!selectedPhase || selectedPhase === "all") {
-        // If no phase selected or "all" selected, fetch all comments
-        const { data, error } = await supabase
-          .from("facebook_pending_orders" as any)
-          .select("*")
-          .eq("comment_type", "hang_le")
-          .order("created_time", { ascending: false });
-        
-        if (error) {
-          console.error("Error fetching hang_le comments:", error);
-          throw error;
-        }
-        
-        console.log("Fetched all hang_le comments:", data?.length || 0, "records");
-        return data || [];
-      }
-
-      // Get the selected phase details
-      const selectedPhaseData = livePhases.find(p => p.id === selectedPhase);
-      if (!selectedPhaseData) {
-        console.log("Phase not found");
-        return [];
-      }
-
-      const phaseDate = new Date(selectedPhaseData.phase_date);
-      const isMorning = selectedPhaseData.phase_type === 'morning';
-      
-      // Set start and end times based on phase type
-      const startDateTime = new Date(phaseDate);
-      startDateTime.setHours(isMorning ? 0 : 12, 0, 0, 0);
-      
-      const endDateTime = new Date(phaseDate);
-      endDateTime.setHours(isMorning ? 11 : 23, isMorning ? 59 : 59, 59, 999);
-      
-      console.log("Filtering comments between:", startDateTime.toISOString(), "and", endDateTime.toISOString());
-      
-      const { data, error } = await supabase
-        .from("facebook_pending_orders" as any)
-        .select("*")
-        .eq("comment_type", "hang_le")
-        .gte("created_time", startDateTime.toISOString())
-        .lte("created_time", endDateTime.toISOString())
-        .order("created_time", { ascending: false });
-      
-      if (error) {
-        console.error("Error fetching hang_le comments:", error);
-        throw error;
-      }
-      
-      console.log("Fetched hang_le comments:", data?.length || 0, "records for selected phase");
-      return data || [];
+      // ❌ REMOVED: facebook_pending_orders table was deleted
+      return [];
     },
     enabled: true,
     staleTime: 5000, // 5s - comments change frequently

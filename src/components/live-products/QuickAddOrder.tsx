@@ -97,39 +97,8 @@ export function QuickAddOrder({
     enabled: !!phaseId
   });
 
-  // Fetch facebook_pending_orders for the phase date (include order_count)
-  const {
-    data: pendingOrders = []
-  } = useQuery({
-    queryKey: ['facebook-pending-orders', phaseData?.phase_date, facebookPostId],
-    queryFn: async () => {
-      if (!phaseData?.phase_date) return [];
-      
-      let query: any = supabase
-        .from('facebook_pending_orders')
-        .select('*, order_count');
-      
-      // PRIORITY: Filter by facebook_post_id if available
-      if (facebookPostId) {
-        console.log('🎯 [QUICK ADD] Filtering by facebook_post_id:', facebookPostId);
-        query = query.eq('facebook_post_id', facebookPostId);
-      } else {
-        // FALLBACK: Filter by date (backward compatibility)
-        console.warn('⚠️ [QUICK ADD] No facebook_post_id, filtering by date');
-        query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
-        query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
-      }
-      
-      query = query.order('created_time', { ascending: false });
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      return (data || []) as PendingOrder[];
-    },
-    enabled: !!phaseData?.phase_date,
-    staleTime: 10000, // ✅ Cache 10s to prevent refetch on every keystroke
-  });
+  // ❌ REMOVED: facebook_pending_orders table deleted
+  const pendingOrders: any[] = [];
 
   // ✅ Data will be refetched ON-DEMAND when dropdown is opened (see Popover onOpenChange)
 
@@ -621,13 +590,7 @@ export function QuickAddOrder({
       <Popover open={isOpen} onOpenChange={(open) => {
         setIsOpen(open);
         
-        // ✅ Refetch data khi MỞ dropdown
-        if (open && phaseData?.phase_date) {
-          console.log('🔄 [QUICK ADD] Refetching facebook_pending_orders for phase_date:', phaseData.phase_date);
-          queryClient.invalidateQueries({
-            queryKey: ['facebook-pending-orders', phaseData.phase_date, facebookPostId]
-          });
-        }
+        // ❌ REMOVED: facebook_pending_orders refetch
       }}>
         <PopoverTrigger asChild>
           <div className="flex-1 relative">

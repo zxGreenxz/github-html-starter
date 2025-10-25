@@ -98,69 +98,6 @@ export type Database = {
         }
         Relationships: []
       }
-      facebook_comments_archive: {
-        Row: {
-          comment_created_time: string | null
-          comment_message: string | null
-          created_at: string | null
-          facebook_comment_id: string
-          facebook_post_id: string
-          facebook_user_id: string | null
-          facebook_user_name: string | null
-          id: string
-          is_deleted: boolean | null
-          is_deleted_by_tpos: boolean | null
-          last_fetched_at: string | null
-          last_synced_at: string | null
-          like_count: number | null
-          session_index: number | null
-          tpos_order_id: string | null
-          tpos_session_index: string | null
-          tpos_sync_status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          comment_created_time?: string | null
-          comment_message?: string | null
-          created_at?: string | null
-          facebook_comment_id: string
-          facebook_post_id: string
-          facebook_user_id?: string | null
-          facebook_user_name?: string | null
-          id?: string
-          is_deleted?: boolean | null
-          is_deleted_by_tpos?: boolean | null
-          last_fetched_at?: string | null
-          last_synced_at?: string | null
-          like_count?: number | null
-          session_index?: number | null
-          tpos_order_id?: string | null
-          tpos_session_index?: string | null
-          tpos_sync_status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          comment_created_time?: string | null
-          comment_message?: string | null
-          created_at?: string | null
-          facebook_comment_id?: string
-          facebook_post_id?: string
-          facebook_user_id?: string | null
-          facebook_user_name?: string | null
-          id?: string
-          is_deleted?: boolean | null
-          is_deleted_by_tpos?: boolean | null
-          last_fetched_at?: string | null
-          last_synced_at?: string | null
-          like_count?: number | null
-          session_index?: number | null
-          tpos_order_id?: string | null
-          tpos_session_index?: string | null
-          tpos_sync_status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       facebook_live_comments_snapshot: {
         Row: {
           comments_data: Json
@@ -197,108 +134,6 @@ export type Database = {
           last_tpos_count?: number | null
           total_comments?: number | null
           updated_at?: string | null
-        }
-        Relationships: []
-      }
-      facebook_pages: {
-        Row: {
-          created_at: string | null
-          crm_team_id: string | null
-          crm_team_name: string | null
-          id: string
-          is_active: boolean | null
-          page_id: string
-          page_name: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          crm_team_id?: string | null
-          crm_team_name?: string | null
-          id?: string
-          is_active?: boolean | null
-          page_id: string
-          page_name: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          crm_team_id?: string | null
-          crm_team_name?: string | null
-          id?: string
-          is_active?: boolean | null
-          page_id?: string
-          page_name?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      facebook_pending_orders: {
-        Row: {
-          code: string | null
-          comment: string | null
-          comment_type: string | null
-          created_at: string
-          created_time: string
-          facebook_comment_id: string | null
-          facebook_post_id: string | null
-          facebook_user_id: string | null
-          id: string
-          is_prediction_correct: boolean | null
-          name: string
-          order_count: number
-          phone: string | null
-          predicted_session_index: number | null
-          prediction_method: string | null
-          product_codes: string[] | null
-          reconciled_at: string | null
-          session_index: string | null
-          tpos_order_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          code?: string | null
-          comment?: string | null
-          comment_type?: string | null
-          created_at?: string
-          created_time?: string
-          facebook_comment_id?: string | null
-          facebook_post_id?: string | null
-          facebook_user_id?: string | null
-          id?: string
-          is_prediction_correct?: boolean | null
-          name: string
-          order_count?: number
-          phone?: string | null
-          predicted_session_index?: number | null
-          prediction_method?: string | null
-          product_codes?: string[] | null
-          reconciled_at?: string | null
-          session_index?: string | null
-          tpos_order_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          code?: string | null
-          comment?: string | null
-          comment_type?: string | null
-          created_at?: string
-          created_time?: string
-          facebook_comment_id?: string | null
-          facebook_post_id?: string | null
-          facebook_user_id?: string | null
-          id?: string
-          is_prediction_correct?: boolean | null
-          name?: string
-          order_count?: number
-          phone?: string | null
-          predicted_session_index?: number | null
-          prediction_method?: string | null
-          product_codes?: string[] | null
-          reconciled_at?: string | null
-          session_index?: string | null
-          tpos_order_id?: string | null
-          updated_at?: string
         }
         Relationships: []
       }
@@ -621,48 +456,6 @@ export type Database = {
           start_date?: string | null
           status?: string
           supplier_name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      livestream_reports: {
-        Row: {
-          created_at: string
-          evening_ad_cost: number | null
-          evening_duration: string | null
-          evening_live_orders: number | null
-          id: string
-          morning_ad_cost: number | null
-          morning_duration: string | null
-          morning_live_orders: number | null
-          report_date: string
-          total_inbox_orders: number | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          evening_ad_cost?: number | null
-          evening_duration?: string | null
-          evening_live_orders?: number | null
-          id?: string
-          morning_ad_cost?: number | null
-          morning_duration?: string | null
-          morning_live_orders?: number | null
-          report_date: string
-          total_inbox_orders?: number | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          evening_ad_cost?: number | null
-          evening_duration?: string | null
-          evening_live_orders?: number | null
-          id?: string
-          morning_ad_cost?: number | null
-          morning_duration?: string | null
-          morning_live_orders?: number | null
-          report_date?: string
-          total_inbox_orders?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -1292,51 +1085,6 @@ export type Database = {
           },
         ]
       }
-      scanned_barcodes_session: {
-        Row: {
-          base_product_code: string | null
-          created_at: string | null
-          id: string
-          image_url: string | null
-          page_id: string
-          product_code: string
-          product_name: string | null
-          scanned_at: string | null
-          session_id: string
-          user_id: string | null
-          user_name: string | null
-          variant: string | null
-        }
-        Insert: {
-          base_product_code?: string | null
-          created_at?: string | null
-          id?: string
-          image_url?: string | null
-          page_id: string
-          product_code: string
-          product_name?: string | null
-          scanned_at?: string | null
-          session_id: string
-          user_id?: string | null
-          user_name?: string | null
-          variant?: string | null
-        }
-        Update: {
-          base_product_code?: string | null
-          created_at?: string | null
-          id?: string
-          image_url?: string | null
-          page_id?: string
-          product_code?: string
-          product_name?: string | null
-          scanned_at?: string | null
-          session_id?: string
-          user_id?: string | null
-          user_name?: string | null
-          variant?: string | null
-        }
-        Relationships: []
-      }
       session_index_corrections: {
         Row: {
           actual: number
@@ -1482,12 +1230,6 @@ export type Database = {
         Args: { p_product_id: string }
         Returns: undefined
       }
-      cleanup_old_deleted_comments: {
-        Args: { months_old?: number }
-        Returns: {
-          deleted_count: number
-        }[]
-      }
       create_live_phases: {
         Args: { session_id: string; start_date: string }
         Returns: undefined
@@ -1496,39 +1238,9 @@ export type Database = {
         Args: { product_name: string }
         Returns: string
       }
-      find_stale_comments: {
-        Args: { hours_threshold?: number }
-        Returns: {
-          comment_message: string
-          facebook_comment_id: string
-          facebook_post_id: string
-          facebook_user_name: string
-          hours_since_seen: number
-          last_seen_at: string
-        }[]
-      }
-      get_deletion_timeline: {
-        Args: { hours_back?: number; post_id: string }
-        Returns: {
-          deletions: number
-          hour: string
-        }[]
-      }
-      get_post_deletion_stats: {
-        Args: { post_id: string }
-        Returns: {
-          active_comments: number
-          deleted_comments: number
-          deletion_rate: number
-          total_comments: number
-        }[]
-      }
-      get_product_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
+      get_product_stats: { Args: never; Returns: Json }
       get_supplier_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           avg_stock: number
           low_stock_count: number
@@ -1536,16 +1248,6 @@ export type Database = {
           supplier_name: string
           total_inventory_value: number
           total_products: number
-        }[]
-      }
-      get_top_deleted_users: {
-        Args: { limit_count?: number; post_id: string }
-        Returns: {
-          deleted_count: number
-          deletion_rate: number
-          facebook_user_id: string
-          facebook_user_name: string
-          total_count: number
         }[]
       }
       has_role: {
@@ -1579,23 +1281,16 @@ export type Database = {
           variant: string | null
           virtual_available: number | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      unaccent: {
-        Args: { "": string }
-        Returns: string
-      }
-      unaccent_init: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      update_missing_suppliers: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      upsert_customers_deduped: {
-        Args: { payload: Json }
-        Returns: Json
-      }
+      unaccent: { Args: { "": string }; Returns: string }
+      update_missing_suppliers: { Args: never; Returns: number }
+      upsert_customers_deduped: { Args: { payload: Json }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "user"

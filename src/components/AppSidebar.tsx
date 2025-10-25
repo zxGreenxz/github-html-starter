@@ -48,16 +48,6 @@ const menuItems = [
     url: "/live-products",
     icon: ShoppingCart,
   },
-  {
-    title: "Livestream Comment",
-    url: "/facebook-comments",
-    icon: MessageSquare,
-  },
-  {
-    title: "Báo Cáo Livestream",
-    url: "/livestream-reports",
-    icon: BarChart3,
-  },
 ];
 
 const adminItems = [
