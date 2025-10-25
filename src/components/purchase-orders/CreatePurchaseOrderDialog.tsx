@@ -14,7 +14,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
-import { VariantDropdownSelector } from "./VariantDropdownSelector";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
@@ -1059,15 +1058,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                       </TableCell>
             <TableCell className="min-w-[300px]">
               <div className="flex items-center gap-1">
-                <VariantDropdownSelector
-                  baseProductCode={item.product_code}
+                <Input
                   value={item.variant}
-                  onChange={(value) => updateItem(index, "variant", value)}
-                  onVariantSelect={(data) => {
-                    updateItem(index, "product_code", data.productCode);
-                    updateItem(index, "product_name", data.productName);
-                    updateItem(index, "variant", data.variant);
-                  }}
+                  onChange={(e) => updateItem(index, "variant", e.target.value.toUpperCase())}
+                  placeholder="Nhập biến thể hoặc dùng nút Sparkles..."
                   className="flex-1 min-w-[250px]"
                 />
                 <Button
