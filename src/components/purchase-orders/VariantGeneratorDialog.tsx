@@ -143,14 +143,26 @@ export function VariantGeneratorDialog({
       return;
     }
 
-    onSubmit({
-      variantString,
-      totalQuantity,
-    });
+    // Calculate final values BEFORE resetting state
+    const finalVariantString = Object.entries(selectedValues)
+      .filter(([_, values]) => values.length > 0)
+      .map(([_, values]) => `(${values.join(' | ')})`)
+      .join(' ');
+
+    const finalTotalQuantity = Object.values(selectedValues)
+      .filter((values) => values.length > 0)
+      .map((values) => values.length)
+      .reduce((acc, count) => acc * count, 1);
 
     // Reset state
     setSelectedValues({});
     setSearchQueries({});
+
+    // Submit with calculated values
+    onSubmit({
+      variantString: finalVariantString,
+      totalQuantity: finalTotalQuantity,
+    });
   };
 
   // Handle close
