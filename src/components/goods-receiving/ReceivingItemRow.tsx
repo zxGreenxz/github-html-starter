@@ -83,6 +83,12 @@ export function ReceivingItemRow({ item, index = 0, onQuantityChange, isConfirme
               <div>
                 <span className="text-muted-foreground">SL Đặt:</span>
                 <span className="font-semibold ml-1 text-base">{item.quantity}</span>
+                {item.product_code && (
+                  <>
+                    <span className="text-muted-foreground mx-1">-</span>
+                    <span className="font-medium text-base text-primary">{item.product_code}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
