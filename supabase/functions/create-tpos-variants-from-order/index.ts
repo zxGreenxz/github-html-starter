@@ -23,6 +23,31 @@ interface Attribute {
   display_order: number;
 }
 
+/**
+ * Parse price input and multiply by 1000
+ * Supports both comma and dot as decimal separator
+ * Examples: 
+ *   - "1.5" or "1,5" → 1500
+ *   - "210" → 210000
+ *   - 1.5 → 1500
+ */
+function parsePriceAndMultiply(price: string | number): number {
+  if (typeof price === 'number') {
+    return Math.round(price * 1000);
+  }
+  
+  // Replace comma with dot for parsing
+  const normalized = String(price).replace(',', '.');
+  const parsedPrice = parseFloat(normalized);
+  
+  if (isNaN(parsedPrice)) {
+    console.warn(`Invalid price value: "${price}", defaulting to 0`);
+    return 0;
+  }
+  
+  return Math.round(parsedPrice * 1000);
+}
+
 // Convert image URL to base64
 async function imageUrlToBase64(url: string): Promise<string | null> {
   try {
@@ -142,15 +167,36 @@ serve(async (req) => {
     const { 
       baseProductCode, 
       productName,
-      purchasePrice,
-      sellingPrice,
+      purchasePrice: rawPurchasePrice,
+      sellingPrice: rawSellingPrice,
       productImages,
       supplierName,
       selectedAttributeValueIds 
     } = await req.json();
 
+    // Convert prices (multiply by 1000)
+    const purchasePrice = parsePriceAndMultiply(rawPurchasePrice);
+    const sellingPrice = parsePriceAndMultiply(rawSellingPrice);
+
+    console.log('💰 Price conversion:', {
+      raw_purchase: rawPurchasePrice,
+      converted_purchase: purchasePrice,
+      raw_selling: rawSellingPrice,
+      converted_selling: sellingPrice
+    });
+
     if (!baseProductCode || !productName || !selectedAttributeValueIds || selectedAttributeValueIds.length === 0) {
       throw new Error('Missing required parameters');
+    }
+
+    if (purchasePrice <= 0 || sellingPrice <= 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Giá mua và giá bán phải lớn hơn 0' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -159,6 +205,7 @@ serve(async (req) => {
 
     console.log('Creating TPOS variants from order for:', baseProductCode);
     console.log('Product name:', productName);
+    console.log('Prices to send to TPOS:', { purchasePrice, sellingPrice });
     console.log('Selected attribute value IDs:', selectedAttributeValueIds);
 
     // 1. Query attribute values
@@ -600,7 +647,9 @@ serve(async (req) => {
     console.log('Parent product constructed:', {
       product_code: parentProduct.product_code,
       product_name: parentProduct.product_name,
-      variant: parentProduct.variant
+      variant: parentProduct.variant,
+      selling_price: parentProduct.selling_price,
+      purchase_price: parentProduct.purchase_price
     });
 
     // 4. Construct child products
@@ -624,6 +673,13 @@ serve(async (req) => {
     });
 
     console.log('Child products constructed:', childProducts.length);
+    if (childProducts.length > 0) {
+      console.log('💰 Sample child product price:', {
+        variant: childProducts[0].variant,
+        selling_price: childProducts[0].selling_price,
+        purchase_price: childProducts[0].purchase_price
+      });
+    }
 
     // 5. Upsert to Supabase
     try {
