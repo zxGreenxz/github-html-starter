@@ -28,6 +28,22 @@ interface Product {
   product_code: string;
   selling_price: number;
   purchase_price: number;
+  product_images: string[] | null;
+}
+
+// Convert image URL to base64
+async function imageUrlToBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    return base64;
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    return null;
+  }
 }
 
 // Generate Cartesian product of arrays
@@ -77,10 +93,10 @@ serve(async (req) => {
     console.log('Creating TPOS variants for:', baseProductCode);
     console.log('Selected attribute value IDs:', selectedAttributeValueIds);
 
-    // 1. Query product gốc
+    // 1. Query product gốc (including images)
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('product_name, product_code, selling_price, purchase_price')
+      .select('product_name, product_code, selling_price, purchase_price, product_images')
       .eq('product_code', baseProductCode)
       .single();
 
@@ -164,31 +180,84 @@ serve(async (req) => {
       };
     });
 
-    // 7. Build ProductVariants
+    // 7. Build ProductVariants with complete fields
     const productVariants = allCombinations.map(combo => {
-      const variantName = `${product.product_name} (${combo.map(v => v.value).join(", ")})`;
+      const variantName = `${baseProductCode} (${combo.map(v => v.value).join(", ")})`;
 
       return {
         Id: 0,
-        Name: variantName,
-        NameGet: variantName,
-        NameTemplate: product.product_name,
-        NameTemplateNoSign: product.product_name,
-        ListPrice: 0,
-        PurchasePrice: null,
-        Active: true,
-        SaleOK: true,
-        PurchaseOK: true,
+        EAN13: null,
         DefaultCode: null,
+        NameTemplate: baseProductCode,
+        NameNoSign: null,
         ProductTmplId: 0,
         UOMId: 0,
-        CategId: 0,
-        Tracking: null,
-        Type: "product",
-        InvoicePolicy: "order",
-        PurchaseMethod: "receive",
-        AvailableInPOS: true,
+        UOMName: null,
+        UOMPOId: 0,
+        QtyAvailable: 0,
+        VirtualAvailable: 0,
+        OutgoingQty: null,
+        IncomingQty: null,
+        NameGet: variantName,
+        POSCategId: null,
+        Price: null,
+        Barcode: null,
+        Image: null,
+        ImageUrl: null,
+        Thumbnails: [],
         PriceVariant: product.selling_price,
+        SaleOK: true,
+        PurchaseOK: true,
+        DisplayAttributeValues: null,
+        LstPrice: 0,
+        Active: true,
+        ListPrice: 0,
+        PurchasePrice: null,
+        DiscountSale: null,
+        DiscountPurchase: null,
+        StandardPrice: 0,
+        Weight: 0,
+        Volume: null,
+        OldPrice: null,
+        IsDiscount: false,
+        ProductTmplEnableAll: false,
+        Version: 0,
+        Description: null,
+        LastUpdated: null,
+        Type: "product",
+        CategId: 0,
+        CostMethod: null,
+        InvoicePolicy: "order",
+        Variant_TeamId: 0,
+        Name: variantName,
+        PropertyCostMethod: null,
+        PropertyValuation: null,
+        PurchaseMethod: "receive",
+        SaleDelay: 0,
+        Tracking: null,
+        Valuation: null,
+        AvailableInPOS: true,
+        CompanyId: null,
+        IsCombo: null,
+        NameTemplateNoSign: baseProductCode,
+        TaxesIds: [],
+        StockValue: null,
+        SaleValue: null,
+        PosSalesCount: null,
+        Factor: null,
+        CategName: null,
+        AmountTotal: null,
+        NameCombos: [],
+        RewardName: null,
+        Product_UOMId: null,
+        Tags: null,
+        DateCreated: null,
+        InitInventory: 0,
+        OrderTag: null,
+        StringExtraProperties: null,
+        CreatedById: null,
+        TaxAmount: null,
+        Error: null,
         AttributeValues: combo.map(v => {
           const attr = attributeMap.get(v.attribute_id);
           return {
@@ -206,28 +275,110 @@ serve(async (req) => {
       };
     });
 
-    // 8. Build full payload
+    // 8. Convert image to base64 if available
+    let imageBase64: string | null = null;
+    if (product.product_images && product.product_images.length > 0) {
+      console.log('Converting product image to base64...');
+      imageBase64 = await imageUrlToBase64(product.product_images[0]);
+    }
+
+    // 9. Build full payload with all required fields
     const payload = {
       Id: 0,
-      Name: product.product_name,
-      DefaultCode: baseProductCode,
+      Name: baseProductCode,
+      NameNoSign: null,
+      Description: null,
       Type: "product",
+      ShowType: "Có thể lưu trữ",
       ListPrice: product.selling_price,
+      DiscountSale: 0,
+      DiscountPurchase: 0,
       PurchasePrice: product.purchase_price,
-      Active: true,
+      StandardPrice: 0,
       SaleOK: true,
       PurchaseOK: true,
-      CategId: 2,
+      Active: true,
       UOMId: 1,
+      UOMName: null,
       UOMPOId: 1,
+      UOMPOName: null,
+      UOSId: null,
+      IsProductVariant: false,
+      EAN13: null,
+      DefaultCode: baseProductCode,
+      QtyAvailable: 0,
+      VirtualAvailable: 0,
+      OutgoingQty: 0,
+      IncomingQty: 0,
+      PropertyCostMethod: null,
+      CategId: 2,
+      CategCompleteName: null,
+      CategName: null,
+      Weight: 0,
       Tracking: "none",
+      DescriptionPurchase: null,
+      DescriptionSale: null,
+      CompanyId: 1,
+      NameGet: null,
+      PropertyStockProductionId: null,
+      SaleDelay: 0,
       InvoicePolicy: "order",
       PurchaseMethod: "receive",
+      PropertyValuation: null,
+      Valuation: null,
       AvailableInPOS: true,
+      POSCategId: null,
+      CostMethod: null,
       Barcode: baseProductCode,
+      Image: imageBase64,
+      ImageUrl: null,
+      Thumbnails: [],
+      ProductVariantCount: productVariants.length,
+      LastUpdated: null,
+      UOMCategId: null,
+      BOMCount: 0,
+      Volume: null,
+      CategNameNoSign: null,
+      UOMNameNoSign: null,
+      UOMPONameNoSign: null,
+      IsCombo: false,
+      EnableAll: false,
+      ComboPurchased: null,
+      TaxAmount: null,
+      Version: 0,
+      VariantFirstId: null,
+      VariantFistId: null,
+      ZaloProductId: null,
+      CompanyName: null,
+      CompanyNameNoSign: null,
+      DateCreated: null,
+      InitInventory: 0,
+      UOMViewId: null,
+      ImporterId: null,
+      ImporterName: null,
+      ImporterAddress: null,
+      ProducerId: null,
+      ProducerName: null,
+      ProducerAddress: null,
+      DistributorId: null,
+      DistributorName: null,
+      DistributorAddress: null,
+      OriginCountryId: null,
+      OriginCountryName: null,
+      InfoWarning: null,
+      Element: null,
+      YearOfManufacture: null,
+      Specifications: null,
+      Tags: null,
+      CreatedByName: null,
+      OrderTag: null,
+      StringExtraProperties: null,
+      CreatedById: null,
+      Error: null,
       UOM: {
         Id: 1,
         Name: "Cái",
+        NameNoSign: null,
         Rounding: 0.001,
         Active: true,
         Factor: 1,
@@ -235,6 +386,7 @@ serve(async (req) => {
         UOMType: "reference",
         CategoryId: 1,
         CategoryName: "Đơn vị",
+        Description: null,
         ShowUOMType: "Đơn vị gốc của nhóm này",
         NameGet: "Cái",
         ShowFactor: 1,
@@ -244,14 +396,29 @@ serve(async (req) => {
         Id: 2,
         Name: "Có thể bán",
         CompleteName: "Có thể bán",
+        ParentId: null,
+        ParentCompleteName: null,
+        ParentLeft: 0,
+        ParentRight: 1,
+        Sequence: null,
         Type: "normal",
+        AccountIncomeCategId: null,
+        AccountExpenseCategId: null,
+        StockJournalId: null,
+        StockAccountInputCategId: null,
+        StockAccountOutputCategId: null,
+        StockValuationAccountId: null,
+        PropertyValuation: null,
         PropertyCostMethod: "average",
         NameNoSign: "Co the ban",
-        IsPos: true
+        IsPos: true,
+        Version: null,
+        IsDelete: false
       },
       UOMPO: {
         Id: 1,
         Name: "Cái",
+        NameNoSign: null,
         Rounding: 0.001,
         Active: true,
         Factor: 1,
@@ -259,17 +426,18 @@ serve(async (req) => {
         UOMType: "reference",
         CategoryId: 1,
         CategoryName: "Đơn vị",
+        Description: null,
         ShowUOMType: "Đơn vị gốc của nhóm này",
         NameGet: "Cái",
         ShowFactor: 1,
         DateCreated: "2018-05-25T15:44:44.14+07:00"
       },
       AttributeLines: attributeLines,
-      ProductVariants: productVariants,
       Items: [],
       UOMLines: [],
       ComboProducts: [],
-      ProductSupplierInfos: []
+      ProductSupplierInfos: [],
+      ProductVariants: productVariants
     };
 
     console.log('Payload built, posting to TPOS...');
@@ -289,8 +457,11 @@ serve(async (req) => {
       throw new Error('TPOS credentials not found');
     }
 
-    // 10. POST to TPOS
-    const tposResponse = await fetch('https://tomato.tpos.vn/odata/ProductTemplate', {
+    // 10. POST to TPOS using InsertV2 endpoint
+    const tposUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
+    console.log('Posting to TPOS URL:', tposUrl);
+    
+    const tposResponse = await fetch(tposUrl, {
       method: 'POST',
       headers: getTPOSHeaders(credentials.bearer_token),
       body: JSON.stringify(payload)
