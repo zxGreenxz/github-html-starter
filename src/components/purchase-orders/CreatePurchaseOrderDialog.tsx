@@ -1264,6 +1264,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             ? items[variantGeneratorIndex]?.product_code 
             : undefined
         }
+        productInfo={
+          variantGeneratorIndex !== null
+            ? {
+                productName: items[variantGeneratorIndex].product_name,
+                purchasePrice: Number(items[variantGeneratorIndex].purchase_price),
+                sellingPrice: Number(items[variantGeneratorIndex].selling_price),
+                productImages: items[variantGeneratorIndex].product_images,
+                supplierName: formData.supplier_name
+              }
+            : undefined
+        }
         onSubmit={(result) => {
           if (variantGeneratorIndex !== null) {
             // Update both variant and quantity in a single batch

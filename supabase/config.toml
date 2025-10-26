@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.create-tpos-variants]
 verify_jwt = false
+
+[functions.create-tpos-variants-from-order]
+verify_jwt = false

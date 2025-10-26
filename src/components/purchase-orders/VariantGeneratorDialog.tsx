@@ -16,6 +16,13 @@ interface VariantGeneratorDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (result: { variantString: string; totalQuantity: number }) => void;
   productCode?: string;
+  productInfo?: {
+    productName: string;
+    purchasePrice: number;
+    sellingPrice: number;
+    productImages: string[];
+    supplierName: string;
+  };
 }
 
 export function VariantGeneratorDialog({
@@ -23,6 +30,7 @@ export function VariantGeneratorDialog({
   onOpenChange,
   onSubmit,
   productCode,
+  productInfo,
 }: VariantGeneratorDialogProps) {
   const [selectedValues, setSelectedValues] = useState<Record<string, string[]>>({});
   const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
@@ -92,8 +100,8 @@ export function VariantGeneratorDialog({
       .map((values) => values.length)
       .reduce((acc, count) => acc * count, 1);
 
-    // Tạo lên TPOS nếu có productCode
-    if (productCode) {
+    // Tạo lên TPOS nếu có productCode và productInfo
+    if (productCode && productInfo) {
       try {
         // Duyệt theo thứ tự attributes (đã sort theo display_order) để giữ đúng thứ tự user chọn
         const selectedAttributeValueIds = attributes
@@ -108,9 +116,14 @@ export function VariantGeneratorDialog({
         
         toast.loading("Đang tạo biến thể lên TPOS...");
         
-        const { data, error } = await supabase.functions.invoke('create-tpos-variants', {
+        const { data, error } = await supabase.functions.invoke('create-tpos-variants-from-order', {
           body: {
             baseProductCode: productCode,
+            productName: productInfo.productName,
+            purchasePrice: productInfo.purchasePrice,
+            sellingPrice: productInfo.sellingPrice,
+            productImages: productInfo.productImages,
+            supplierName: productInfo.supplierName,
             selectedAttributeValueIds
           }
         });
