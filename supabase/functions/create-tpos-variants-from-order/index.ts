@@ -108,17 +108,36 @@ serve(async (req) => {
 
     // 2. Query attributes để lấy tên và display_order
     const attributeIds = [...new Set(attributeValues.map(v => v.attribute_id))];
+    
+    console.log('Attribute IDs to fetch:', attributeIds);
+    console.log('Number of unique attributes:', attributeIds.length);
+    
+    if (attributeIds.length === 0) {
+      throw new Error('No attribute IDs found in selected attribute values');
+    }
+
     const { data: attributes, error: attrError } = await supabase
       .from('product_attributes')
       .select('id, name, display_order')
       .in('id', attributeIds)
       .order('display_order', { ascending: true });
 
-    if (attrError || !attributes) {
-      throw new Error('Failed to fetch attributes');
+    console.log('Fetch attributes result:', {
+      error: attrError,
+      count: attributes?.length,
+      data: attributes
+    });
+
+    if (attrError) {
+      console.error('Supabase error details:', attrError);
+      throw new Error(`Failed to fetch attributes from database: ${attrError.message}`);
     }
 
-    console.log('Attributes found:', attributes.length);
+    if (!attributes || attributes.length === 0) {
+      throw new Error(`No attributes found for IDs: ${attributeIds.join(', ')}`);
+    }
+
+    console.log('Attributes successfully fetched:', attributes.length);
 
     // Map attribute names
     const attributeMap = new Map(attributes.map(a => [a.id, a]));
