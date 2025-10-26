@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.refresh-tpos-token]
 verify_jwt = false
+
+[functions.create-tpos-variants]
+verify_jwt = false

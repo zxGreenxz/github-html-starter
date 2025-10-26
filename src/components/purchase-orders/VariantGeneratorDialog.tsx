@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X } from "lucide-react";
 import { useProductAttributes } from "@/hooks/use-product-attributes";
-import { toast } from "@/hooks/use-toast";
+import { toast as oldToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VariantGeneratorDialogProps {
   open: boolean;
@@ -69,9 +71,9 @@ export function VariantGeneratorDialog({
   }, [selectedValues]);
 
   // Handle submit
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (totalQuantity === 0) {
-      toast({
+      oldToast({
         title: "Chưa chọn giá trị",
         description: "Vui lòng chọn ít nhất một giá trị thuộc tính",
         variant: "destructive",
@@ -89,6 +91,44 @@ export function VariantGeneratorDialog({
       .filter((values) => values.length > 0)
       .map((values) => values.length)
       .reduce((acc, count) => acc * count, 1);
+
+    // Tạo lên TPOS nếu có productCode
+    if (productCode) {
+      try {
+        const selectedAttributeValueIds = Object.values(selectedValues)
+          .flatMap(values => 
+            values.map(valueName => {
+              const attrValue = attributeValues.find(av => av.value === valueName);
+              return attrValue?.id;
+            })
+          )
+          .filter(Boolean) as string[];
+        
+        toast.loading("Đang tạo biến thể lên TPOS...");
+        
+        const { data, error } = await supabase.functions.invoke('create-tpos-variants', {
+          body: {
+            baseProductCode: productCode,
+            selectedAttributeValueIds
+          }
+        });
+
+        toast.dismiss();
+
+        if (error) throw error;
+
+        if (data?.success) {
+          toast.success(data.message || "Tạo biến thể thành công");
+          console.log('TPOS Product ID:', data.tpos_product_id);
+        } else {
+          throw new Error(data?.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error creating TPOS variants:', error);
+        toast.error(error instanceof Error ? error.message : "Lỗi khi tạo biến thể");
+        return;
+      }
+    }
 
     // Submit with captured values - not dependent on useMemo
     onSubmit({
