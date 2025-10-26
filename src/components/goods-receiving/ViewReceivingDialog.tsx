@@ -21,6 +21,7 @@ interface ViewReceivingDialogProps {
 
 export function ViewReceivingDialog({ open, onOpenChange, orderId }: ViewReceivingDialogProps) {
   const [receivingData, setReceivingData] = useState<any>(null);
+  const [itemImages, setItemImages] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,8 +42,8 @@ export function ViewReceivingDialog({ open, onOpenChange, orderId }: ViewReceivi
           items:goods_receiving_items(
             *,
             purchase_order_item:purchase_order_items(
-              product_id,
-              products(product_images)
+              product_images,
+              product_code
             )
           )
         `)
@@ -55,6 +56,36 @@ export function ViewReceivingDialog({ open, onOpenChange, orderId }: ViewReceivi
         return;
       }
       setReceivingData(data);
+
+      // Load fallback images from products table if needed
+      const images: Record<string, string | null> = {};
+      for (const item of data.items || []) {
+        // Skip if already has image from purchase_order_item
+        if (item.purchase_order_item?.product_images?.[0]) {
+          continue;
+        }
+
+        // Try to fetch from products table using product_code
+        const productCode = item.purchase_order_item?.product_code || item.product_code;
+        if (productCode) {
+          try {
+            const { data: productData } = await supabase
+              .from('products')
+              .select('product_images, tpos_image_url')
+              .eq('product_code', productCode)
+              .maybeSingle();
+
+            if (productData?.product_images?.[0]) {
+              images[item.id] = productData.product_images[0];
+            } else if (productData?.tpos_image_url) {
+              images[item.id] = productData.tpos_image_url;
+            }
+          } catch (err) {
+            console.error('Error fetching product image:', err);
+          }
+        }
+      }
+      setItemImages(images);
     } catch (error: any) {
       console.error('Error fetching receiving data:', error);
       setError(error.message || 'Có lỗi xảy ra khi tải dữ liệu');
@@ -184,17 +215,24 @@ export function ViewReceivingDialog({ open, onOpenChange, orderId }: ViewReceivi
                     {receivingData.items?.map((item: any) => (
                       <tr key={item.id} className={getRowClassName(item)}>
                         <td className="p-3">
-                          {item.purchase_order_item?.products?.product_images?.[0] ? (
-                            <img 
-                              src={item.purchase_order_item.products.product_images[0]} 
-                              alt={item.product_name}
-                              className="w-16 h-16 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-muted rounded border flex items-center justify-center">
-                              <span className="text-xs text-muted-foreground">No image</span>
-                            </div>
-                          )}
+                          {(() => {
+                            const directImage = item.purchase_order_item?.product_images?.[0];
+                            const fallbackImage = itemImages[item.id];
+                            const imageUrl = directImage || fallbackImage;
+
+                            return imageUrl ? (
+                              <img 
+                                src={imageUrl}
+                                alt={item.product_name}
+                                className="w-16 h-16 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-150 hover:z-50 relative origin-left"
+                                title={directImage ? "Từ đơn hàng" : "Từ kho"}
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-muted rounded border flex items-center justify-center">
+                                <span className="text-xs text-muted-foreground">No image</span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="p-3">
                           <div className="text-sm font-medium">{item.product_name}</div>
