@@ -21,7 +21,6 @@ interface Attribute {
   id: string;
   name: string;
   display_order: number;
-  tpos_id?: number;
 }
 
 // Convert image URL to base64
@@ -111,7 +110,7 @@ serve(async (req) => {
     const attributeIds = [...new Set(attributeValues.map(v => v.attribute_id))];
     const { data: attributes, error: attrError } = await supabase
       .from('product_attributes')
-      .select('id, name, display_order, tpos_id')
+      .select('id, name, display_order')
       .in('id', attributeIds)
       .order('display_order', { ascending: true });
 
