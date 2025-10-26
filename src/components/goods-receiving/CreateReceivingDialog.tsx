@@ -47,10 +47,10 @@ export function CreateReceivingDialog({ open, onOpenChange, order, onSuccess }: 
     if (open && order) {
       setItems(order.items?.map((item: any) => ({
         ...item,
-        product_name: item.product?.product_name,
-        product_code: item.product?.product_code,
-        variant: item.product?.variant,
-        product_images: item.product?.product_images,
+        product_name: item.product_name,
+        product_code: item.product_code,
+        variant: item.variant,
+        product_images: item.product_images,
         received_quantity: item.quantity,
         item_notes: ""
       })) || []);
