@@ -72,7 +72,7 @@ function parseParentVariant(productVariants: any[]): string {
   for (const variant of productVariants) {
     const match = variant.Name?.match(/\(([^)]+)\)/);
     if (match) {
-      const parts = match[1].split(',').map(p => p.trim());
+      const parts = match[1].split(',').map((p: string) => p.trim());
       allParts.push(parts);
     }
   }
@@ -565,11 +565,12 @@ serve(async (req) => {
     try {
       tposImageBase64 = await imageUrlToBase64WithRetry(tposData.Image || tposData.ImageUrl);
     } catch (error) {
-      console.error('Critical error: Image conversion failed after retries');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Critical error: Image conversion failed after retries:', errorMessage);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Failed to process product image: ${error}`,
+          error: `Failed to process product image: ${errorMessage}`,
           tpos_product_id: tposData.Id
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -637,7 +638,7 @@ serve(async (req) => {
 
       if (parentError) {
         console.error('Parent product upsert failed:', parentError);
-        throw new Error(`Failed to save parent product: ${parentError.message}`);
+        throw parentError;
       }
 
       console.log('✓ Parent product saved successfully');
@@ -654,19 +655,20 @@ serve(async (req) => {
 
         if (childError) {
           console.error('Child products upsert failed:', childError);
-          throw new Error(`Failed to save child products: ${childError.message}`);
+          throw childError;
         }
 
         console.log(`✓ ${childProducts.length} child products saved successfully`);
       }
 
     } catch (dbError) {
-      console.error('Database operation failed:', dbError);
+      const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+      console.error('Database operation failed:', errorMessage);
       
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Database save failed: ${dbError.message}`,
+          error: `Database save failed: ${errorMessage}`,
           tpos_product_id: tposData.Id,
           tposData: tposData
         }),
