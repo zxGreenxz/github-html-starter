@@ -731,6 +731,9 @@ export type Database = {
           is_active: boolean
           name_get: string | null
           price_extra: number | null
+          sequence: number | null
+          tpos_attribute_id: number | null
+          tpos_id: number | null
           updated_at: string
           value: string
         }
@@ -743,6 +746,9 @@ export type Database = {
           is_active?: boolean
           name_get?: string | null
           price_extra?: number | null
+          sequence?: number | null
+          tpos_attribute_id?: number | null
+          tpos_id?: number | null
           updated_at?: string
           value: string
         }
@@ -755,6 +761,9 @@ export type Database = {
           is_active?: boolean
           name_get?: string | null
           price_extra?: number | null
+          sequence?: number | null
+          tpos_attribute_id?: number | null
+          tpos_id?: number | null
           updated_at?: string
           value?: string
         }

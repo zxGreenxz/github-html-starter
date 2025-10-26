@@ -98,7 +98,7 @@ export function ImportAttributesDialog({ open, onOpenChange }: ImportAttributesD
           continue;
         }
 
-        // 3. Insert attribute value với đầy đủ các trường
+        // 3. Insert attribute value với đầy đủ các trường TPOS
         const { error: valueError } = await supabase
           .from("product_attribute_values")
           .insert({
@@ -110,6 +110,9 @@ export function ImportAttributesDialog({ open, onOpenChange }: ImportAttributesD
             display_order: item.Sequence || 0,
             created_at: item.DateCreated || new Date().toISOString(),
             is_active: true,
+            tpos_id: item.Id,
+            tpos_attribute_id: item.AttributeId,
+            sequence: item.Sequence || 0,
           });
         
         if (valueError) throw valueError;
