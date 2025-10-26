@@ -118,12 +118,13 @@ serve(async (req) => {
 
     console.log('Attribute values found:', attributeValues.length);
 
-    // 3. Query attributes để lấy tên
+    // 3. Query attributes để lấy tên và display_order
     const attributeIds = [...new Set(attributeValues.map(v => v.attribute_id))];
     const { data: attributes, error: attrError } = await supabase
       .from('product_attributes')
-      .select('id, name')
-      .in('id', attributeIds);
+      .select('id, name, display_order')
+      .in('id', attributeIds)
+      .order('display_order', { ascending: true });
 
     if (attrError || !attributes) {
       throw new Error('Failed to fetch attributes');
@@ -134,7 +135,7 @@ serve(async (req) => {
     // Map attribute names
     const attributeMap = new Map(attributes.map(a => [a.id, a]));
 
-    // 4. Group values by attribute
+    // 4. Group values by attribute, giữ nguyên thứ tự từ selectedAttributeValueIds
     const groupedByAttribute: Record<string, AttributeValue[]> = {};
     for (const value of attributeValues) {
       if (!groupedByAttribute[value.attribute_id]) {
@@ -145,44 +146,50 @@ serve(async (req) => {
 
     console.log('Grouped by attribute:', Object.keys(groupedByAttribute).length, 'attributes');
 
-    // 5. Generate all combinations
-    const attributeGroups = Object.values(groupedByAttribute);
+    // 5. Generate all combinations theo thứ tự display_order của attributes
+    // Duyệt theo thứ tự attributes đã được sort
+    const attributeGroups = attributes
+      .map(attr => groupedByAttribute[attr.id])
+      .filter(group => group && group.length > 0);
+    
     const allCombinations = generateCombinations(attributeGroups);
 
     console.log('Total combinations:', allCombinations.length);
 
-    // 6. Build AttributeLines
-    const attributeLines = Object.keys(groupedByAttribute).map(attrId => {
-      const attr = attributeMap.get(attrId);
-      const values = groupedByAttribute[attrId];
-      const firstValue = values[0];
+    // 6. Build AttributeLines theo thứ tự display_order
+    const attributeLines = attributes
+      .filter(attr => groupedByAttribute[attr.id])
+      .map(attr => {
+        const values = groupedByAttribute[attr.id];
+        const firstValue = values[0];
 
-      return {
-        Attribute: {
-          Id: firstValue.tpos_attribute_id,
-          Name: attr?.name || '',
-          Code: attr?.name || '',
-          Sequence: null,
-          CreateVariant: true
-        },
-        Values: values.map(v => ({
-          Id: v.tpos_id,
-          Name: v.value,
-          Code: v.code,
-          Sequence: v.sequence,
-          AttributeId: v.tpos_attribute_id,
-          AttributeName: attr?.name || '',
-          PriceExtra: null,
-          NameGet: v.name_get,
-          DateCreated: null
-        })),
-        AttributeId: firstValue.tpos_attribute_id
-      };
-    });
+        return {
+          Attribute: {
+            Id: firstValue.tpos_attribute_id,
+            Name: attr.name,
+            Code: attr.name,
+            Sequence: null,
+            CreateVariant: true
+          },
+          Values: values.map(v => ({
+            Id: v.tpos_id,
+            Name: v.value,
+            Code: v.code,
+            Sequence: v.sequence,
+            AttributeId: v.tpos_attribute_id,
+            AttributeName: attr.name,
+            PriceExtra: null,
+            NameGet: v.name_get,
+            DateCreated: null
+          })),
+          AttributeId: firstValue.tpos_attribute_id
+        };
+      });
 
     // 7. Build ProductVariants with complete fields
     const productVariants = allCombinations.map(combo => {
-      const variantName = `${baseProductCode} (${combo.map(v => v.value).join(", ")})`;
+      // Đảo ngược thứ tự khi tạo tên variant
+      const variantName = `${baseProductCode} (${[...combo].reverse().map(v => v.value).join(", ")})`;
 
       return {
         Id: 0,

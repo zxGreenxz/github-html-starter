@@ -95,10 +95,12 @@ export function VariantGeneratorDialog({
     // Tạo lên TPOS nếu có productCode
     if (productCode) {
       try {
-        const selectedAttributeValueIds = Object.values(selectedValues)
-          .flatMap(values => 
-            values.map(valueName => {
-              const attrValue = attributeValues.find(av => av.value === valueName);
+        // Duyệt theo thứ tự attributes (đã sort theo display_order) để giữ đúng thứ tự user chọn
+        const selectedAttributeValueIds = attributes
+          .filter(attr => selectedValues[attr.id] && selectedValues[attr.id].length > 0)
+          .flatMap(attr => 
+            selectedValues[attr.id].map(valueName => {
+              const attrValue = attributeValues.find(av => av.value === valueName && av.attribute_id === attr.id);
               return attrValue?.id;
             })
           )
