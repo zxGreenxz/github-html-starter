@@ -38,6 +38,73 @@ async function imageUrlToBase64(url: string): Promise<string | null> {
   }
 }
 
+// Convert image URL to base64 with retry
+async function imageUrlToBase64WithRetry(url: string | null, maxRetries = 2): Promise<string | null> {
+  if (!url) return null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempting to convert image (attempt ${attempt}/${maxRetries}):`, url);
+      const base64 = await imageUrlToBase64(url);
+      if (base64) {
+        console.log('Image conversion successful');
+        return base64;
+      }
+    } catch (error) {
+      console.error(`Image conversion failed (attempt ${attempt}/${maxRetries}):`, error);
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to convert image after ${maxRetries} attempts: ${error}`);
+      }
+      // Wait 1 second before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return null;
+}
+
+// Parse parent variant from ProductVariants array
+// Example: ["NTEST (29, S, Trắng)", "NTEST (30, M, Đen)"] → "(Trắng | Đen) (29 | 30) (S | M)"
+function parseParentVariant(productVariants: any[]): string {
+  if (!productVariants || productVariants.length === 0) return '';
+  
+  const allParts: string[][] = [];
+  
+  for (const variant of productVariants) {
+    const match = variant.Name?.match(/\(([^)]+)\)/);
+    if (match) {
+      const parts = match[1].split(',').map(p => p.trim());
+      allParts.push(parts);
+    }
+  }
+  
+  if (allParts.length === 0) return '';
+  
+  // Group by position
+  const numAttributes = allParts[0].length;
+  const grouped: string[][] = Array(numAttributes).fill(null).map(() => []);
+  
+  for (const parts of allParts) {
+    parts.forEach((part, index) => {
+      if (index < grouped.length && !grouped[index].includes(part)) {
+        grouped[index].push(part);
+      }
+    });
+  }
+  
+  // Format each group
+  return grouped
+    .filter(group => group.length > 0)
+    .map(group => `(${group.join(' | ')})`)
+    .join(' ');
+}
+
+// Parse child variant from product name
+// Example: "NTEST (29, S, Trắng)" → "29, S, Trắng"
+function parseChildVariant(productName: string): string {
+  const match = productName?.match(/\(([^)]+)\)/);
+  return match ? match[1] : '';
+}
+
 // Generate Cartesian product of arrays
 function generateCombinations(arrays: AttributeValue[][]): AttributeValue[][] {
   if (arrays.length === 0) return [];
@@ -490,12 +557,141 @@ serve(async (req) => {
     const tposData = await tposResponse.json();
     console.log('TPOS response received, product ID:', tposData.Id);
 
+    // ============ SAVE TO SUPABASE ============
+    console.log('Starting to save products to Supabase...');
+
+    // 1. Convert image URL to base64 with retry
+    let tposImageBase64: string | null = null;
+    try {
+      tposImageBase64 = await imageUrlToBase64WithRetry(tposData.Image || tposData.ImageUrl);
+    } catch (error) {
+      console.error('Critical error: Image conversion failed after retries');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to process product image: ${error}`,
+          tpos_product_id: tposData.Id
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
+    // 2. Parse parent variant
+    const parentVariant = parseParentVariant(tposData.ProductVariants || []);
+    console.log('Parsed parent variant:', parentVariant);
+
+    // 3. Construct parent product
+    const parentProduct = {
+      product_code: tposData.DefaultCode,
+      base_product_code: tposData.DefaultCode,
+      tpos_product_id: tposData.Id,
+      product_name: tposData.Name,
+      variant: parentVariant,
+      selling_price: tposData.ListPrice,
+      purchase_price: tposData.PurchasePrice,
+      stock_quantity: tposData.QtyAvailable || 0,
+      virtual_available: tposData.VirtualAvailable || 0,
+      tpos_image_url: tposImageBase64,
+      product_images: productImages,
+      supplier_name: supplierName
+    };
+
+    console.log('Parent product constructed:', {
+      product_code: parentProduct.product_code,
+      product_name: parentProduct.product_name,
+      variant: parentProduct.variant
+    });
+
+    // 4. Construct child products
+    const childProducts = (tposData.ProductVariants || []).map((variant: any) => {
+      const childVariant = parseChildVariant(variant.Name);
+      return {
+        product_code: variant.DefaultCode,
+        base_product_code: tposData.DefaultCode,
+        productid_bienthe: variant.Id,
+        tpos_product_id: variant.ProductTmplId,
+        product_name: variant.Name,
+        variant: childVariant,
+        selling_price: variant.PriceVariant,
+        purchase_price: tposData.PurchasePrice,
+        stock_quantity: variant.QtyAvailable || 0,
+        virtual_available: variant.VirtualAvailable || 0,
+        tpos_image_url: tposImageBase64,
+        product_images: productImages,
+        supplier_name: supplierName
+      };
+    });
+
+    console.log('Child products constructed:', childProducts.length);
+
+    // 5. Upsert to Supabase
+    try {
+      // Upsert parent product
+      console.log('Upserting parent product...');
+      const { error: parentError } = await supabase
+        .from('products')
+        .upsert(parentProduct, { 
+          onConflict: 'product_code',
+          ignoreDuplicates: false
+        });
+
+      if (parentError) {
+        console.error('Parent product upsert failed:', parentError);
+        throw new Error(`Failed to save parent product: ${parentError.message}`);
+      }
+
+      console.log('✓ Parent product saved successfully');
+
+      // Batch upsert child products
+      if (childProducts.length > 0) {
+        console.log('Upserting child products...');
+        const { error: childError } = await supabase
+          .from('products')
+          .upsert(childProducts, { 
+            onConflict: 'product_code',
+            ignoreDuplicates: false
+          });
+
+        if (childError) {
+          console.error('Child products upsert failed:', childError);
+          throw new Error(`Failed to save child products: ${childError.message}`);
+        }
+
+        console.log(`✓ ${childProducts.length} child products saved successfully`);
+      }
+
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Database save failed: ${dbError.message}`,
+          tpos_product_id: tposData.Id,
+          tposData: tposData
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
+    // 6. Success response
+    console.log('All operations completed successfully');
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `✅ Đã tạo ${productVariants.length} biến thể trên TPOS`,
-        tpos_product_id: tposData.Id,
-        variant_count: productVariants.length
+        message: `✅ Đã tạo ${productVariants.length} biến thể trên TPOS và lưu vào database`,
+        data: {
+          tpos: {
+            product_id: tposData.Id,
+            product_code: tposData.DefaultCode,
+            variant_count: tposData.ProductVariants?.length || 0
+          },
+          database: {
+            parent_saved: 1,
+            children_saved: childProducts.length
+          }
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
