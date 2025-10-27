@@ -1513,7 +1513,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             : undefined
         }
         productInfo={
-          variantGeneratorIndex !== null
+          variantGeneratorIndex !== null && items[variantGeneratorIndex]
             ? {
                 productName: items[variantGeneratorIndex].product_name,
                 purchasePrice: Number(items[variantGeneratorIndex].purchase_price),
