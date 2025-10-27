@@ -41,6 +41,7 @@ export const SystemDocumentation = () => {
                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                       <li><strong>Frontend:</strong> React + TypeScript + Vite</li>
                       <li><strong>Backend:</strong> Supabase (Database + Auth + Edge Functions)</li>
+                      <li><strong>Mobile Support:</strong> Responsive design + Capacitor (iOS/Android build ready)</li>
                       <li><strong>UI Library:</strong> shadcn/ui + Tailwind CSS</li>
                       <li><strong>State Management:</strong> React Query + Context API</li>
                       <li><strong>Routing:</strong> React Router v6</li>
@@ -93,10 +94,25 @@ export const SystemDocumentation = () => {
                       <p className="font-medium mb-1">Chức năng:</p>
                       <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                         <li>Tạo đơn đặt hàng từ nhà cung cấp</li>
-                        <li>Quản lý danh sách đơn hàng (pending, processing, completed)</li>
-                        <li>Thêm/sửa/xóa sản phẩm trong đơn hàng</li>
+                        <li><strong>Tạo biến thể sản phẩm (Variant Generator):</strong>
+                          <ul className="list-circle list-inside ml-4 mt-1">
+                            <li>Chọn thuộc tính từ <code>product_attributes</code> và <code>product_attribute_values</code></li>
+                            <li>Tính tổng số biến thể (Cartesian Product)</li>
+                            <li>Gọi Edge Function <code>create-tpos-variants-from-order</code></li>
+                            <li>Tự động tạo parent + children trên TPOS</li>
+                            <li>Lưu <code>tpos_product_id</code> và <code>productid_bienthe</code> vào database</li>
+                          </ul>
+                        </li>
                         <li>Upload hình ảnh sản phẩm</li>
                         <li>Import sản phẩm từ Excel</li>
+                        <li><strong>Export 2 loại Excel:</strong>
+                          <ul className="list-circle list-inside ml-4 mt-1">
+                            <li><code>TaoMaSP_&#123;dd-mm&#125;.xlsx</code>: Template TPOS (17 columns)</li>
+                            <li><code>MuaHang_&#123;Supplier&#125;_&#123;dd-mm&#125;.xlsx</code>: Import TPOS (4 columns)</li>
+                          </ul>
+                        </li>
+                        <li>Quản lý trạng thái: draft, pending, completed</li>
+                        <li>Goods Receiving: Kiểm hàng và cập nhật tồn kho</li>
                         <li>Đồng bộ với TPOS (thông qua tpos_product_id)</li>
                         <li>Thống kê: Tổng đơn, giá trị, đơn hôm nay</li>
                       </ul>
@@ -375,7 +391,11 @@ export const SystemDocumentation = () => {
                     <div className="space-y-2">
                       <div className="bg-muted/50 p-2 rounded">
                         <code className="font-bold">products</code>
-                        <p className="text-xs text-muted-foreground mt-1">Sản phẩm trong kho (product_code, product_name, stock_quantity, tpos_product_id, productid_bienthe)</p>
+                        <p className="text-xs text-muted-foreground mt-1">Sản phẩm trong kho (product_code, product_name, stock_quantity, tpos_product_id, productid_bienthe, base_product_code)</p>
+                      </div>
+                      <div className="bg-muted/50 p-2 rounded">
+                        <code className="font-bold">product_attributes</code> + <code className="font-bold">product_attribute_values</code>
+                        <p className="text-xs text-muted-foreground mt-1">Kho thuộc tính và giá trị (Size, Color, etc.) - Có tpos_id để sync với TPOS</p>
                       </div>
                       <div className="bg-muted/50 p-2 rounded">
                         <code className="font-bold">purchase_orders</code> + <code className="font-bold">purchase_order_items</code>
@@ -388,6 +408,10 @@ export const SystemDocumentation = () => {
                       <div className="bg-muted/50 p-2 rounded">
                         <code className="font-bold">live_sessions</code> + <code className="font-bold">live_phases</code> + <code className="font-bold">live_products</code> + <code className="font-bold">live_orders</code>
                         <p className="text-xs text-muted-foreground mt-1">Phiên live, các ca, sản phẩm, và đơn hàng</p>
+                      </div>
+                      <div className="bg-muted/50 p-2 rounded">
+                        <code className="font-bold">livestream_reports</code>
+                        <p className="text-xs text-muted-foreground mt-1">Báo cáo livestream (views, viewers, orders, conversion rate)</p>
                       </div>
                       <div className="bg-muted/50 p-2 rounded">
                         <code className="font-bold">customers</code>
@@ -443,6 +467,14 @@ export const SystemDocumentation = () => {
                       desc: "Tạo đơn hàng tự động từ Facebook comment"
                     },
                     {
+                      name: "create-tpos-variants",
+                      desc: "Tạo biến thể sản phẩm trên TPOS (deprecated, dùng create-tpos-variants-from-order)"
+                    },
+                    {
+                      name: "create-tpos-variants-from-order",
+                      desc: "Tạo biến thể sản phẩm trên TPOS từ Purchase Order với AttributeLines"
+                    },
+                    {
                       name: "facebook-comments",
                       desc: "Fetch comments từ Facebook Live Video API"
                     },
@@ -471,6 +503,10 @@ export const SystemDocumentation = () => {
                       desc: "Làm mới TPOS Bearer Token khi hết hạn"
                     },
                     {
+                      name: "sync-attribute-value-to-tpos",
+                      desc: "Đồng bộ giá trị thuộc tính lên TPOS (attribute values)"
+                    },
+                    {
                       name: "sync-tpos-images",
                       desc: "Đồng bộ hình ảnh từ TPOS"
                     },
@@ -484,6 +520,397 @@ export const SystemDocumentation = () => {
                       <p className="text-xs text-muted-foreground mt-1">{func.desc}</p>
                     </div>
                   ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* API Endpoints */}
+            <AccordionItem value="api-endpoints">
+              <AccordionTrigger>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">API Documentation</Badge>
+                  <span className="font-semibold">Chi tiết API Endpoints</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-6 text-sm">
+                  {/* TPOS API */}
+                  <div>
+                    <h4 className="font-semibold mb-3 text-base">🔷 TPOS API (https://tomato.tpos.vn)</h4>
+                    
+                    <div className="space-y-4">
+                      {/* Authentication */}
+                      <div className="border-l-2 border-primary pl-4">
+                        <h5 className="font-semibold mb-2">Authentication</h5>
+                        <div className="bg-muted/50 p-3 rounded">
+                          <code className="text-xs">POST /token</code>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Lấy Bearer Token (grant_type: password)
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <strong>Used by:</strong> <code>refresh-tpos-token</code> Edge Function
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Product APIs */}
+                      <div className="border-l-2 border-blue-500 pl-4">
+                        <h5 className="font-semibold mb-2">Product APIs</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/Product/OdataService.GetViewV2</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Search/List products (variants)
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Params:</strong> $filter, $top, $skip, $orderby, $expand, $count
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>searchTPOSProduct()</code>, <code>syncTPOSProductIds()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/ProductTemplate/ODataService.GetViewV2</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Search/List product templates (parent products)
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetchTPOSProducts()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/ProductTemplate(&#123;id&#125;)?$expand=UOM,Categ,Images,ProductVariants($expand=AttributeValues)</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get parent product detail with all variants
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetchTPOSProductDetail()</code>, <code>getProductDetail()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/Product(&#123;productid_bienthe&#125;)?$expand=UOM,Categ,AttributeValues</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get variant detail
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetchTPOSVariantDetail()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded border-l-4 border-green-500">
+                            <code className="text-xs font-bold">POST /odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Create Product with Variants (Main Upload API)</strong>
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Body: Full product payload với AttributeLines, ProductVariants, Base64 images
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>create-tpos-variants-from-order</code> Edge Function, <code>createProductDirectly()</code>
+                            </p>
+                            <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-x-auto">
+{`// Example payload structure
+{
+  "Name": "Product Name",
+  "DefaultCode": "PRD001",
+  "Type": "product",
+  "ListPrice": 150000,
+  "PurchasePrice": 100000,
+  "Image": "base64string...",
+  "AttributeLines": [
+    {
+      "AttributeId": 1,
+      "ValueIds": [10, 11, 12]
+    }
+  ],
+  "ProductVariants": [
+    {
+      "NameGet": "Product (Size M)",
+      "PriceVariant": 150000,
+      "AttributeValues": [10]
+    }
+  ]
+}`}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Order APIs */}
+                      <div className="border-l-2 border-orange-500 pl-4">
+                        <h5 className="font-semibold mb-2">Order APIs</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/SaleOnline_Order/ODataService.GetView</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              List orders (filter by DateCreated, SessionIndex)
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetchTPOSOrdersBySessionIndex()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/SaleOnline_Order(&#123;id&#125;)?$expand=Details,Partner,User,CRMTeam</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get order details with expanded relations
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetchTPOSOrderDetails()</code>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CRM APIs */}
+                      <div className="border-l-2 border-purple-500 pl-4">
+                        <h5 className="font-semibold mb-2">CRM APIs</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/CRMTeam?$top=100&$orderby=Name desc</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get CRM teams list
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetch-crm-teams</code> Edge Function
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /odata/Partner(&#123;idkh&#125;)?$expand=State,Country,CommercialCompany,City,District,Ward</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get customer detail with location info
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>fetch-tpos-customer-detail</code>, <code>fetch-tpos-customer-details-batch</code>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Image Sync */}
+                      <div className="border-l-2 border-pink-500 pl-4">
+                        <h5 className="font-semibold mb-2">Image Sync APIs</h5>
+                        <div className="bg-muted/50 p-3 rounded">
+                          <p className="text-xs text-muted-foreground">
+                            Uses Product APIs above to fetch batch products and compare image data
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <strong>Used by:</strong> <code>check-tpos-images</code>, <code>sync-tpos-images</code> Edge Functions
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Facebook Graph API */}
+                  <div>
+                    <h4 className="font-semibold mb-3 text-base">📘 Facebook Graph API (https://graph.facebook.com)</h4>
+                    
+                    <div className="space-y-4">
+                      {/* Authentication */}
+                      <div className="border-l-2 border-primary pl-4">
+                        <h5 className="font-semibold mb-2">Authentication</h5>
+                        <div className="bg-muted/50 p-3 rounded">
+                          <p className="text-xs text-muted-foreground">
+                            Token stored in <code>tpos_credentials</code> table (token_type: 'facebook')
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Access via: <code>getActiveFacebookToken()</code>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Live Video APIs */}
+                      <div className="border-l-2 border-blue-500 pl-4">
+                        <h5 className="font-semibold mb-2">Live Video APIs</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /&#123;video_id&#125;/comments</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Fetch comments from live video
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Params:</strong> access_token, fields, limit
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>facebook-comments</code> Edge Function
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET /&#123;video_id&#125;</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Get live video info
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Fields:</strong> live_views, status, description, created_time
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>facebook-livevideo</code> Edge Function
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Page Management */}
+                      <div className="border-l-2 border-purple-500 pl-4">
+                        <h5 className="font-semibold mb-2">Page Management</h5>
+                        <div className="bg-muted/50 p-3 rounded">
+                          <p className="text-xs text-muted-foreground">
+                            Pages stored in <code>facebook_pages</code> table
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <strong>Used for:</strong> Comment tracking, order creation from comments
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bridge Server */}
+                  <div>
+                    <h4 className="font-semibold mb-3 text-base">🖨️ Internal Bridge Server (Local Network)</h4>
+                    
+                    <div className="space-y-4">
+                      <div className="border-l-2 border-green-500 pl-4">
+                        <h5 className="font-semibold mb-2">Print APIs</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">POST &#123;bridgeUrl&#125;/print/html</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Send HTML content to printer
+                            </p>
+                            <pre className="text-xs bg-muted p-2 rounded mt-2">
+{`Body: {
+  html: string,
+  width: number,
+  height: number,
+  scale: number
+}`}
+                            </pre>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>sendPrintJobToNetwork()</code>
+                            </p>
+                          </div>
+
+                          <div className="bg-muted/50 p-3 rounded">
+                            <code className="text-xs">GET &#123;bridgeUrl&#125;/health</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Check bridge server status
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              <strong>Used by:</strong> <code>testBridgeConnection()</code>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/50 p-3 rounded">
+                        <p className="text-xs font-medium">Configuration</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Managed in <code>PrinterConfigManager</code> component
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Example: <code>http://192.168.1.100:3000</code>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* API Request Headers */}
+                  <div>
+                    <h4 className="font-semibold mb-3 text-base">📋 API Request Headers</h4>
+                    
+                    <div className="space-y-4">
+                      <div className="border-l-2 border-primary pl-4">
+                        <h5 className="font-semibold mb-2">TPOS Headers (Common)</h5>
+                        <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+{`{
+  'accept': 'application/json',
+  'authorization': 'Bearer {token}',
+  'content-type': 'application/json;charset=UTF-8',
+  'x-tpos-lang': 'vi',
+  'tposappversion': '5.9.10.1',
+  'x-request-id': '{uuid}',
+  'user-agent': 'Mozilla/5.0...'
+}`}
+                        </pre>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Generated by: <code>getTPOSHeaders(bearerToken)</code> in <code>src/lib/tpos-config.ts</code>
+                        </p>
+                      </div>
+
+                      <div className="border-l-2 border-orange-500 pl-4">
+                        <h5 className="font-semibold mb-2">Rate Limiting</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <p className="text-xs font-medium">TPOS API</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Delay: 200-600ms between requests (configured per function)
+                            </p>
+                          </div>
+                          <div className="bg-muted/50 p-3 rounded">
+                            <p className="text-xs font-medium">Facebook Batch Requests</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Delay: 200ms between customer fetches
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Token Management */}
+                  <div>
+                    <h4 className="font-semibold mb-3 text-base">🔑 Token Management</h4>
+                    
+                    <div className="space-y-4">
+                      <div className="border-l-2 border-primary pl-4">
+                        <h5 className="font-semibold mb-2">Storage</h5>
+                        <div className="bg-muted/50 p-3 rounded">
+                          <p className="text-xs font-medium">Table: <code>tpos_credentials</code></p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Columns: <code>token_type</code> ('tpos' | 'facebook'), <code>bearer_token</code>, <code>username</code>, <code>password</code>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="border-l-2 border-green-500 pl-4">
+                        <h5 className="font-semibold mb-2">Refresh Flow</h5>
+                        <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground">
+                          <li>User triggers refresh in Settings page</li>
+                          <li><code>refresh-tpos-token</code> Edge Function called</li>
+                          <li>POST to TPOS <code>/token</code> endpoint with credentials</li>
+                          <li>Update <code>bearer_token</code> in database</li>
+                        </ol>
+                      </div>
+
+                      <div className="border-l-2 border-blue-500 pl-4">
+                        <h5 className="font-semibold mb-2">Token Usage</h5>
+                        <div className="space-y-2">
+                          <div className="bg-muted/50 p-3 rounded">
+                            <p className="text-xs font-medium">Frontend</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Functions: <code>getActiveTPOSToken()</code>, <code>getActiveFacebookToken()</code>
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Location: <code>src/lib/tpos-config.ts</code>
+                            </p>
+                          </div>
+                          <div className="bg-muted/50 p-3 rounded">
+                            <p className="text-xs font-medium">Edge Functions</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Query from <code>tpos_credentials</code> table directly
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>
