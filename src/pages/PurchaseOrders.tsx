@@ -173,7 +173,8 @@ const PurchaseOrders = () => {
             selling_price,
             product_images,
             price_images,
-            tpos_product_id
+            tpos_product_id,
+            selected_attribute_value_ids
           ),
           receiving:goods_receiving(
             id,
