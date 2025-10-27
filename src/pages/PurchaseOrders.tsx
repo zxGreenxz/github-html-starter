@@ -29,6 +29,7 @@ interface PurchaseOrderItem {
   product_images: string[] | null;
   price_images: string[] | null;
   tpos_product_id?: number | null;
+  selected_attribute_value_ids?: string[] | null;
 }
 
 interface PurchaseOrder {
