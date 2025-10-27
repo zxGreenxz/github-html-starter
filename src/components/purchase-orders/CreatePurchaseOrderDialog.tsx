@@ -581,11 +581,29 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       console.log('🚀 Starting TPOS product creation...');
 
       for (const [index, item] of items.entries()) {
-        if (!item.product_name.trim()) continue;
+        console.log(`\n📦 Processing item ${index + 1}:`, {
+          product_code: item.product_code,
+          product_name: item.product_name,
+          selectedAttributeValueIds: item.selectedAttributeValueIds,
+          type: typeof item.selectedAttributeValueIds,
+          is_array: Array.isArray(item.selectedAttributeValueIds),
+          length: item.selectedAttributeValueIds?.length,
+          values: item.selectedAttributeValueIds
+        });
+        
+        if (!item.product_name.trim()) {
+          console.log(`❌ SKIP: Empty product name for item ${index + 1}`);
+          continue;
+        }
         
         // Check if item has variant data
         if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0) {
-          console.log(`📦 Creating TPOS variants for item ${index + 1}:`, item.product_code);
+          console.log(`✅ WILL CALL TPOS API for item ${index + 1}:`, {
+            baseProductCode: item.product_code,
+            productName: item.product_name,
+            selectedAttributeValueIds: item.selectedAttributeValueIds,
+            attributeCount: item.selectedAttributeValueIds.length
+          });
           
           try {
             const { data: tposResult, error: tposError } = await supabase.functions.invoke(
