@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -187,6 +187,39 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     });
   }, [debouncedProductNames, manualProductCodes]);
 
+  // Validation function - check if all items have required fields
+  const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
+    const invalidFields: string[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check required fields
+      if (!item.product_name?.trim()) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu tên sản phẩm`);
+      }
+      if (!item.product_code?.trim()) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu mã sản phẩm`);
+      }
+      if (!item.purchase_price || Number(item.purchase_price) <= 0) {
+        invalidFields.push(`Dòng ${i + 1}: Giá mua phải > 0`);
+      }
+      if (!item.selling_price || Number(item.selling_price) <= 0) {
+        invalidFields.push(`Dòng ${i + 1}: Giá bán phải > 0`);
+      }
+      if (!item.product_images || item.product_images.length === 0) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu hình ảnh sản phẩm`);
+      }
+    }
+    
+    return {
+      isValid: invalidFields.length === 0,
+      invalidFields
+    };
+  };
+
+  // Real-time validation state
+  const { isValid: isItemsValid, invalidFields } = useMemo(() => validateItems(), [items]);
 
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
@@ -1240,8 +1273,29 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               {saveDraftMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
             </Button>
             <Button 
-              onClick={() => createOrderMutation.mutate()}
-              disabled={createOrderMutation.isPending}
+              onClick={() => {
+                // Show validation errors if any
+                if (!isItemsValid) {
+                  toast({
+                    title: "Không thể tạo đơn hàng",
+                    description: (
+                      <div className="space-y-1">
+                        <p className="font-medium">Vui lòng điền đầy đủ thông tin:</p>
+                        <ul className="list-disc list-inside text-xs space-y-0.5">
+                          {invalidFields.map((field, idx) => (
+                            <li key={idx}>{field}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ),
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                createOrderMutation.mutate();
+              }}
+              disabled={createOrderMutation.isPending || !isItemsValid}
+              className={!isItemsValid ? "opacity-50 cursor-not-allowed" : ""}
             >
               {createOrderMutation.isPending ? "Đang tạo..." : "Tạo đơn hàng"}
             </Button>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -146,6 +146,40 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       }
     });
   }, [debouncedProductNames]);
+
+  // Validation function - check if all items have required fields
+  const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
+    const invalidFields: string[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check required fields (using _temp* fields for editing)
+      if (!item._tempProductName?.trim()) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu tên sản phẩm`);
+      }
+      if (!item._tempProductCode?.trim()) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu mã sản phẩm`);
+      }
+      if (!item._tempUnitPrice || Number(item._tempUnitPrice) <= 0) {
+        invalidFields.push(`Dòng ${i + 1}: Giá mua phải > 0`);
+      }
+      if (!item._tempSellingPrice || Number(item._tempSellingPrice) <= 0) {
+        invalidFields.push(`Dòng ${i + 1}: Giá bán phải > 0`);
+      }
+      if (!item._tempProductImages || item._tempProductImages.length === 0) {
+        invalidFields.push(`Dòng ${i + 1}: Thiếu hình ảnh sản phẩm`);
+      }
+    }
+    
+    return {
+      isValid: invalidFields.length === 0,
+      invalidFields
+    };
+  };
+
+  // Real-time validation state
+  const { isValid: isItemsValid, invalidFields } = useMemo(() => validateItems(), [items]);
 
   // Fetch existing items (no JOIN needed - all data is in purchase_order_items)
   const { data: existingItems } = useQuery({
@@ -1017,8 +1051,29 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
               Hủy
             </Button>
             <Button 
-              onClick={handleSubmit}
-              disabled={updateOrderMutation.isPending}
+              onClick={() => {
+                // Show validation errors if any
+                if (!isItemsValid) {
+                  toast({
+                    title: "Không thể cập nhật đơn hàng",
+                    description: (
+                      <div className="space-y-1">
+                        <p className="font-medium">Vui lòng điền đầy đủ thông tin:</p>
+                        <ul className="list-disc list-inside text-xs space-y-0.5">
+                          {invalidFields.map((field, idx) => (
+                            <li key={idx}>{field}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ),
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                handleSubmit();
+              }}
+              disabled={updateOrderMutation.isPending || !isItemsValid}
+              className={!isItemsValid ? "opacity-50 cursor-not-allowed" : ""}
             >
               {updateOrderMutation.isPending ? "Đang cập nhật..." : "Cập nhật đơn hàng"}
             </Button>
