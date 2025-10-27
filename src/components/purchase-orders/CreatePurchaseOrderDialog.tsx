@@ -464,6 +464,80 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         if (itemsError) throw itemsError;
 
+        // Step: Create products on TPOS for items with variants (DRAFT FLOW)
+        console.log('🚀 Starting TPOS product creation (from draft)...');
+        
+        for (const [index, item] of items.entries()) {
+          console.log(`\n📦 Processing draft item ${index + 1}:`, {
+            product_code: item.product_code,
+            product_name: item.product_name,
+            selectedAttributeValueIds: item.selectedAttributeValueIds,
+            type: typeof item.selectedAttributeValueIds,
+            is_array: Array.isArray(item.selectedAttributeValueIds),
+            length: item.selectedAttributeValueIds?.length,
+            values: item.selectedAttributeValueIds
+          });
+          
+          if (!item.product_name.trim()) {
+            console.log(`❌ SKIP: Empty product name for draft item ${index + 1}`);
+            continue;
+          }
+          
+          // Check if item has variant data
+          if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0) {
+            console.log(`✅ WILL CALL TPOS API for draft item ${index + 1}:`, {
+              baseProductCode: item.product_code,
+              productName: item.product_name,
+              selectedAttributeValueIds: item.selectedAttributeValueIds,
+              attributeCount: item.selectedAttributeValueIds.length
+            });
+            
+            try {
+              const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+                'create-tpos-variants-from-order',
+                {
+                  body: {
+                    baseProductCode: item.product_code.trim().toUpperCase(),
+                    productName: item.product_name.trim().toUpperCase(),
+                    purchasePrice: Number(item.purchase_price || 0),
+                    sellingPrice: Number(item.selling_price || 0),
+                    productImages: Array.isArray(item.product_images) 
+                      ? item.product_images 
+                      : (item.product_images ? [item.product_images] : []),
+                    supplierName: formData.supplier_name.trim().toUpperCase(),
+                    selectedAttributeValueIds: item.selectedAttributeValueIds
+                  }
+                }
+              );
+
+              if (tposError) {
+                console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
+                throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${tposError.message}`);
+              }
+
+              if (!tposResult?.success) {
+                console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
+                throw new Error(`Không thể tạo biến thể cho ${item.product_code}: ${tposResult?.error}`);
+              }
+
+              console.log(`✅ Created TPOS variants for ${item.product_code}:`, tposResult.data);
+              
+            } catch (error) {
+              console.error(`Error creating TPOS variants for ${item.product_code}:`, error);
+              toast({
+                title: "Lỗi tạo biến thể",
+                description: error instanceof Error ? error.message : `Không thể tạo biến thể cho ${item.product_code}`,
+                variant: "destructive",
+              });
+              throw error;
+            }
+          } else {
+            console.log(`ℹ️ No variants for draft item ${index + 1}: ${item.product_code}`);
+          }
+        }
+
+        console.log('✅ Finished TPOS product creation (from draft)');
+
         // Create parent products (same logic as before)
         const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
