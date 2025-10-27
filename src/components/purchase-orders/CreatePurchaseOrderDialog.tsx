@@ -474,71 +474,62 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             continue;
           }
           
-          console.log(`\n📦 Processing draft item ${index + 1}:`, {
-            product_code: item.product_code,
-            product_name: item.product_name,
-            selectedAttributeValueIds: item.selectedAttributeValueIds,
-            type: typeof item.selectedAttributeValueIds,
-            is_array: Array.isArray(item.selectedAttributeValueIds),
-            length: item.selectedAttributeValueIds?.length,
-            values: item.selectedAttributeValueIds
-          });
-          
           if (!item.product_name.trim()) {
-            console.log(`❌ SKIP: Empty product name for draft item ${index + 1}`);
+            console.log(`⚠️ SKIP: Empty product name at index ${index + 1}`);
             continue;
           }
           
-          // Check if item has variant data
-          if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0) {
-            console.log(`✅ WILL CALL TPOS API for draft item ${index + 1}:`, {
-              baseProductCode: item.product_code,
-              productName: item.product_name,
-              selectedAttributeValueIds: item.selectedAttributeValueIds,
-              attributeCount: item.selectedAttributeValueIds.length
-            });
-            
-            try {
-              const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-                'create-tpos-variants-from-order',
-                {
-                  body: {
-                    baseProductCode: item.product_code.trim().toUpperCase(),
-                    productName: item.product_name.trim().toUpperCase(),
-                    purchasePrice: Number(item.purchase_price || 0),
-                    sellingPrice: Number(item.selling_price || 0),
-                    productImages: Array.isArray(item.product_images) 
-                      ? item.product_images 
-                      : (item.product_images ? [item.product_images] : []),
-                    supplierName: formData.supplier_name.trim().toUpperCase(),
-                    selectedAttributeValueIds: item.selectedAttributeValueIds
-                  }
+          // Log item info
+          const hasVariants = (item.selectedAttributeValueIds?.length || 0) > 0;
+          console.log(`\n📦 Processing draft item ${index + 1}:`, {
+            product_code: item.product_code,
+            product_name: item.product_name,
+            has_variants: hasVariants,
+            variant_count: item.selectedAttributeValueIds?.length || 0
+          });
+
+          // Create TPOS product for ALL items (with or without variants)
+          try {
+            const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+              'create-tpos-variants-from-order',
+              {
+                body: {
+                  baseProductCode: item.product_code.trim().toUpperCase(),
+                  productName: item.product_name.trim().toUpperCase(),
+                  purchasePrice: Number(item.purchase_price || 0),
+                  sellingPrice: Number(item.selling_price || 0),
+                  selectedAttributeValueIds: item.selectedAttributeValueIds || [], // Always pass array
+                  productImages: Array.isArray(item.product_images) 
+                    ? item.product_images 
+                    : (item.product_images ? [item.product_images] : []),
+                  supplierName: formData.supplier_name.trim().toUpperCase()
                 }
-              );
-
-              if (tposError) {
-                console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
-                throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${tposError.message}`);
               }
+            );
 
-              if (!tposResult?.success) {
-                console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
-                throw new Error(`Không thể tạo biến thể cho ${item.product_code}: ${tposResult?.error}`);
-              }
-
-              console.log(`✅ Created TPOS variants for ${item.product_code}:`, tposResult.data);
-              
-            } catch (error) {
-              console.error(`Error creating TPOS variants for ${item.product_code}:`, error);
-              toast({
-                title: "Lỗi tạo biến thể",
-                description: error instanceof Error ? error.message : `Không thể tạo biến thể cho ${item.product_code}`,
-                variant: "destructive",
-              });
-              throw error;
+            if (tposError) {
+              console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
+              throw new Error(`Lỗi tạo sản phẩm ${item.product_code}: ${tposError.message}`);
             }
-          } else {
-            console.log(`ℹ️ No variants for draft item ${index + 1}: ${item.product_code}`);
+
+            if (!tposResult?.success) {
+              console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
+              throw new Error(`Không thể tạo sản phẩm ${item.product_code}: ${tposResult?.error}`);
+            }
+
+            const variantInfo = tposResult.variant_count 
+              ? `with ${tposResult.variant_count} variants` 
+              : 'without variants';
+            console.log(`✅ Created TPOS product: ${item.product_code} (${variantInfo})`);
+            
+          } catch (error) {
+            console.error(`Error creating TPOS product ${item.product_code}:`, error);
+            toast({
+              title: "Lỗi tạo sản phẩm",
+              description: error instanceof Error ? error.message : `Không thể tạo sản phẩm ${item.product_code}`,
+              variant: "destructive",
+            });
+            throw error;
           }
         }
 

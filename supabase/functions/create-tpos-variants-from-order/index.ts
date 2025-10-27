@@ -185,8 +185,8 @@ serve(async (req) => {
       converted_selling: sellingPrice
     });
 
-    if (!baseProductCode || !productName || !selectedAttributeValueIds || selectedAttributeValueIds.length === 0) {
-      throw new Error('Missing required parameters');
+    if (!baseProductCode || !productName) {
+      throw new Error('Missing required parameters: baseProductCode and productName');
     }
 
     if (purchasePrice <= 0 || sellingPrice <= 0) {
@@ -203,7 +203,271 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Creating TPOS variants from order for:', baseProductCode);
+    // ============ CASE 1: SIMPLE PRODUCT (NO VARIANTS) ============
+    if (!selectedAttributeValueIds || selectedAttributeValueIds.length === 0) {
+      console.log('🔹 Creating SIMPLE product WITHOUT variants:', baseProductCode);
+      
+      // 1. Convert image to base64 if available
+      let imageBase64: string | null = null;
+      if (productImages && productImages.length > 0) {
+        console.log('Converting product image to base64...');
+        try {
+          imageBase64 = await imageUrlToBase64WithRetry(productImages[0]);
+        } catch (error) {
+          console.error('Image conversion failed:', error);
+        }
+      }
+
+      // 2. Build simple product payload
+      const simplePayload = {
+        Id: 0,
+        Name: productName,
+        NameNoSign: null,
+        Description: null,
+        Type: "product",
+        ShowType: "Có thể lưu trữ",
+        ListPrice: sellingPrice,
+        DiscountSale: 0,
+        DiscountPurchase: 0,
+        PurchasePrice: purchasePrice,
+        StandardPrice: 0,
+        SaleOK: true,
+        PurchaseOK: true,
+        Active: true,
+        UOMId: 1,
+        UOMName: null,
+        UOMPOId: 1,
+        UOMPOName: null,
+        UOSId: null,
+        IsProductVariant: false,
+        EAN13: null,
+        DefaultCode: baseProductCode,
+        QtyAvailable: 0,
+        VirtualAvailable: 0,
+        OutgoingQty: 0,
+        IncomingQty: 0,
+        PropertyCostMethod: null,
+        CategId: 2,
+        CategCompleteName: null,
+        CategName: null,
+        Weight: 0,
+        Tracking: "none",
+        DescriptionPurchase: null,
+        DescriptionSale: null,
+        CompanyId: 1,
+        NameGet: null,
+        PropertyStockProductionId: null,
+        SaleDelay: 0,
+        InvoicePolicy: "order",
+        PurchaseMethod: "receive",
+        PropertyValuation: null,
+        Valuation: null,
+        AvailableInPOS: true,
+        POSCategId: null,
+        CostMethod: null,
+        Barcode: baseProductCode,
+        Image: imageBase64,
+        ImageUrl: null,
+        Thumbnails: [],
+        ProductVariantCount: 0,
+        LastUpdated: null,
+        UOMCategId: null,
+        BOMCount: 0,
+        Volume: null,
+        CategNameNoSign: null,
+        UOMNameNoSign: null,
+        UOMPONameNoSign: null,
+        IsCombo: false,
+        EnableAll: false,
+        ComboPurchased: null,
+        TaxAmount: null,
+        Version: 0,
+        VariantFirstId: null,
+        VariantFistId: null,
+        ZaloProductId: null,
+        CompanyName: null,
+        CompanyNameNoSign: null,
+        DateCreated: null,
+        InitInventory: 0,
+        UOMViewId: null,
+        ImporterId: null,
+        ImporterName: null,
+        ImporterAddress: null,
+        ProducerId: null,
+        ProducerName: null,
+        ProducerAddress: null,
+        DistributorId: null,
+        DistributorName: null,
+        DistributorAddress: null,
+        OriginCountryId: null,
+        OriginCountryName: null,
+        InfoWarning: null,
+        Element: null,
+        YearOfManufacture: null,
+        Specifications: null,
+        Tags: null,
+        CreatedByName: null,
+        OrderTag: null,
+        StringExtraProperties: null,
+        CreatedById: null,
+        Error: null,
+        UOM: {
+          Id: 1,
+          Name: "Cái",
+          NameNoSign: null,
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị",
+          Description: null,
+          ShowUOMType: "Đơn vị gốc của nhóm này",
+          NameGet: "Cái",
+          ShowFactor: 1,
+          DateCreated: "2018-05-25T15:44:44.14+07:00"
+        },
+        Categ: {
+          Id: 2,
+          Name: "Có thể bán",
+          CompleteName: "Có thể bán",
+          ParentId: null,
+          ParentCompleteName: null,
+          ParentLeft: 0,
+          ParentRight: 1,
+          Sequence: null,
+          Type: "normal",
+          AccountIncomeCategId: null,
+          AccountExpenseCategId: null,
+          StockJournalId: null,
+          StockAccountInputCategId: null,
+          StockAccountOutputCategId: null,
+          StockValuationAccountId: null,
+          PropertyValuation: null,
+          PropertyCostMethod: "average",
+          NameNoSign: "Co the ban",
+          IsPos: true,
+          Version: null,
+          IsDelete: false
+        },
+        UOMPO: {
+          Id: 1,
+          Name: "Cái",
+          NameNoSign: null,
+          Rounding: 0.001,
+          Active: true,
+          Factor: 1,
+          FactorInv: 1,
+          UOMType: "reference",
+          CategoryId: 1,
+          CategoryName: "Đơn vị",
+          Description: null,
+          ShowUOMType: "Đơn vị gốc của nhóm này",
+          NameGet: "Cái",
+          ShowFactor: 1,
+          DateCreated: "2018-05-25T15:44:44.14+07:00"
+        },
+        AttributeLines: [],
+        Items: [],
+        UOMLines: [],
+        ComboProducts: [],
+        ProductSupplierInfos: [],
+        ProductVariants: []
+      };
+
+      console.log('Simple payload built, posting to TPOS...');
+
+      // 3. Get TPOS token
+      const { data: credentials, error: credError } = await supabase
+        .from('tpos_credentials')
+        .select('bearer_token')
+        .eq('token_type', 'tpos')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (credError || !credentials?.bearer_token) {
+        throw new Error('TPOS credentials not found');
+      }
+
+      // 4. POST to TPOS
+      const tposUrl = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO';
+      const tposResponse = await fetch(tposUrl, {
+        method: 'POST',
+        headers: getTPOSHeaders(credentials.bearer_token),
+        body: JSON.stringify(simplePayload)
+      });
+
+      if (!tposResponse.ok) {
+        const errorText = await tposResponse.text();
+        console.error('TPOS API Error:', errorText);
+        throw new Error(`TPOS API error: ${tposResponse.status} - ${errorText}`);
+      }
+
+      const tposData = await tposResponse.json();
+      console.log('✅ TPOS simple product created, ID:', tposData.Id);
+
+      // 5. Save to Supabase (only parent product, no children)
+      let tposImageBase64: string | null = null;
+      try {
+        tposImageBase64 = await imageUrlToBase64WithRetry(tposData.Image || tposData.ImageUrl);
+      } catch (error) {
+        console.error('Warning: Could not convert TPOS image:', error);
+      }
+
+      const simpleProduct = {
+        product_code: tposData.DefaultCode,
+        base_product_code: tposData.DefaultCode,
+        tpos_product_id: tposData.Id,
+        product_name: tposData.Name,
+        variant: null,
+        selling_price: tposData.ListPrice,
+        purchase_price: tposData.PurchasePrice,
+        stock_quantity: tposData.QtyAvailable || 0,
+        virtual_available: tposData.VirtualAvailable || 0,
+        tpos_image_url: tposImageBase64,
+        product_images: productImages,
+        supplier_name: supplierName
+      };
+
+      const { error: dbError } = await supabase
+        .from('products')
+        .upsert(simpleProduct, { 
+          onConflict: 'product_code',
+          ignoreDuplicates: false
+        });
+
+      if (dbError) {
+        console.error('Database save failed:', dbError);
+        throw dbError;
+      }
+
+      console.log('✅ Simple product saved to database');
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: '✅ Đã tạo sản phẩm đơn giản trên TPOS và lưu vào database',
+          variant_count: 0,
+          data: {
+            tpos: {
+              product_id: tposData.Id,
+              product_code: tposData.DefaultCode,
+              variant_count: 0
+            },
+            database: {
+              parent_saved: 1,
+              children_saved: 0
+            }
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============ CASE 2: PRODUCT WITH VARIANTS ============
+    console.log('🔹 Creating product WITH variants:', baseProductCode);
     console.log('Product name:', productName);
     console.log('Prices to send to TPOS:', { purchasePrice, sellingPrice });
     console.log('Selected attribute value IDs:', selectedAttributeValueIds);
