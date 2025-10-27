@@ -192,22 +192,14 @@ export default function Products() {
                 </Button>
 
                 {isAdmin && (
-                  <div className={`flex gap-2 ${isMobile ? "w-full flex-wrap" : ""}`}>
-                    <Button
-                      onClick={() => setIsImportDialogOpen(true)}
-                      variant="outline"
-                      size={isMobile ? "sm" : "default"}
-                      className={isMobile ? "flex-1 text-xs" : ""}
-                    >
-                      Import Excel
-                    </Button>
-                    <Button
-                      onClick={() => setIsCreateDialogOpen(true)}
-                      className={isMobile ? "flex-1" : ""}
-                    >
-                      Thêm SP
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => setIsImportDialogOpen(true)}
+                    variant="outline"
+                    size={isMobile ? "sm" : "default"}
+                    className={isMobile ? "text-xs" : ""}
+                  >
+                    Import Excel
+                  </Button>
                 )}
               </div>
               
