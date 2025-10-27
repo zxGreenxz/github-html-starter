@@ -1054,7 +1054,6 @@ export type Database = {
           purchase_order_id: string
           purchase_price: number
           quantity: number
-          selected_attribute_value_ids: string[] | null
           selling_price: number
           tpos_deleted: boolean | null
           tpos_deleted_at: string | null
@@ -1073,7 +1072,6 @@ export type Database = {
           purchase_order_id: string
           purchase_price: number
           quantity?: number
-          selected_attribute_value_ids?: string[] | null
           selling_price: number
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null
@@ -1092,7 +1090,6 @@ export type Database = {
           purchase_order_id?: string
           purchase_price?: number
           quantity?: number
-          selected_attribute_value_ids?: string[] | null
           selling_price?: number
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null

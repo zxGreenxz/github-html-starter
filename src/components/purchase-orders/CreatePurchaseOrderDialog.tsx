@@ -12,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
@@ -71,10 +70,6 @@ interface PurchaseOrderItem {
   selling_price: number | string;
   product_images: string[];
   price_images: string[];
-  
-  // NEW: Variant generation data
-  selectedAttributeValueIds?: string[]; // UUIDs for TPOS API call
-  hasVariants?: boolean; // Flag to know if this item has variants
   
   // UI only
   _tempTotalPrice: number;
@@ -161,8 +156,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           selling_price: (item.selling_price || 0) / 1000,
           product_images: item.product_images || [],
           price_images: item.price_images || [],
-          selectedAttributeValueIds: item.selected_attribute_value_ids || undefined,
-          hasVariants: item.selected_attribute_value_ids && item.selected_attribute_value_ids.length > 0,
           _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
         }));
         setItems(loadedItems);
@@ -276,8 +269,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               purchase_price: Number(item.purchase_price || 0) * 1000,
               selling_price: Number(item.selling_price || 0) * 1000,
               product_images: Array.isArray(item.product_images) ? item.product_images : [],
-              price_images: Array.isArray(item.price_images) ? item.price_images : [],
-              selected_attribute_value_ids: item.selectedAttributeValueIds || null
+              price_images: Array.isArray(item.price_images) ? item.price_images : []
             }));
 
           const { error: itemsError } = await supabase
@@ -324,8 +316,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             purchase_price: Number(item.purchase_price || 0) * 1000,
             selling_price: Number(item.selling_price || 0) * 1000,
             product_images: Array.isArray(item.product_images) ? item.product_images : [],
-            price_images: Array.isArray(item.price_images) ? item.price_images : [],
-            selected_attribute_value_ids: item.selectedAttributeValueIds || null
+            price_images: Array.isArray(item.price_images) ? item.price_images : []
           }));
 
         const { error: itemsError } = await supabase
@@ -453,8 +444,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               : (item.product_images ? [item.product_images] : []),
             price_images: Array.isArray(item.price_images) 
               ? item.price_images 
-              : (item.price_images ? [item.price_images] : []),
-            selected_attribute_value_ids: item.selectedAttributeValueIds || null
+              : (item.price_images ? [item.price_images] : [])
           }));
 
         const { error: itemsError } = await supabase
@@ -563,9 +553,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             : (item.product_images ? [item.product_images] : []),
           price_images: Array.isArray(item.price_images) 
             ? item.price_images 
-            : (item.price_images ? [item.price_images] : []),
-          // NEW: Save selected_attribute_value_ids
-          selected_attribute_value_ids: item.selectedAttributeValueIds || null
+            : (item.price_images ? [item.price_images] : [])
         }));
 
       if (orderItems.length > 0) {
@@ -576,62 +564,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Create products on TPOS for items with variants
-      console.log('🚀 Starting TPOS product creation...');
-
-      for (const [index, item] of items.entries()) {
-        if (!item.product_name.trim()) continue;
-        
-        // Check if item has variant data
-        if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0 && item.hasVariants) {
-          console.log(`📦 Creating TPOS variants for item ${index + 1}:`, item.product_code);
-          
-          try {
-            const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-              'create-tpos-variants-from-order',
-              {
-                body: {
-                  baseProductCode: item.product_code.trim().toUpperCase(),
-                  productName: item.product_name.trim().toUpperCase(),
-                  purchasePrice: Number(item.purchase_price || 0),
-                  sellingPrice: Number(item.selling_price || 0),
-                  productImages: Array.isArray(item.product_images) 
-                    ? item.product_images 
-                    : (item.product_images ? [item.product_images] : []),
-                  supplierName: formData.supplier_name.trim().toUpperCase(),
-                  selectedAttributeValueIds: item.selectedAttributeValueIds
-                }
-              }
-            );
-
-            if (tposError) {
-              console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
-              throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${tposError.message}`);
-            }
-
-            if (!tposResult?.success) {
-              console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
-              throw new Error(`Không thể tạo biến thể cho ${item.product_code}: ${tposResult?.error}`);
-            }
-
-            console.log(`✅ Created TPOS variants for ${item.product_code}:`, tposResult.data);
-            
-          } catch (error) {
-            console.error(`❌ Error creating TPOS product for ${item.product_code}:`, error);
-            // Throw error to stop the entire process
-            throw new Error(
-              `Lỗi tạo sản phẩm trên TPOS (${item.product_code}): ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-          }
-        } else {
-          // Item without variants - create simple product (existing logic)
-          console.log(`📦 Item ${index + 1} (${item.product_code}): No variants, will create parent product only`);
-        }
-      }
-
-      console.log('✅ All TPOS products created successfully');
-
-      // Step 4: Create parent products in inventory
+      // Step 3: Create parent products in inventory
       const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
 
       // Group items by product_code and collect all variants
@@ -701,10 +634,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: () => {
-      toast({ 
-        title: "Tạo đơn đặt hàng thành công!",
-        description: "Đã tạo sản phẩm và biến thể trên TPOS"
-      });
+      toast({ title: "Tạo đơn đặt hàng thành công!" });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -1120,30 +1050,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               </div>
             </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-start text-left h-auto py-2 px-3"
-                            onClick={() => {
-                              setVariantGeneratorIndex(index);
-                              setIsVariantGeneratorOpen(true);
-                            }}
-                          >
-                            {item.variant ? (
-                              <span className="font-medium text-xs">{item.variant}</span>
-                            ) : (
-                              <span className="text-muted-foreground text-xs italic">
-                                Nhấn để tạo biến thể
-                              </span>
-                            )}
-                          </Button>
-                          {item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              ✓ {item.selectedAttributeValueIds.length} thuộc tính đã chọn
-                            </Badge>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start text-left h-auto py-2 px-3"
+                          onClick={() => {
+                            setVariantGeneratorIndex(index);
+                            setIsVariantGeneratorOpen(true);
+                          }}
+                        >
+                          {item.variant ? (
+                            <span className="font-medium text-xs">{item.variant}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">
+                              Nhấn để tạo biến thể
+                            </span>
                           )}
-                        </div>
+                        </Button>
                       </TableCell>
                       <TableCell>
                         <Input
@@ -1408,17 +1331,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
         onSubmit={(result) => {
           if (variantGeneratorIndex !== null) {
-            // Update item with variant data
+            // Update both variant and quantity in a single batch
             updateItemMultiple(variantGeneratorIndex, {
               variant: result.variantString,
               quantity: result.totalQuantity,
-              selectedAttributeValueIds: result.selectedAttributeValueIds, // NEW
-              hasVariants: result.hasVariants, // NEW
             });
 
             toast({
-              title: "Đã lưu thông tin biến thể",
-              description: `Đã chọn ${result.totalQuantity} biến thể. Biến thể sẽ được tạo khi bấm "Tạo đơn hàng".`,
+              title: "Đã tạo biến thể",
+              description: `Tạo ${result.totalQuantity} biến thể: ${result.variantString}`,
             });
           }
           setIsVariantGeneratorOpen(false);

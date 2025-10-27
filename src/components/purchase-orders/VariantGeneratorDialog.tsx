@@ -14,12 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface VariantGeneratorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (result: { 
-    variantString: string; 
-    totalQuantity: number;
-    selectedAttributeValueIds: string[];
-    hasVariants: boolean;
-  }) => void;
+  onSubmit: (result: { variantString: string; totalQuantity: number }) => void;
   productCode?: string;
   productInfo?: {
     productName: string;
@@ -94,7 +89,7 @@ export function VariantGeneratorDialog({
       return;
     }
 
-    // Calculate values BEFORE resetting state
+    // Calculate and capture values BEFORE resetting state
     const finalVariantString = Object.entries(selectedValues)
       .filter(([_, values]) => values.length > 0)
       .map(([_, values]) => `(${values.join(" | ")})`)
@@ -105,32 +100,55 @@ export function VariantGeneratorDialog({
       .map((values) => values.length)
       .reduce((acc, count) => acc * count, 1);
 
-    // Generate selectedAttributeValueIds array (giữ nguyên thứ tự attributes theo display_order)
-    const selectedAttributeValueIds = attributes
-      .filter(attr => selectedValues[attr.id] && selectedValues[attr.id].length > 0)
-      .flatMap(attr => 
-        selectedValues[attr.id].map(valueName => {
-          const attrValue = attributeValues.find(
-            av => av.value === valueName && av.attribute_id === attr.id
-          );
-          return attrValue?.id;
-        })
-      )
-      .filter(Boolean) as string[];
+    // Tạo lên TPOS nếu có productCode và productInfo
+    if (productCode && productInfo) {
+      try {
+        // Duyệt theo thứ tự attributes (đã sort theo display_order) để giữ đúng thứ tự user chọn
+        const selectedAttributeValueIds = attributes
+          .filter(attr => selectedValues[attr.id] && selectedValues[attr.id].length > 0)
+          .flatMap(attr => 
+            selectedValues[attr.id].map(valueName => {
+              const attrValue = attributeValues.find(av => av.value === valueName && av.attribute_id === attr.id);
+              return attrValue?.id;
+            })
+          )
+          .filter(Boolean) as string[];
+        
+        toast.loading("Đang tạo biến thể lên TPOS...");
+        
+        const { data, error } = await supabase.functions.invoke('create-tpos-variants-from-order', {
+          body: {
+            baseProductCode: productCode,
+            productName: productInfo.productName,
+            purchasePrice: productInfo.purchasePrice,
+            sellingPrice: productInfo.sellingPrice,
+            productImages: productInfo.productImages,
+            supplierName: productInfo.supplierName,
+            selectedAttributeValueIds
+          }
+        });
 
-    console.log('✅ Variant data prepared:', {
-      variantString: finalVariantString,
-      totalQuantity: finalTotalQuantity,
-      selectedAttributeValueIds: selectedAttributeValueIds.length
-    });
+        toast.dismiss();
 
-    // ❌ XÓA: KHÔNG GỌI TPOS API Ở ĐÂY
-    // ✅ CHỈ RETURN DỮ LIỆU
+        if (error) throw error;
+
+        if (data?.success) {
+          toast.success(data.message || "Tạo biến thể thành công");
+          console.log('TPOS Product ID:', data.tpos_product_id);
+        } else {
+          throw new Error(data?.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error creating TPOS variants:', error);
+        toast.error(error instanceof Error ? error.message : "Lỗi khi tạo biến thể");
+        return;
+      }
+    }
+
+    // Submit with captured values - not dependent on useMemo
     onSubmit({
       variantString: finalVariantString,
       totalQuantity: finalTotalQuantity,
-      selectedAttributeValueIds, // NEW
-      hasVariants: true // NEW
     });
 
     // Reset state AFTER capturing values
