@@ -648,78 +648,75 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Create products on TPOS for items with variants
+      // Step 3: Create products on TPOS for ALL items (with or without variants)
       console.log('🚀 Starting TPOS product creation...');
 
       for (const [index, item] of items.entries()) {
-        console.log(`\n📦 Processing item ${index + 1}:`, {
-          product_code: item.product_code,
-          product_name: item.product_name,
-          selectedAttributeValueIds: item.selectedAttributeValueIds,
-          type: typeof item.selectedAttributeValueIds,
-          is_array: Array.isArray(item.selectedAttributeValueIds),
-          length: item.selectedAttributeValueIds?.length,
-          values: item.selectedAttributeValueIds
-        });
-        
-        if (!item.product_name.trim()) {
-          console.log(`❌ SKIP: Empty product name for item ${index + 1}`);
+        if (!item) {
+          console.log(`⚠️ SKIP: Undefined item at index ${index + 1}`);
           continue;
         }
         
-        // Check if item has variant data
-        if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0) {
-          console.log(`✅ WILL CALL TPOS API for item ${index + 1}:`, {
-            baseProductCode: item.product_code,
-            productName: item.product_name,
-            selectedAttributeValueIds: item.selectedAttributeValueIds,
-            attributeCount: item.selectedAttributeValueIds.length
-          });
-          
-          try {
-            const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-              'create-tpos-variants-from-order',
-              {
-                body: {
-                  baseProductCode: item.product_code.trim().toUpperCase(),
-                  productName: item.product_name.trim().toUpperCase(),
-                  purchasePrice: Number(item.purchase_price || 0),
-                  sellingPrice: Number(item.selling_price || 0),
-                  productImages: Array.isArray(item.product_images) 
-                    ? item.product_images 
-                    : (item.product_images ? [item.product_images] : []),
-                  supplierName: formData.supplier_name.trim().toUpperCase(),
-                  selectedAttributeValueIds: item.selectedAttributeValueIds
-                }
+        if (!item.product_name.trim()) {
+          console.log(`⚠️ SKIP: Empty product name at index ${index + 1}`);
+          continue;
+        }
+        
+        // Log item info
+        const hasVariants = (item.selectedAttributeValueIds?.length || 0) > 0;
+        console.log(`\n📦 Processing item ${index + 1}:`, {
+          product_code: item.product_code,
+          product_name: item.product_name,
+          has_variants: hasVariants,
+          variant_count: item.selectedAttributeValueIds?.length || 0
+        });
+
+        // Create TPOS product for ALL items (with or without variants)
+        try {
+          const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+            'create-tpos-variants-from-order',
+            {
+              body: {
+                baseProductCode: item.product_code.trim().toUpperCase(),
+                productName: item.product_name.trim().toUpperCase(),
+                purchasePrice: Number(item.purchase_price || 0),
+                sellingPrice: Number(item.selling_price || 0),
+                selectedAttributeValueIds: item.selectedAttributeValueIds || [], // Always pass array
+                productImages: Array.isArray(item.product_images) 
+                  ? item.product_images 
+                  : (item.product_images ? [item.product_images] : []),
+                supplierName: formData.supplier_name.trim().toUpperCase()
               }
-            );
-
-            if (tposError) {
-              console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
-              throw new Error(`Lỗi tạo biến thể cho ${item.product_code}: ${tposError.message}`);
             }
+          );
 
-            if (!tposResult?.success) {
-              console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
-              throw new Error(`Không thể tạo biến thể cho ${item.product_code}: ${tposResult?.error}`);
-            }
-
-            console.log(`✅ Created TPOS variants for ${item.product_code}:`, tposResult.data);
-            
-          } catch (error) {
-            console.error(`❌ Error creating TPOS product for ${item.product_code}:`, error);
-            // Throw error to stop the entire process
-            throw new Error(
-              `Lỗi tạo sản phẩm trên TPOS (${item.product_code}): ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
+          if (tposError) {
+            console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
+            throw new Error(`Lỗi tạo sản phẩm ${item.product_code}: ${tposError.message}`);
           }
-        } else {
-          // Item without variants - create simple product (existing logic)
-          console.log(`📦 Item ${index + 1} (${item.product_code}): No variants, will create parent product only`);
+
+          if (!tposResult?.success) {
+            console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
+            throw new Error(`Không thể tạo sản phẩm ${item.product_code}: ${tposResult?.error}`);
+          }
+
+          const variantInfo = tposResult.variant_count 
+            ? `with ${tposResult.variant_count} variants` 
+            : 'without variants';
+          console.log(`✅ Created TPOS product: ${item.product_code} (${variantInfo})`);
+          
+        } catch (error) {
+          console.error(`Error creating TPOS product ${item.product_code}:`, error);
+          toast({
+            title: "Lỗi tạo sản phẩm",
+            description: error instanceof Error ? error.message : `Không thể tạo sản phẩm ${item.product_code}`,
+            variant: "destructive",
+          });
+          throw error;
         }
       }
 
-      console.log('✅ All TPOS products created successfully');
+      console.log('✅ Finished TPOS product creation');
 
       // Step 4: Create parent products in inventory
       const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
