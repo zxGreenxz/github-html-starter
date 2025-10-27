@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
@@ -37,6 +37,7 @@ interface PurchaseOrderItem {
   selling_price: number;
   product_images?: string[];
   price_images?: string[];
+  selected_attribute_value_ids?: string[];
   
   // Temporary UI fields
   _tempProductName: string;
@@ -119,6 +120,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showDebugColumn, setShowDebugColumn] = useState(false);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -231,6 +233,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         quantity: item.quantity || 1,
         notes: item.notes || "",
         position: item.position,
+        selected_attribute_value_ids: item.selected_attribute_value_ids || [],
         _tempProductName: item.product_name,
         _tempProductCode: item.product_code,
         _tempVariant: item.variant || "",
@@ -777,6 +780,21 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh Giá mua</TableHead>
                     <TableHead className="w-16">Thao tác</TableHead>
+                    <TableHead className="w-[200px] border-l-2 border-yellow-500/30">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setShowDebugColumn(!showDebugColumn)}
+                          title="Toggle debug column"
+                        >
+                          {showDebugColumn ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                        {showDebugColumn && <span className="text-xs text-muted-foreground">Debug: Attr IDs</span>}
+                      </div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -944,6 +962,21 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                           </Button>
                         </div>
                       </TableCell>
+                      {showDebugColumn && (
+                        <TableCell className="border-l-2 border-yellow-500/30 align-top">
+                          {item.selected_attribute_value_ids && item.selected_attribute_value_ids.length > 0 ? (
+                            <div className="space-y-1 max-h-[120px] overflow-y-auto text-xs">
+                              {item.selected_attribute_value_ids.map((id, idx) => (
+                                <div key={idx} className="font-mono text-[10px] bg-yellow-50 px-1 py-0.5 rounded border border-yellow-200">
+                                  {id}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">—</span>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                   <TableRow className="bg-muted/50">
@@ -953,7 +986,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableCell className="text-center font-bold">
                       {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
                     </TableCell>
-                    <TableCell colSpan={7}></TableCell>
+                    <TableCell colSpan={showDebugColumn ? 8 : 7}></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
