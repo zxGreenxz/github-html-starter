@@ -468,6 +468,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         console.log('🚀 Starting TPOS product creation (from draft)...');
         
         for (const [index, item] of items.entries()) {
+          // Safety check: skip undefined items
+          if (!item) {
+            console.log(`⚠️ SKIP: Undefined item at index ${index + 1}`);
+            continue;
+          }
+          
           console.log(`\n📦 Processing draft item ${index + 1}:`, {
             product_code: item.product_code,
             product_name: item.product_name,
