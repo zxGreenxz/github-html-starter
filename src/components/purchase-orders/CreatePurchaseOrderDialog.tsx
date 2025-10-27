@@ -584,7 +584,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (!item.product_name.trim()) continue;
         
         // Check if item has variant data
-        if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0 && item.hasVariants) {
+        if (item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0) {
           console.log(`📦 Creating TPOS variants for item ${index + 1}:`, item.product_code);
           
           try {
