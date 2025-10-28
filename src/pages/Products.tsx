@@ -12,6 +12,7 @@ import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
+import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -29,6 +30,7 @@ export default function Products() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
+  const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -182,7 +184,7 @@ export default function Products() {
                 </div>
 
                 <Button
-                  onClick={() => {/* Chức năng sẽ thêm sau */}}
+                  onClick={() => setIsFetchTPOSDialogOpen(true)}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
                   className="gap-2"
@@ -264,6 +266,11 @@ export default function Products() {
         <AttributeManagementDialog
           open={isAttributeDialogOpen}
           onOpenChange={setIsAttributeDialogOpen}
+        />
+
+        <FetchTPOSProductDialog
+          open={isFetchTPOSDialogOpen}
+          onOpenChange={setIsFetchTPOSDialogOpen}
         />
       </div>
     </div>

@@ -58,6 +58,89 @@ export interface TPOSProductSearchResult {
   QtyAvailable: number;
   Active: boolean;
 }
+
+// ===== FETCH & EDIT TPOS PRODUCT INTERFACES =====
+
+/**
+ * Full product details từ ProductTemplate({Id})
+ */
+export interface TPOSProductFullDetails {
+  Id: number;
+  Name: string;
+  DefaultCode: string;
+  Barcode: string | null;
+  Type: string;
+  ListPrice: number;
+  PurchasePrice: number;
+  StandardPrice: number;
+  QtyAvailable: number;
+  QtyForecast: number;
+  ImageUrl: string | null;
+  Active: boolean;
+  SaleOK: boolean;
+  PurchaseOK: boolean;
+  AvailableInPOS: boolean;
+  UOM: { Id: number; Name: string } | null;
+  UOMPO: { Id: number; Name: string } | null;
+  Categ: { Id: number; Name: string; CompleteName: string } | null;
+  POSCateg: { Id: number; Name: string } | null;
+  ProductVariants: TPOSProductVariantDetail[];
+}
+
+/**
+ * Product variant details
+ */
+export interface TPOSProductVariantDetail {
+  Id: number;
+  ProductIdBienThe: number;
+  Name: string;
+  DefaultCode: string;
+  Barcode: string | null;
+  QtyAvailable: number;
+  QtyForecast: number;
+  ListPrice: number;
+  PurchasePrice: number;
+  StandardPrice: number;
+  Active: boolean;
+  AttributeValues: TPOSAttributeValueDetail[];
+}
+
+/**
+ * Attribute value details
+ */
+export interface TPOSAttributeValueDetail {
+  Id: number;
+  Name: string;
+  AttributeId: number;
+  AttributeName: string;
+  PriceExtra: number;
+}
+
+/**
+ * Update product payload for TPOS API
+ */
+export interface TPOSUpdateProductPayload {
+  Id: number;
+  Name: string;
+  Type: string;
+  ListPrice: number;
+  PurchasePrice: number;
+  StandardPrice?: number;
+  QtyAvailable?: number;
+  QtyForecast?: number;
+  DefaultCode?: string;
+  Barcode?: string | null;
+  Image?: string | null;
+  ImageUrl?: string | null;
+  Active?: boolean;
+  SaleOK?: boolean;
+  PurchaseOK?: boolean;
+  AvailableInPOS?: boolean;
+  UOMId?: number;
+  UOMPOId?: number;
+  CategId?: number;
+  POSCategId?: number | null;
+}
 export interface TPOSProductItem {
   id: string;
   product_code: string | null;
@@ -209,6 +292,146 @@ export interface TPOSAttribute {
   Code?: string;
 }
 
+
+// =====================================================
+// FETCH & EDIT TPOS PRODUCT FUNCTIONS
+// =====================================================
+
+/**
+ * Tìm sản phẩm TPOS theo DefaultCode
+ * Endpoint: GET /ProductTemplate/OdataService.GetViewV2
+ */
+export async function searchTPOSProductByCode(
+  productCode: string
+): Promise<TPOSProductSearchResult | null> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
+    }
+    
+    await randomDelay(200, 600);
+    
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(productCode)}&$top=50&$orderby=DateCreated desc&$filter=Active+eq+true&$count=true`;
+    
+    console.log(`🔍 [Fetch & Edit] Searching product: ${productCode}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(token),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [Fetch & Edit] Search failed: ${errorText}`);
+      throw new Error(`TPOS API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.value && data.value.length > 0) {
+      const product = data.value.find((p: any) => p.DefaultCode === productCode);
+      if (product) {
+        console.log(`✅ [Fetch & Edit] Found product:`, product.Name);
+        return product as TPOSProductSearchResult;
+      }
+    }
+    
+    console.log(`❌ [Fetch & Edit] Product not found: ${productCode}`);
+    return null;
+  }, 'tpos');
+}
+
+/**
+ * Lấy chi tiết đầy đủ sản phẩm từ TPOS (bao gồm variants và attributes)
+ * Endpoint: GET /ProductTemplate({Id})?$expand=...
+ */
+export async function getTPOSProductFullDetails(
+  productId: number
+): Promise<TPOSProductFullDetails> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found");
+    }
+    
+    await randomDelay(200, 600);
+    
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+    
+    console.log(`📦 [Fetch & Edit] Fetching full details for product ID: ${productId}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(token),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [Fetch & Edit] Failed to fetch details: ${errorText}`);
+      throw new Error(`Failed to fetch product details: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ [Fetch & Edit] Successfully fetched details:`, data.Name);
+    
+    return data as TPOSProductFullDetails;
+  }, 'tpos');
+}
+
+/**
+ * Cập nhật thông tin sản phẩm lên TPOS
+ * Endpoint: POST /ProductTemplate/ODataService.UpdateV2
+ */
+export async function updateTPOSProductDetails(
+  payload: TPOSUpdateProductPayload
+): Promise<any> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found");
+    }
+    
+    await randomDelay(200, 600);
+    
+    const url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
+    
+    console.log(`📤 [Fetch & Edit] Updating product ID: ${payload.Id}`);
+    
+    const cleanedPayload: TPOSUpdateProductPayload = {
+      ...payload,
+      Image: payload.Image ? cleanBase64(payload.Image) : null,
+      Type: payload.Type || "product",
+      Active: payload.Active !== undefined ? payload.Active : true,
+      SaleOK: payload.SaleOK !== undefined ? payload.SaleOK : true,
+      PurchaseOK: payload.PurchaseOK !== undefined ? payload.PurchaseOK : true,
+      AvailableInPOS: payload.AvailableInPOS !== undefined ? payload.AvailableInPOS : true,
+    };
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: getTPOSHeaders(token),
+      body: JSON.stringify(cleanedPayload)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [Fetch & Edit] Update failed: ${errorText}`);
+      throw new Error(`Failed to update product: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ [Fetch & Edit] Product updated successfully`);
+    
+    return data;
+  }, 'tpos');
+}
 
 // =====================================================
 // DEPRECATED FUNCTIONALITY
