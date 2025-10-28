@@ -1,60 +1,4 @@
-import * as XLSX from "xlsx";
 import { TPOS_CONFIG, getTPOSHeaders, getActiveTPOSToken, cleanBase64, randomDelay } from "./tpos-config";
-import { supabase } from "@/integrations/supabase/client";
-import { getVariantName } from "@/lib/variant-utils";
-
-// =====================================================
-// CACHE MANAGEMENT
-// =====================================================
-
-const CACHE_KEY = 'tpos_product_cache';
-const CACHE_TTL = 1000 * 60 * 30; // 30 phút
-
-/**
- * Lấy cached TPOS IDs từ localStorage
- */
-export function getCachedTPOSIds(): Map<string, number> {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (!cached) return new Map();
-    
-    const { data, timestamp } = JSON.parse(cached);
-    
-    // Check TTL
-    if (Date.now() - timestamp > CACHE_TTL) {
-      localStorage.removeItem(CACHE_KEY);
-      return new Map();
-    }
-    
-    return new Map(Object.entries(data));
-  } catch (error) {
-    console.error('❌ Cache read error:', error);
-    return new Map();
-  }
-}
-
-/**
- * Lưu TPOS IDs vào localStorage
- */
-export function saveCachedTPOSIds(ids: Map<string, number>) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      data: Object.fromEntries(ids),
-      timestamp: Date.now()
-    }));
-    console.log(`💾 Cached ${ids.size} TPOS IDs (TTL: 30 phút)`);
-  } catch (error) {
-    console.error('❌ Cache write error:', error);
-  }
-}
-
-/**
- * Xóa cache (dùng khi cần refresh)
- */
-export function clearTPOSCache() {
-  localStorage.removeItem(CACHE_KEY);
-  console.log('🗑️ TPOS Cache cleared');
-}
 
 // =====================================================
 // TPOS PRODUCT SEARCH
@@ -97,19 +41,11 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
   }, 'tpos');
 }
 
-
 // =====================================================
-// TPOS PRODUCT SYNC FUNCTIONS
+// TYPE DEFINITIONS
 // =====================================================
 
-interface TPOSProduct {
-  Id: number;
-  DefaultCode: string;
-  Name: string;
-  Active: boolean;
-}
-
-interface TPOSProductSearchResult {
+export interface TPOSProductSearchResult {
   Id: number;
   Name: string;
   NameGet: string;
@@ -122,164 +58,6 @@ interface TPOSProductSearchResult {
   QtyAvailable: number;
   Active: boolean;
 }
-
-interface SyncTPOSProductIdsResult {
-  matched: number;
-  notFound: number;
-  errors: number;
-  details: {
-    product_code: string;
-    tpos_id?: number;
-    error?: string;
-  }[];
-}
-
-/**
- * Fetch TPOS Products with pagination
- */
-async function fetchTPOSProducts(skip: number = 0): Promise<TPOSProduct[]> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
-    }
-    
-    const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=1000&$skip=${skip}&$orderby=DateCreated desc&$filter=Active eq true&$count=true`;
-    
-    console.log(`[TPOS Product Sync] Fetching from skip=${skip}`);
-    
-    const response = await fetch(url, {
-      headers: getTPOSHeaders(token)
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch TPOS products at skip=${skip}`);
-    }
-    
-    const data = await response.json();
-    return data.value || [];
-  }, 'tpos');
-}
-
-/**
- * Sync TPOS Product IDs (biến thể) cho products trong kho
- * @param maxRecords - Số lượng records tối đa muốn lấy (mặc định 4000)
- */
-export async function syncTPOSProductIds(
-  maxRecords: number = 4000
-): Promise<SyncTPOSProductIdsResult> {
-  const result: SyncTPOSProductIdsResult = {
-    matched: 0,
-    notFound: 0,
-    errors: 0,
-    details: []
-  };
-  
-  try {
-    // 1. Lấy tất cả products từ Supabase (bỏ qua N/A và đã có productid_bienthe)
-    const { supabase } = await import("@/integrations/supabase/client");
-    
-    const { data: products, error: productsError } = await supabase
-      .from("products")
-      .select("id, product_code, productid_bienthe")
-      .neq("product_code", "N/A")
-      .is("productid_bienthe", null) as any; // Use 'as any' temporarily until types regenerate
-    
-    if (productsError) throw productsError;
-    
-    if (!products || products.length === 0) {
-      console.log("[TPOS Product Sync] No products to sync");
-      return result;
-    }
-    
-    console.log(`[TPOS Product Sync] Found ${products.length} products to sync`);
-    
-    // 2. Fetch TPOS products với phân trang
-    const batches = Math.ceil(maxRecords / 1000);
-    const tposProductMap = new Map<string, number>(); // DefaultCode -> Id
-    
-    for (let i = 0; i < batches; i++) {
-      const skip = i * 1000;
-      const tposProducts = await fetchTPOSProducts(skip);
-      
-      if (tposProducts.length === 0) break;
-      
-      tposProducts.forEach(p => {
-        if (p.DefaultCode && p.Active) {
-          tposProductMap.set(p.DefaultCode.trim(), p.Id);
-        }
-      });
-      
-      console.log(`[TPOS Product Sync] Batch ${i + 1}/${batches}: Fetched ${tposProducts.length} products`);
-      
-      // Delay để tránh rate limit
-      if (i < batches - 1) {
-        await randomDelay(300, 600);
-      }
-    }
-    
-    console.log(`[TPOS Product Sync] Total TPOS products in map: ${tposProductMap.size}`);
-    
-    // 3. Match và update
-    for (const product of products) {
-      const tposId = tposProductMap.get(product.product_code.trim());
-      
-      if (tposId) {
-        try {
-          const { error } = await (supabase
-            .from("products")
-            .update({ productid_bienthe: tposId } as any) // Use 'as any' temporarily
-            .eq("id", product.id) as any);
-          
-          if (error) throw error;
-          
-          result.matched++;
-          result.details.push({
-            product_code: product.product_code,
-            tpos_id: tposId
-          });
-          
-          console.log(`✓ [${product.product_code}] -> TPOS ID: ${tposId}`);
-        } catch (err) {
-          result.errors++;
-          result.details.push({
-            product_code: product.product_code,
-            error: err instanceof Error ? err.message : String(err)
-          });
-          
-          console.error(`✗ [${product.product_code}] Error:`, err);
-        }
-      } else {
-        result.notFound++;
-        result.details.push({
-          product_code: product.product_code
-        });
-        
-        console.log(`⚠ [${product.product_code}] Not found in TPOS`);
-      }
-    }
-    
-    console.log("[TPOS Product Sync] Summary:", {
-      matched: result.matched,
-      notFound: result.notFound,
-      errors: result.errors
-    });
-    
-    return result;
-    
-  } catch (error) {
-    console.error("[TPOS Product Sync] Error:", error);
-    throw error;
-  }
-}
-
-
-// =====================================================
-// TYPE DEFINITIONS
-// =====================================================
-
 export interface TPOSProductItem {
   id: string;
   product_code: string | null;
@@ -296,132 +74,9 @@ export interface TPOSProductItem {
   tpos_product_id?: number | null;
 }
 
-export interface TPOSUploadResult {
-  success: boolean;
-  totalProducts: number;
-  successCount: number;
-  failedCount: number;
-  savedIds: number;
-  productsAddedToInventory?: number;
-  variantsCreated?: number;
-  variantsFailed?: number;
-  variantErrors?: Array<{
-    productName: string;
-    productCode: string;
-    errorMessage: string;
-  }>;
-  errors: Array<{
-    productName: string;
-    productCode: string;
-    errorMessage: string;
-    fullError: any;
-  }>;
-  imageUploadWarnings: Array<{
-    productName: string;
-    productCode: string;
-    tposId: number;
-    errorMessage: string;
-  }>;
-  productIds: Array<{ itemId: string; tposId: number }>;
-}
-
-// =====================================================
-// TPOS UTILITIES
-// =====================================================
-
-/**
- * Generate TPOS product link
- */
-export function generateTPOSProductLink(productId: number): string {
-  return `https://tomato.tpos.vn/#/app/producttemplate/form?id=${productId}`;
-}
-
-// =====================================================
-// IMAGE CONVERSION
-// =====================================================
-
-export async function imageUrlToBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        resolve(cleanBase64(base64));
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error("Error converting image to base64:", error);
-    return null;
-  }
-}
-
-// =====================================================
-// EXCEL GENERATION (for download only - not for TPOS upload)
-// =====================================================
-
-export function generateTPOSExcel(items: TPOSProductItem[]): Blob {
-  const excelData = items.map((item) => ({
-    "Loại sản phẩm": TPOS_CONFIG.DEFAULT_PRODUCT_TYPE,
-    "Mã sản phẩm": item.product_code?.toString() || undefined,
-    "Mã chốt đơn": undefined,
-    "Tên sản phẩm": item.product_name?.toString() || undefined,
-    "Giá bán": item.selling_price || 0,
-    "Giá mua": item.unit_price || 0,
-    "Đơn vị": TPOS_CONFIG.DEFAULT_UOM,
-    "Nhóm sản phẩm": TPOS_CONFIG.DEFAULT_CATEGORY,
-    "Mã vạch": item.product_code?.toString() || undefined,
-    "Khối lượng": undefined,
-    "Chiết khấu bán": undefined,
-    "Chiết khấu mua": undefined,
-    "Tồn kho": undefined,
-    "Giá vốn": undefined,
-    "Ghi chú": getVariantName(item.variant) || undefined,
-    "Cho phép bán ở công ty khác": "FALSE",
-    "Thuộc tính": undefined,
-    "Link Hình Ảnh": item.product_images?.[0] || undefined,
-  }));
-
-  const worksheet = XLSX.utils.json_to_sheet(excelData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Đặt Hàng");
-
-  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-  return new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-}
-
 // =====================================================
 // TPOS API CALLS
 // =====================================================
-
-/**
- * Check if a product exists in TPOS by DefaultCode
- */
-export async function checkProductExists(defaultCode: string): Promise<any | null> {
-  try {
-    const token = await getActiveTPOSToken();
-    if (!token) throw new Error("TPOS Bearer Token not found");
-    
-    const response = await fetch(
-      `${TPOS_CONFIG.API_BASE}/OdataService.GetViewV2?Active=true&DefaultCode=${defaultCode}`,
-      { headers: getTPOSHeaders(token) }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to check product: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return (data.value && data.value.length > 0) ? data.value[0] : null;
-  } catch (error) {
-    console.error(`❌ Error checking product ${defaultCode}:`, error);
-    return null;
-  }
-}
 
 /**
  * Create product directly using InsertV2 API
@@ -543,68 +198,6 @@ export async function getProductDetail(productId: number): Promise<any> {
   return products[0];
 }
 
-/**
- * Check if products exist on TPOS (batch check)
- * Returns a Map of productId -> exists (true/false)
- */
-export async function checkTPOSProductsExist(productIds: number[]): Promise<Map<number, boolean>> {
-  if (productIds.length === 0) {
-    return new Map();
-  }
-
-  const token = await getActiveTPOSToken();
-  if (!token) {
-    console.error('❌ [TPOS] Token not found');
-    return new Map();
-  }
-
-  console.log(`🔍 [TPOS] Checking existence of ${productIds.length} products...`);
-  
-  try {
-    await randomDelay(300, 700);
-    
-    // Build filter to check multiple IDs at once
-    const idFilter = productIds.map(id => `Id eq ${id}`).join(' or ');
-    const filterQuery = encodeURIComponent(idFilter);
-    
-    // Fetch only ID and Name to minimize payload
-    const response = await fetch(
-      `${TPOS_CONFIG.API_BASE}/ODataService.GetViewV2?$filter=${filterQuery}&$select=Id,Name`,
-      {
-        method: "GET",
-        headers: getTPOSHeaders(token),
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`❌ [TPOS] Check failed: ${response.status}`);
-      // On error, assume all exist (fail-safe)
-      const result = new Map<number, boolean>();
-      productIds.forEach(id => result.set(id, true));
-      return result;
-    }
-
-    const data = await response.json();
-    const existingIds = new Set((data.value || data).map((p: any) => p.Id));
-    
-    // Create map of all requested IDs
-    const result = new Map<number, boolean>();
-    productIds.forEach(id => {
-      result.set(id, existingIds.has(id));
-    });
-
-    const deletedCount = productIds.length - existingIds.size;
-    console.log(`✅ [TPOS] Found ${existingIds.size}/${productIds.length} products (${deletedCount} deleted)`);
-    
-    return result;
-  } catch (error) {
-    console.error("❌ checkTPOSProductsExist error:", error);
-    // On error, assume all exist (fail-safe)
-    const result = new Map<number, boolean>();
-    productIds.forEach(id => result.set(id, true));
-    return result;
-  }
-}
 
 // =====================================================
 // ATTRIBUTES MANAGEMENT
@@ -616,20 +209,10 @@ export interface TPOSAttribute {
   Code?: string;
 }
 
-export interface TPOSAttributesResponse {
-  sizeText: TPOSAttribute[];
-  sizeNumber: TPOSAttribute[];
-  color: TPOSAttribute[];
-}
-
-export interface DetectedAttributes {
-  sizeText?: string[];
-  sizeNumber?: string[];
-  color?: string[];
-}
 
 // =====================================================
-// VARIANT & UPLOAD FUNCTIONALITY REMOVED
+// DEPRECATED FUNCTIONALITY
 // =====================================================
-// All variant generation and TPOS upload functions have been removed.
-// Only search, sync, and utility functions remain.
+// All variant generation, product sync, and TPOS upload functions have been removed.
+// Only search and direct API calls (searchTPOSProduct, createProductDirectly, getProductDetail) remain.
+

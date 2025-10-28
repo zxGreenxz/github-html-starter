@@ -623,17 +623,7 @@ export const SystemDocumentation = () => {
                               <strong>Params:</strong> $filter, $top, $skip, $orderby, $expand, $count
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              <strong>Used by:</strong> <code>searchTPOSProduct()</code>, <code>syncTPOSProductIds()</code>
-                            </p>
-                          </div>
-
-                          <div className="bg-muted/50 p-3 rounded">
-                            <code className="text-xs">GET /odata/ProductTemplate/ODataService.GetViewV2</code>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Search/List product templates (parent products)
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              <strong>Used by:</strong> <code>fetchTPOSProducts()</code>
+                              <strong>Used by:</strong> <code>searchTPOSProduct()</code>
                             </p>
                           </div>
 
