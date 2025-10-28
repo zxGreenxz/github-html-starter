@@ -65,26 +65,119 @@ export interface TPOSProductSearchResult {
  * Full product details từ ProductTemplate({Id})
  */
 export interface TPOSProductFullDetails {
+  // === BASIC INFO ===
   Id: number;
   Name: string;
+  NameGet?: string;
   DefaultCode: string;
   Barcode: string | null;
   Type: string;
+  NameNoSign?: string | null;
+  
+  // === PRICES ===
   ListPrice: number;
   PurchasePrice: number;
   StandardPrice: number;
+  LstPrice?: number;
+  DiscountSale?: number | null;
+  DiscountPurchase?: number | null;
+  OldPrice?: number | null;
+  
+  // === QUANTITIES ===
   QtyAvailable: number;
   QtyForecast: number;
+  VirtualAvailable?: number;
+  OutgoingQty?: number | null;
+  IncomingQty?: number | null;
+  InitInventory?: number;
+  
+  // === IMAGE ===
+  Image?: string | null;
   ImageUrl: string | null;
+  Thumbnails?: any[];
+  
+  // === FLAGS ===
   Active: boolean;
   SaleOK: boolean;
   PurchaseOK: boolean;
   AvailableInPOS: boolean;
+  IsDiscount?: boolean;
+  IsCombo?: boolean | null;
+  
+  // === RELATIONS ===
   UOM: { Id: number; Name: string } | null;
   UOMPO: { Id: number; Name: string } | null;
   Categ: { Id: number; Name: string; CompleteName: string } | null;
   POSCateg: { Id: number; Name: string } | null;
+  UOMCateg?: any;
+  
+  // === IDs ===
+  UOMId?: number;
+  UOMPOId?: number;
+  CategId?: number;
+  POSCategId?: number | null;
+  CompanyId?: number | null;
+  Product_UOMId?: number | null;
+  CreatedById?: number | null;
+  
+  // === VARIANTS & ATTRIBUTES ===
   ProductVariants: TPOSProductVariantDetail[];
+  AttributeLines?: any[];
+  
+  // === POLICIES ===
+  Tracking?: string | null;
+  InvoicePolicy?: string | null;
+  PurchaseMethod?: string | null;
+  CostMethod?: string | null;
+  PropertyCostMethod?: string | null;
+  PropertyValuation?: string | null;
+  Valuation?: string | null;
+  
+  // === OTHER ===
+  Weight?: number;
+  Volume?: number | null;
+  SaleDelay?: number;
+  Version?: number;
+  Description?: string | null;
+  LastUpdated?: string | null;
+  DateCreated?: string | null;
+  
+  // === TAXES & TEAMS ===
+  Taxes?: any[];
+  SupplierTaxes?: any[];
+  TaxesIds?: any[];
+  Product_Teams?: any[];
+  
+  // === RELATED ENTITIES ===
+  Images?: any[];
+  UOMView?: any;
+  Distributor?: any;
+  Importer?: any;
+  Producer?: any;
+  OriginCountry?: any;
+  UOMLines?: any[];
+  ComboProducts?: any[];
+  ProductSupplierInfos?: any[];
+  Items?: any[];
+  
+  // === STATISTICS ===
+  StockValue?: number | null;
+  SaleValue?: number | null;
+  PosSalesCount?: number | null;
+  AmountTotal?: number | null;
+  TaxAmount?: number | null;
+  Factor?: number | null;
+  
+  // === MISC ===
+  Tags?: any[] | null;
+  OrderTag?: any | null;
+  StringExtraProperties?: any | null;
+  NameCombos?: any[];
+  RewardName?: string | null;
+  Error?: any | null;
+  DisplayAttributeValues?: any | null;
+  NameTemplateNoSign?: string | null;
+  ProductTmplEnableAll?: boolean;
 }
 
 /**
@@ -117,42 +210,10 @@ export interface TPOSAttributeValueDetail {
 }
 
 /**
- * Update product payload for TPOS API
+ * Update product payload - MUST send back entire product object
+ * Only override the fields that were edited
  */
-export interface TPOSUpdateProductPayload {
-  // Required fields
-  Id: number;
-  Name: string;
-  Type: string;
-  
-  // Prices
-  ListPrice: number;
-  PurchasePrice: number;
-  StandardPrice?: number;
-  
-  // Quantities
-  QtyAvailable?: number;
-  QtyForecast?: number;
-  
-  // Codes
-  DefaultCode?: string;
-  Barcode?: string | null;
-  
-  // Image - only string, no null allowed (undefined = keep existing)
-  Image?: string;
-  
-  // Flags
-  Active?: boolean;
-  SaleOK?: boolean;
-  PurchaseOK?: boolean;
-  AvailableInPOS?: boolean;
-  
-  // Relations
-  UOMId?: number;
-  UOMPOId?: number;
-  CategId?: number;
-  POSCategId?: number | null;
-}
+export type TPOSUpdateProductPayload = any; // Accept full product structure from API
 export interface TPOSProductItem {
   id: string;
   product_code: string | null;
@@ -400,7 +461,7 @@ export async function getTPOSProductFullDetails(
  * Endpoint: POST /ProductTemplate/ODataService.UpdateV2
  */
 export async function updateTPOSProductDetails(
-  payload: TPOSUpdateProductPayload
+  payload: any
 ): Promise<any> {
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
@@ -415,15 +476,15 @@ export async function updateTPOSProductDetails(
     const url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
     
     console.log(`📤 [Fetch & Edit] Updating product ID: ${payload.Id}`);
-    console.log(`📋 [Fetch & Edit] Original payload:`, payload);
+    console.log(`📋 [Fetch & Edit] Full payload (with all fields):`, payload);
     
-    // Only clean Base64 if Image exists, otherwise don't include it
-    const cleanedPayload = {
-      ...payload,
-      ...(payload.Image ? { Image: cleanBase64(payload.Image) } : {}),
-    };
+    // Only clean Base64 if Image field exists
+    const cleanedPayload = { ...payload };
+    if (cleanedPayload.Image && typeof cleanedPayload.Image === 'string') {
+      cleanedPayload.Image = cleanBase64(cleanedPayload.Image);
+    }
     
-    console.log(`📤 [Fetch & Edit] Cleaned payload:`, cleanedPayload);
+    console.log(`📤 [Fetch & Edit] Sending cleaned payload to TPOS`);
     
     const response = await fetch(url, {
       method: 'POST',

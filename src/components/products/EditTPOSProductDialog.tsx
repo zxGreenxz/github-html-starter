@@ -72,42 +72,32 @@ export function EditTPOSProductDialog({
     setIsSaving(true);
     
     try {
-      const payload: TPOSUpdateProductPayload = {
-        // Required fields
-        Id: product.Id,
-        Name: data.name,
-        Type: product.Type || "product",
-        DefaultCode: product.DefaultCode,
-        
-        // Price fields
-        ListPrice: data.listPrice,
-        PurchasePrice: data.purchasePrice,
-        StandardPrice: product.StandardPrice,
-        
-        // Quantity fields
-        QtyAvailable: data.qtyAvailable,
-        QtyForecast: product.QtyForecast,
-        
-        // Boolean flags - keep original values
-        Active: product.Active,
-        SaleOK: product.SaleOK,
-        PurchaseOK: product.PurchaseOK,
-        AvailableInPOS: product.AvailableInPOS,
-        
-        // UOM & Category
-        UOMId: product.UOM?.Id,
-        UOMPOId: product.UOMPO?.Id,
-        CategId: product.Categ?.Id,
-        POSCategId: product.POSCateg?.Id || null,
-        
-        // Optional fields
-        Barcode: product.Barcode,
-        
-        // Image - only include if new image pasted
-        ...(imageBase64 ? { Image: imageBase64 } : {}),
-      };
+      // ✅ CRITICAL: Deep clone the ENTIRE product object from API
+      // This ensures all fields are preserved (TPOS requires round-trip pattern)
+      const payload: any = JSON.parse(JSON.stringify(product));
       
-      console.log("📤 Submitting update payload:", payload);
+      // ✅ Only override the fields that user edited
+      payload.Name = data.name;
+      payload.ListPrice = data.listPrice;
+      payload.PurchasePrice = data.purchasePrice;
+      payload.QtyAvailable = data.qtyAvailable;
+      
+      // ✅ Handle Image correctly
+      if (imageBase64) {
+        // User pasted new image → Update it
+        payload.Image = imageBase64;
+      } else if (product.Image) {
+        // No new image, keep existing from API
+        payload.Image = product.Image;
+      }
+      // If both are null/undefined, Image field stays as is
+      
+      // ⚠️ CRITICAL: Remove ImageUrl (TPOS generates this automatically)
+      delete payload.ImageUrl;
+      
+      console.log("📤 [Edit Dialog] Submitting FULL product payload (all fields preserved)");
+      console.log("📋 [Edit Dialog] Total fields:", Object.keys(payload).length);
+      console.log("📋 [Edit Dialog] Edited fields: Name, ListPrice, PurchasePrice, QtyAvailable, Image");
       
       await updateTPOSProductDetails(payload);
       
