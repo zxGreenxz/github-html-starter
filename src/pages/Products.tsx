@@ -12,8 +12,6 @@ import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
-import { SearchSyncTPOSDialog } from "@/components/products/SearchSyncTPOSDialog";
-import { EditProductDialog } from "@/components/products/EditProductDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -31,9 +29,6 @@ export default function Products() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
-  const [isSearchSyncDialogOpen, setIsSearchSyncDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedProductForEdit, setSelectedProductForEdit] = useState<any>(null);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -187,7 +182,7 @@ export default function Products() {
                 </div>
 
                 <Button
-                  onClick={() => setIsSearchSyncDialogOpen(true)}
+                  onClick={() => {/* Chức năng sẽ thêm sau */}}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
                   className="gap-2"
@@ -269,23 +264,6 @@ export default function Products() {
         <AttributeManagementDialog
           open={isAttributeDialogOpen}
           onOpenChange={setIsAttributeDialogOpen}
-        />
-
-        <SearchSyncTPOSDialog
-          open={isSearchSyncDialogOpen}
-          onOpenChange={setIsSearchSyncDialogOpen}
-          onProductSynced={(product) => {
-            setSelectedProductForEdit(product);
-            setIsEditDialogOpen(true);
-          }}
-          onSuccess={refetch}
-        />
-
-        <EditProductDialog
-          product={selectedProductForEdit}
-          open={isEditDialogOpen}
-          onOpenChange={setIsEditDialogOpen}
-          onSuccess={refetch}
         />
       </div>
     </div>
