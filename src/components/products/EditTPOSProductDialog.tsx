@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { updateTPOSProductDetails, type TPOSProductFullDetails, type TPOSUpdateProductPayload } from "@/lib/tpos-api";
 import { useImagePaste } from "@/hooks/use-image-paste";
 import { VariantSelectorDialog } from "./VariantSelectorDialog";
+import { convertVariantsToAttributeLines, generateProductVariants } from "@/lib/tpos-variant-converter";
 
 const formSchema = z.object({
   name: z.string().min(1, "Tên sản phẩm không được để trống"),
@@ -95,9 +96,38 @@ export function EditTPOSProductDialog({
       // ⚠️ CRITICAL: Remove ImageUrl (TPOS generates this automatically)
       delete payload.ImageUrl;
       
+      // ✅ XỬ LÝ BIẾN THỂ - QUAN TRỌNG!
+      if (selectedVariants && selectedVariants !== "") {
+        console.log("🔄 Converting variants to AttributeLines...");
+        
+        // Convert selectedVariants sang AttributeLines format
+        const attributeLines = await convertVariantsToAttributeLines(selectedVariants);
+        
+        if (attributeLines.length > 0) {
+          // Generate ProductVariants từ AttributeLines
+          const newVariants = generateProductVariants(
+            data.name,
+            data.listPrice,
+            attributeLines,
+            imageBase64 || product.Image || undefined,
+            product.Id
+          );
+          
+          console.log(`✅ Generated ${newVariants.length} variants from AttributeLines`);
+          
+          // Update payload
+          payload.AttributeLines = attributeLines;
+          payload.ProductVariants = newVariants;
+        }
+      } else {
+        // Không có biến thể mới → Giữ nguyên ProductVariants cũ
+        console.log("ℹ️ No variant changes, keeping original ProductVariants");
+      }
+      
       console.log("📤 [Edit Dialog] Submitting FULL product payload (all fields preserved)");
       console.log("📋 [Edit Dialog] Total fields:", Object.keys(payload).length);
-      console.log("📋 [Edit Dialog] Edited fields: Name, ListPrice, PurchasePrice, QtyAvailable, Image");
+      console.log("📋 [Edit Dialog] Has AttributeLines:", !!payload.AttributeLines);
+      console.log("📋 [Edit Dialog] Variants count:", payload.ProductVariants?.length || 0);
       
       await updateTPOSProductDetails(payload);
       
