@@ -196,7 +196,7 @@ interface TPOSProduct {
   Active: boolean;
 }
 
-interface TPOSProductSearchResult {
+export interface TPOSProductSearchResult {
   Id: number;
   Name: string;
   NameGet: string;
