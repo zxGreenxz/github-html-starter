@@ -1,4 +1,4 @@
-# Tài Liệu Kỹ Thuật: Hệ Thống Purchase Orders V1
+﻿# Tài Liệu Kỹ Thuật: Hệ Thống Purchase Orders V1
 
 **Version:** 1.0  
 **Last Updated:** 2025-10-28  

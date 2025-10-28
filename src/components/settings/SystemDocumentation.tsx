@@ -71,6 +71,63 @@ export const SystemDocumentation = () => {
               </AccordionContent>
             </AccordionItem>
 
+            {/* Purchase Orders V1 Documentation */}
+            <AccordionItem value="purchase-orders-v1">
+              <AccordionTrigger>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">📦 Purchase Orders V1</Badge>
+                  <span className="font-semibold">Tài liệu đặt hàng nhà cung cấp</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4 text-sm">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="font-medium mb-3">📥 Tải Tài Liệu</p>
+                    <div className="flex flex-wrap gap-2">
+                      <a 
+                        href="/docs/PURCHASE_ORDERS_V1_QUICK.md" 
+                        download
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                      >
+                        📄 Phiên bản rút gọn (Quick Guide - 500 dòng)
+                      </a>
+                      <a 
+                        href="/docs/PURCHASE_ORDERS_V1.md" 
+                        download
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                      >
+                        📚 Phiên bản đầy đủ (Full Docs - 3200 dòng)
+                      </a>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2">🎯 Nội dung Quick Guide</h4>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li><strong>Tổng quan:</strong> Kiến trúc, flow tổng quát</li>
+                      <li><strong>Module Map:</strong> Frontend (3 components) + Backend (2 edge functions)</li>
+                      <li><strong>Flow chi tiết:</strong> Create Order, Background Processing, TPOS Variants</li>
+                      <li><strong>Debug Checklist:</strong> UI không responsive, items stuck, memory leak</li>
+                      <li><strong>Top 5 Known Issues:</strong> Race condition, stuck processing, memory leak, no validation</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2">📚 Nội dung Full Documentation</h4>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li><strong>Database Schema:</strong> Chi tiết 4 tables, RLS policies, indexes</li>
+                      <li><strong>Business Flows:</strong> Mermaid diagrams cho tất cả flows</li>
+                      <li><strong>Frontend Implementation:</strong> Code chi tiết từng component</li>
+                      <li><strong>Backend Implementation:</strong> Edge functions logic, TPOS API integration</li>
+                      <li><strong>Input/Output:</strong> Interface definitions, validation rules</li>
+                      <li><strong>Risks & Improvements:</strong> 10 issues với solutions chi tiết</li>
+                      <li><strong>Roadmap:</strong> Short-term, medium-term, long-term plans</li>
+                    </ul>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
             {/* Main Features */}
             <AccordionItem value="features">
               <AccordionTrigger>
