@@ -73,23 +73,38 @@ export function EditTPOSProductDialog({
     
     try {
       const payload: TPOSUpdateProductPayload = {
+        // Required fields
         Id: product.Id,
         Name: data.name,
         Type: product.Type || "product",
-        PurchasePrice: data.purchasePrice,
-        ListPrice: data.listPrice,
-        QtyAvailable: data.qtyAvailable,
         DefaultCode: product.DefaultCode,
-        Barcode: product.Barcode,
-        Image: imageBase64,
+        
+        // Price fields
+        ListPrice: data.listPrice,
+        PurchasePrice: data.purchasePrice,
+        StandardPrice: product.StandardPrice,
+        
+        // Quantity fields
+        QtyAvailable: data.qtyAvailable,
+        QtyForecast: product.QtyForecast,
+        
+        // Boolean flags - keep original values
         Active: product.Active,
         SaleOK: product.SaleOK,
         PurchaseOK: product.PurchaseOK,
         AvailableInPOS: product.AvailableInPOS,
+        
+        // UOM & Category
         UOMId: product.UOM?.Id,
         UOMPOId: product.UOMPO?.Id,
         CategId: product.Categ?.Id,
         POSCategId: product.POSCateg?.Id || null,
+        
+        // Optional fields
+        Barcode: product.Barcode,
+        
+        // Image - only include if new image pasted
+        ...(imageBase64 ? { Image: imageBase64 } : {}),
       };
       
       console.log("📤 Submitting update payload:", payload);

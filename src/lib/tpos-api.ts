@@ -120,22 +120,34 @@ export interface TPOSAttributeValueDetail {
  * Update product payload for TPOS API
  */
 export interface TPOSUpdateProductPayload {
+  // Required fields
   Id: number;
   Name: string;
   Type: string;
+  
+  // Prices
   ListPrice: number;
   PurchasePrice: number;
   StandardPrice?: number;
+  
+  // Quantities
   QtyAvailable?: number;
   QtyForecast?: number;
+  
+  // Codes
   DefaultCode?: string;
   Barcode?: string | null;
-  Image?: string | null;
-  ImageUrl?: string | null;
+  
+  // Image - only string, no null allowed (undefined = keep existing)
+  Image?: string;
+  
+  // Flags
   Active?: boolean;
   SaleOK?: boolean;
   PurchaseOK?: boolean;
   AvailableInPOS?: boolean;
+  
+  // Relations
   UOMId?: number;
   UOMPOId?: number;
   CategId?: number;
@@ -403,16 +415,15 @@ export async function updateTPOSProductDetails(
     const url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
     
     console.log(`📤 [Fetch & Edit] Updating product ID: ${payload.Id}`);
+    console.log(`📋 [Fetch & Edit] Original payload:`, payload);
     
-    const cleanedPayload: TPOSUpdateProductPayload = {
+    // Only clean Base64 if Image exists, otherwise don't include it
+    const cleanedPayload = {
       ...payload,
-      Image: payload.Image ? cleanBase64(payload.Image) : null,
-      Type: payload.Type || "product",
-      Active: payload.Active !== undefined ? payload.Active : true,
-      SaleOK: payload.SaleOK !== undefined ? payload.SaleOK : true,
-      PurchaseOK: payload.PurchaseOK !== undefined ? payload.PurchaseOK : true,
-      AvailableInPOS: payload.AvailableInPOS !== undefined ? payload.AvailableInPOS : true,
+      ...(payload.Image ? { Image: cleanBase64(payload.Image) } : {}),
     };
+    
+    console.log(`📤 [Fetch & Edit] Cleaned payload:`, cleanedPayload);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -427,7 +438,7 @@ export async function updateTPOSProductDetails(
     }
     
     const data = await response.json();
-    console.log(`✅ [Fetch & Edit] Product updated successfully`);
+    console.log(`✅ [Fetch & Edit] Product updated successfully:`, data);
     
     return data;
   }, 'tpos');
