@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Settings2 } from "lucide-react";
+import { Package, Settings2, Edit } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -180,6 +180,16 @@ export default function Products() {
                     </Badge>
                   )}
                 </div>
+
+                <Button
+                  onClick={() => {/* Chức năng sẽ thêm sau */}}
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  className="gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Chỉnh Sửa
+                </Button>
 
                 <Button
                   onClick={() => setIsAttributeDialogOpen(true)}
