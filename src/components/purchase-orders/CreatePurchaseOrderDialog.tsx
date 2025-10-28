@@ -465,76 +465,31 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         if (itemsError) throw itemsError;
 
-        // Step: Create products on TPOS for items with variants (DRAFT FLOW)
-        console.log('🚀 Starting TPOS product creation (from draft)...');
-        
-        for (const [index, item] of items.entries()) {
-          // Safety check: skip undefined items
-          if (!item) {
-            console.log(`⚠️ SKIP: Undefined item at index ${index + 1}`);
-            continue;
-          }
-          
-          if (!item.product_name.trim()) {
-            console.log(`⚠️ SKIP: Empty product name at index ${index + 1}`);
-            continue;
-          }
-          
-          // Log item info
-          const hasVariants = (item.selectedAttributeValueIds?.length || 0) > 0;
-          console.log(`\n📦 Processing draft item ${index + 1}:`, {
-            product_code: item.product_code,
-            product_name: item.product_name,
-            has_variants: hasVariants,
-            variant_count: item.selectedAttributeValueIds?.length || 0
-          });
+        // Step 3: Invoke background TPOS processing (same as create flow)
+        console.log('🚀 Starting background TPOS product creation (from draft)...');
 
-          // Create TPOS product for ALL items (with or without variants)
-          try {
-            const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-              'create-tpos-variants-from-order',
-              {
-                body: {
-                  baseProductCode: item.product_code.trim().toUpperCase(),
-                  productName: item.product_name.trim().toUpperCase(),
-                  purchasePrice: Number(item.purchase_price || 0),
-                  sellingPrice: Number(item.selling_price || 0),
-                  selectedAttributeValueIds: item.selectedAttributeValueIds || [], // Always pass array
-                  productImages: Array.isArray(item.product_images) 
-                    ? item.product_images 
-                    : (item.product_images ? [item.product_images] : []),
-                  supplierName: formData.supplier_name.trim().toUpperCase()
-                }
-              }
-            );
+        const totalDraftItems = items.filter(i => i.product_name.trim()).length;
 
-            if (tposError) {
-              console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
-              throw new Error(`Lỗi tạo sản phẩm ${item.product_code}: ${tposError.message}`);
-            }
+        // Invoke background function without awaiting (fire-and-forget)
+        supabase.functions.invoke(
+          'process-purchase-order-background',
+          { body: { purchase_order_id: order.id } }
+        ).catch(error => {
+          console.error('Failed to invoke background process:', error);
+          sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+        });
 
-            if (!tposResult?.success) {
-              console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
-              throw new Error(`Không thể tạo sản phẩm ${item.product_code}: ${tposResult?.error}`);
-            }
+        // Show loading toast
+        const toastId = `tpos-processing-${order.id}`;
+        sonnerToast.loading(
+          `Đang xử lý 0/${totalDraftItems} sản phẩm...`,
+          { id: toastId, duration: Infinity }
+        );
 
-            const variantInfo = tposResult.variant_count 
-              ? `with ${tposResult.variant_count} variants` 
-              : 'without variants';
-            console.log(`✅ Created TPOS product: ${item.product_code} (${variantInfo})`);
-            
-          } catch (error) {
-            console.error(`Error creating TPOS product ${item.product_code}:`, error);
-            toast({
-              title: "Lỗi tạo sản phẩm",
-              description: error instanceof Error ? error.message : `Không thể tạo sản phẩm ${item.product_code}`,
-              variant: "destructive",
-            });
-            throw error;
-          }
-        }
+        // Start polling
+        pollTPOSProcessingProgress(order.id, totalDraftItems, toastId);
 
-        console.log('✅ Finished TPOS product creation (from draft)');
+        console.log('✅ Background processing initiated (from draft)');
 
         // Create parent products (same logic as before)
         const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
@@ -654,21 +609,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       
       const totalItems = items.filter(i => i.product_name.trim()).length;
       
-      // Invoke background function without awaiting
-      const { error: invokeError } = await supabase.functions.invoke(
+      // Invoke background function without awaiting (fire-and-forget)
+      supabase.functions.invoke(
         'process-purchase-order-background',
         { body: { purchase_order_id: order.id } }
-      );
-
-      if (invokeError) {
-        console.error('Failed to invoke background process:', invokeError);
-        toast({
-          title: "Cảnh báo",
-          description: "Không thể bắt đầu xử lý. Vui lòng thử lại.",
-          variant: "destructive"
-        });
-        // Continue anyway - don't block user
-      }
+      ).catch(error => {
+        console.error('Failed to invoke background process:', error);
+        sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+      });
 
       // Show loading toast immediately (will be updated via polling)
       const toastId = `tpos-processing-${order.id}`;

@@ -81,14 +81,26 @@ Deno.serve(async (req) => {
     for (const [index, item] of items.entries()) {
       console.log(`\n🔄 Processing item ${index + 1}/${items.length}: ${item.product_code}`);
 
-      // Mark as processing
-      await supabase
+      // 🔒 LOCK CHECK: Skip if already processing
+      if (item.tpos_sync_status === 'processing') {
+        console.log(`⚠️ Item ${item.product_code} is already being processed, skipping...`);
+        continue;
+      }
+
+      // Mark as processing (atomic operation - only if status unchanged)
+      const { error: updateError } = await supabase
         .from('purchase_order_items')
         .update({ 
           tpos_sync_status: 'processing',
           tpos_sync_started_at: new Date().toISOString()
         })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('tpos_sync_status', item.tpos_sync_status); // ✅ Only update if status unchanged
+
+      if (updateError) {
+        console.error(`❌ Failed to lock item ${item.product_code}:`, updateError);
+        continue; // Skip this item if can't lock
+      }
 
       try {
         // Call TPOS creation edge function (same as frontend logic)
