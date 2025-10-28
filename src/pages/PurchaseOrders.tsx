@@ -596,10 +596,6 @@ const PurchaseOrders = () => {
             <FileText className="w-4 h-4" />
             Nháp ({draftOrders.length})
           </TabsTrigger>
-          <TabsTrigger value="products" className="gap-2">
-            <Package className="w-4 h-4" />
-            Sản phẩm đã đặt
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="orders" className="space-y-4">
@@ -719,22 +715,6 @@ const PurchaseOrders = () => {
         </TabsContent>
 
 
-        <TabsContent value="products" className="space-y-4">
-          <Card>
-          <CardHeader>
-              <CardTitle>Sản phẩm đã đặt</CardTitle>
-              <CardDescription>
-                Xem danh sách các sản phẩm đã đặt hàng từ nhà cung cấp
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Chức năng đang phát triển</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       <CreatePurchaseOrderDialog 
