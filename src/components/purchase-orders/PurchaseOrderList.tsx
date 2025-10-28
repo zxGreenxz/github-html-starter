@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Pencil, Search, Filter, Calendar, Trash2, Check } from "lucide-react";
+import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import React, { useState } from "react";
 import { format } from "date-fns";
@@ -34,6 +34,8 @@ interface PurchaseOrderItem {
   product_images: string[] | null;
   price_images: string[] | null;
   tpos_product_id?: number | null;
+  // TPOS sync tracking
+  tpos_sync_status?: string;
 }
 
 interface PurchaseOrder {
@@ -226,6 +228,34 @@ export function PurchaseOrderList({
       return info;
     },
     enabled: allProductCodes.length > 0
+  });
+
+  // Query sync status for all orders
+  const { data: syncStatusMap } = useQuery({
+    queryKey: ['order-sync-status', filteredOrders.map(o => o.id)],
+    queryFn: async () => {
+      const orderIds = filteredOrders.map(o => o.id);
+      if (orderIds.length === 0) return {};
+
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select('purchase_order_id, tpos_sync_status')
+        .in('purchase_order_id', orderIds);
+
+      if (error) return {};
+
+      const statusMap: Record<string, { processing: number; failed: number }> = {};
+      data?.forEach(item => {
+        if (!statusMap[item.purchase_order_id]) {
+          statusMap[item.purchase_order_id] = { processing: 0, failed: 0 };
+        }
+        if (item.tpos_sync_status === 'processing') statusMap[item.purchase_order_id].processing++;
+        if (item.tpos_sync_status === 'failed') statusMap[item.purchase_order_id].failed++;
+      });
+
+      return statusMap;
+    },
+    enabled: filteredOrders.length > 0
   });
 
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
@@ -679,12 +709,30 @@ export function PurchaseOrderList({
                           </div>
                         )}
                       </TableCell>
-                      <TableCell 
-                        className="border-r" 
-                        rowSpan={flatItem.itemCount}
-                      >
-                        {getStatusBadge(flatItem.status, flatItem.hasShortage)}
-                      </TableCell>
+                       <TableCell 
+                         className="border-r" 
+                         rowSpan={flatItem.itemCount}
+                       >
+                         <div className="flex items-center gap-2">
+                           {getStatusBadge(flatItem.status, flatItem.hasShortage)}
+                           {syncStatusMap?.[flatItem.id] && (
+                             <>
+                               {syncStatusMap[flatItem.id].processing > 0 && (
+                                 <Badge variant="secondary" className="text-xs">
+                                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                   Đang xử lý
+                                 </Badge>
+                               )}
+                               {syncStatusMap[flatItem.id].failed > 0 && syncStatusMap[flatItem.id].processing === 0 && (
+                                 <Badge variant="destructive" className="text-xs">
+                                   <AlertCircle className="w-3 h-3 mr-1" />
+                                   {syncStatusMap[flatItem.id].failed} lỗi
+                                 </Badge>
+                               )}
+                             </>
+                           )}
+                         </div>
+                       </TableCell>
                       {/* Order-level Edit Button */}
                       <TableCell 
                         className="border-r text-center" 

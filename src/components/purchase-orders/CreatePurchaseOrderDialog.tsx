@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
@@ -648,75 +649,38 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Create products on TPOS for ALL items (with or without variants)
-      console.log('🚀 Starting TPOS product creation...');
+      // Step 3: Invoke background TPOS processing (non-blocking)
+      console.log('🚀 Starting background TPOS product creation...');
+      
+      const totalItems = items.filter(i => i.product_name.trim()).length;
+      
+      // Invoke background function without awaiting
+      const { error: invokeError } = await supabase.functions.invoke(
+        'process-purchase-order-background',
+        { body: { purchase_order_id: order.id } }
+      );
 
-      for (const [index, item] of items.entries()) {
-        if (!item) {
-          console.log(`⚠️ SKIP: Undefined item at index ${index + 1}`);
-          continue;
-        }
-        
-        if (!item.product_name.trim()) {
-          console.log(`⚠️ SKIP: Empty product name at index ${index + 1}`);
-          continue;
-        }
-        
-        // Log item info
-        const hasVariants = (item.selectedAttributeValueIds?.length || 0) > 0;
-        console.log(`\n📦 Processing item ${index + 1}:`, {
-          product_code: item.product_code,
-          product_name: item.product_name,
-          has_variants: hasVariants,
-          variant_count: item.selectedAttributeValueIds?.length || 0
+      if (invokeError) {
+        console.error('Failed to invoke background process:', invokeError);
+        toast({
+          title: "Cảnh báo",
+          description: "Không thể bắt đầu xử lý. Vui lòng thử lại.",
+          variant: "destructive"
         });
-
-        // Create TPOS product for ALL items (with or without variants)
-        try {
-          const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-            'create-tpos-variants-from-order',
-            {
-              body: {
-                baseProductCode: item.product_code.trim().toUpperCase(),
-                productName: item.product_name.trim().toUpperCase(),
-                purchasePrice: Number(item.purchase_price || 0),
-                sellingPrice: Number(item.selling_price || 0),
-                selectedAttributeValueIds: item.selectedAttributeValueIds || [], // Always pass array
-                productImages: Array.isArray(item.product_images) 
-                  ? item.product_images 
-                  : (item.product_images ? [item.product_images] : []),
-                supplierName: formData.supplier_name.trim().toUpperCase()
-              }
-            }
-          );
-
-          if (tposError) {
-            console.error(`❌ TPOS API error for ${item.product_code}:`, tposError);
-            throw new Error(`Lỗi tạo sản phẩm ${item.product_code}: ${tposError.message}`);
-          }
-
-          if (!tposResult?.success) {
-            console.error(`❌ TPOS creation failed for ${item.product_code}:`, tposResult?.error);
-            throw new Error(`Không thể tạo sản phẩm ${item.product_code}: ${tposResult?.error}`);
-          }
-
-          const variantInfo = tposResult.variant_count 
-            ? `with ${tposResult.variant_count} variants` 
-            : 'without variants';
-          console.log(`✅ Created TPOS product: ${item.product_code} (${variantInfo})`);
-          
-        } catch (error) {
-          console.error(`Error creating TPOS product ${item.product_code}:`, error);
-          toast({
-            title: "Lỗi tạo sản phẩm",
-            description: error instanceof Error ? error.message : `Không thể tạo sản phẩm ${item.product_code}`,
-            variant: "destructive",
-          });
-          throw error;
-        }
+        // Continue anyway - don't block user
       }
 
-      console.log('✅ Finished TPOS product creation');
+      // Show loading toast immediately (will be updated via polling)
+      const toastId = `tpos-processing-${order.id}`;
+      sonnerToast.loading(
+        `Đang xử lý 0/${totalItems} sản phẩm...`,
+        { id: toastId, duration: Infinity }
+      );
+
+      // Start polling for progress updates
+      pollTPOSProcessingProgress(order.id, totalItems, toastId);
+
+      console.log('✅ Background processing initiated');
 
       // Step 4: Create parent products in inventory
       const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
@@ -788,10 +752,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: () => {
-      toast({ 
-        title: "Tạo đơn đặt hàng thành công!",
-        description: "Đã tạo sản phẩm và biến thể trên TPOS"
-      });
+      // Don't show success toast here - it's shown by polling function
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -807,6 +768,80 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       });
     }
   });
+
+  // Helper function to poll TPOS processing progress
+  const pollTPOSProcessingProgress = async (
+    orderId: string,
+    totalItems: number,
+    toastId: string
+  ) => {
+    const POLL_INTERVAL = 2000; // 2 seconds
+    const MAX_DURATION = 180000; // 3 minutes timeout
+    const startTime = Date.now();
+
+    const pollInterval = setInterval(async () => {
+      // Timeout check
+      if (Date.now() - startTime > MAX_DURATION) {
+        clearInterval(pollInterval);
+        sonnerToast.error(
+          "Quá trình xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
+          { id: toastId, duration: 5000 }
+        );
+        return;
+      }
+
+      // Query progress from database
+      const { data: items, error } = await supabase
+        .from('purchase_order_items')
+        .select('id, tpos_sync_status, product_code, tpos_sync_error')
+        .eq('purchase_order_id', orderId);
+
+      if (error || !items) {
+        console.error('Failed to fetch progress:', error);
+        return;
+      }
+
+      // Count statuses
+      const successCount = items.filter(i => i.tpos_sync_status === 'success').length;
+      const failedCount = items.filter(i => i.tpos_sync_status === 'failed').length;
+      const completedCount = successCount + failedCount;
+
+      // Update toast with progress
+      sonnerToast.loading(
+        `Đang xử lý ${completedCount}/${totalItems} sản phẩm... (${successCount} thành công, ${failedCount} lỗi)`,
+        { id: toastId, duration: Infinity }
+      );
+
+      // Check if processing is complete
+      if (completedCount === totalItems) {
+        clearInterval(pollInterval);
+
+        if (failedCount === 0) {
+          // ✅ All succeeded
+          sonnerToast.success(
+            `Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
+            { id: toastId, duration: 5000 }
+          );
+        } else if (successCount === 0) {
+          // ❌ All failed
+          sonnerToast.error(
+            `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
+            { id: toastId, duration: 5000 }
+          );
+        } else {
+          // ⚠️ Partial success
+          sonnerToast.warning(
+            `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
+            { id: toastId, duration: 7000 }
+          );
+        }
+
+        // Refresh queries after completion
+        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
+      }
+    }, POLL_INTERVAL);
+  };
 
   const resetForm = () => {
     setFormData({

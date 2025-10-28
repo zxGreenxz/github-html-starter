@@ -1059,6 +1059,10 @@ export type Database = {
           tpos_deleted: boolean | null
           tpos_deleted_at: string | null
           tpos_product_id: number | null
+          tpos_sync_completed_at: string | null
+          tpos_sync_error: string | null
+          tpos_sync_started_at: string | null
+          tpos_sync_status: string | null
           variant: string | null
         }
         Insert: {
@@ -1078,6 +1082,10 @@ export type Database = {
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
+          tpos_sync_completed_at?: string | null
+          tpos_sync_error?: string | null
+          tpos_sync_started_at?: string | null
+          tpos_sync_status?: string | null
           variant?: string | null
         }
         Update: {
@@ -1097,6 +1105,10 @@ export type Database = {
           tpos_deleted?: boolean | null
           tpos_deleted_at?: string | null
           tpos_product_id?: number | null
+          tpos_sync_completed_at?: string | null
+          tpos_sync_error?: string | null
+          tpos_sync_started_at?: string | null
+          tpos_sync_status?: string | null
           variant?: string | null
         }
         Relationships: [

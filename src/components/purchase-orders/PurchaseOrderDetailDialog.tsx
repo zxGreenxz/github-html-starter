@@ -1,14 +1,17 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarIcon, Building2, FileText, DollarSign, Package } from "lucide-react";
+import { CalendarIcon, Building2, FileText, DollarSign, Package, AlertCircle, RefreshCw, Loader2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND } from "@/lib/currency-utils";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface PurchaseOrder {
   id: string;
@@ -36,6 +39,9 @@ interface PurchaseOrderItem {
   selling_price: number;
   product_images?: string[];
   price_images?: string[];
+  // TPOS sync tracking
+  tpos_sync_status?: string;
+  tpos_sync_error?: string | null;
 }
 
 interface PurchaseOrderDetailDialogProps {
@@ -46,6 +52,10 @@ interface PurchaseOrderDetailDialogProps {
 
 export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: PurchaseOrderDetailDialogProps) {
   if (!order) return null;
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Fetch purchase order items (no JOIN needed - all data is in purchase_order_items)
   const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
@@ -69,6 +79,62 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
     const price = item.purchase_price || 0;
     return sum + (item.quantity * price);
   }, 0);
+
+  // Count failed items
+  const failedItems = orderItems.filter(item => item.tpos_sync_status === 'failed');
+  const failedCount = failedItems.length;
+
+  // Retry failed items handler
+  const handleRetryFailed = async () => {
+    setIsRetrying(true);
+
+    try {
+      // Reset status to 'pending' for failed items
+      const { error: resetError } = await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'pending', 
+          tpos_sync_error: null 
+        })
+        .eq('purchase_order_id', order.id)
+        .eq('tpos_sync_status', 'failed');
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      // Invoke background processing again
+      const { error: invokeError } = await supabase.functions.invoke(
+        'process-purchase-order-background',
+        { body: { purchase_order_id: order.id } }
+      );
+
+      if (invokeError) {
+        throw invokeError;
+      }
+
+      toast({
+        title: "Đang retry",
+        description: `Đang retry ${failedCount} sản phẩm lỗi...`,
+        duration: 5000,
+      });
+
+      // Refresh items
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderItems', order.id] });
+      
+      // Close dialog to let user see toast progress
+      onOpenChange(false);
+
+    } catch (error: any) {
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể retry. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -243,6 +309,59 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
           </div>
 
           <Separator />
+
+          {/* Failed Items Section */}
+          {failedCount > 0 && (
+            <>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-destructive" />
+                    <span className="text-sm font-medium">Sản phẩm lỗi ({failedCount})</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleRetryFailed}
+                    disabled={isRetrying}
+                  >
+                    {isRetrying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Đang retry...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Retry Failed Items
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                <ScrollArea className="h-[200px] rounded-md border">
+                  <div className="p-4 space-y-2">
+                    {failedItems.map(item => (
+                      <div key={item.id} className="flex items-start gap-2 p-2 bg-destructive/10 rounded">
+                        <XCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{item.product_code}</div>
+                          <div className="text-xs text-muted-foreground truncate">{item.product_name}</div>
+                          {item.tpos_sync_error && (
+                            <div className="text-xs text-destructive mt-1">
+                              Lỗi: {item.tpos_sync_error}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              <Separator />
+            </>
+          )}
 
             <div className="space-y-4">
             <div className="flex items-center gap-2">
