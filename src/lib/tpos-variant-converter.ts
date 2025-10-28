@@ -89,7 +89,8 @@ export function generateProductVariants(
   listPrice: number,
   attributeLines: any[],
   imageBase64?: string,
-  productTmplId?: number
+  productTmplId?: number,
+  baseProduct?: any
 ): any[] {
   if (!attributeLines || attributeLines.length === 0) return [];
   
@@ -114,46 +115,112 @@ export function generateProductVariants(
     const variantName = attrs.map((a) => a.Name).join(", ");
     
     return {
+      // ✅ Basic identity fields
       Id: 0, // New variant
       EAN13: null,
       DefaultCode: null,
       NameTemplate: productName,
+      Name: `${productName} (${variantName})`,
       NameNoSign: null,
+      NameGet: `${productName} (${variantName})`,
+      NameTemplateNoSign: productName,
+      
+      // ✅ Product template reference
       ProductTmplId: productTmplId || 0,
-      UOMId: 1,
+      
+      // ✅ Unit of measure
+      UOMId: baseProduct?.UOMId || 1,
       UOMName: null,
-      UOMPOId: 1,
+      UOMPOId: baseProduct?.UOMPOId || 1,
+      Product_UOMId: null,
+      
+      // ✅ Inventory
       QtyAvailable: 0,
       VirtualAvailable: 0,
       OutgoingQty: null,
       IncomingQty: null,
-      NameGet: `${productName} (${variantName})`,
-      POSCategId: null,
+      InitInventory: 0,
+      StockValue: null,
+      
+      // ✅ Category & Position
+      POSCategId: baseProduct?.POSCategId || null,
+      CategId: baseProduct?.CategId || 0,
+      CategName: null,
+      AvailableInPOS: baseProduct?.AvailableInPOS ?? true,
+      
+      // ✅ Pricing
       Price: null,
+      ListPrice: 0,
+      LstPrice: 0,
+      PriceVariant: listPrice,
+      StandardPrice: listPrice,
+      PurchasePrice: null,
+      OldPrice: null,
+      DiscountSale: null,
+      DiscountPurchase: null,
+      
+      // ✅ Barcode & Images
       Barcode: null,
       Image: imageBase64 || null,
       ImageUrl: null,
       Thumbnails: [],
-      PriceVariant: listPrice,
-      SaleOK: true,
-      PurchaseOK: true,
+      
+      // ✅ Sales & Purchase flags
+      SaleOK: baseProduct?.SaleOK ?? true,
+      PurchaseOK: baseProduct?.PurchaseOK ?? true,
+      Active: baseProduct?.Active ?? true,
+      
+      // ✅ Product type & tracking
+      Type: baseProduct?.Type || "product",
+      Tracking: baseProduct?.Tracking || null,
+      
+      // ✅ Costing & valuation
+      CostMethod: baseProduct?.CostMethod || null,
+      PropertyCostMethod: baseProduct?.PropertyCostMethod || null,
+      Valuation: baseProduct?.Valuation || null,
+      PropertyValuation: baseProduct?.PropertyValuation || null,
+      
+      // ✅ Policies
+      InvoicePolicy: baseProduct?.InvoicePolicy || "order",
+      PurchaseMethod: baseProduct?.PurchaseMethod || "receive",
+      
+      // ✅ Physical properties
+      Weight: baseProduct?.Weight || 0,
+      Volume: baseProduct?.Volume || null,
+      
+      // ✅ Miscellaneous
       DisplayAttributeValues: null,
-      LstPrice: 0,
-      Active: true,
-      ListPrice: 0,
-      PurchasePrice: null,
-      DiscountSale: null,
-      DiscountPurchase: null,
-      StandardPrice: listPrice,
-      Weight: 0,
-      Volume: null,
-      OldPrice: null,
       IsDiscount: false,
       ProductTmplEnableAll: false,
       Version: 0,
       Description: null,
       LastUpdated: null,
       DateCreated: null,
+      IsCombo: baseProduct?.IsCombo || null,
+      Variant_TeamId: 0,
+      SaleDelay: baseProduct?.SaleDelay || 0,
+      CompanyId: baseProduct?.CompanyId || null,
+      
+      // ✅ Tax & additional data
+      TaxesIds: baseProduct?.TaxesIds || [],
+      Tags: null,
+      OrderTag: null,
+      StringExtraProperties: null,
+      CreatedById: null,
+      TaxAmount: null,
+      Error: null,
+      
+      // ✅ Sales tracking
+      SaleValue: null,
+      PosSalesCount: null,
+      AmountTotal: null,
+      
+      // ✅ Combos & rewards
+      NameCombos: [],
+      RewardName: null,
+      Factor: null,
+      
+      // ✅ CRITICAL: AttributeValues array
       AttributeValues: attrs.map(a => ({
         Id: a.Id,
         Name: a.Name,

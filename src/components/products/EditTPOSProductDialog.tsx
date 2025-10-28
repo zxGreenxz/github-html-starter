@@ -110,7 +110,8 @@ export function EditTPOSProductDialog({
             data.listPrice,
             attributeLines,
             imageBase64 || product.Image || undefined,
-            product.Id
+            product.Id,
+            product
           );
           
           console.log(`✅ Generated ${newVariants.length} variants from AttributeLines`);
