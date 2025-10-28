@@ -331,40 +331,29 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                 )}
 
                 {isAdmin && !isVariant(product) && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingProduct(product)}
-                      className="flex-1"
-                    >
-                      <Pencil className="h-3 w-3 mr-1" />
-                      Sửa
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        if (isVariant(product)) {
-                          setChildVariantsCount(0);
-                          setDeletingProduct(product);
-                          return;
-                        }
-                        
-                        const { count } = await supabase
-                          .from("products")
-                          .select("*", { count: "exact", head: true })
-                          .eq("base_product_code", product.base_product_code);
-                        
-                        setChildVariantsCount((count || 1) - 1);
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (isVariant(product)) {
+                        setChildVariantsCount(0);
                         setDeletingProduct(product);
-                      }}
-                      className="flex-1"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Xóa
-                    </Button>
-                  </div>
+                        return;
+                      }
+                      
+                      const { count } = await supabase
+                        .from("products")
+                        .select("*", { count: "exact", head: true })
+                        .eq("base_product_code", product.base_product_code);
+                      
+                      setChildVariantsCount((count || 1) - 1);
+                      setDeletingProduct(product);
+                    }}
+                    className="w-full"
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Xóa
+                  </Button>
                 )}
               </div>
             </Card>
@@ -545,38 +534,27 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
                 <TableCell className="text-muted-foreground">{product.supplier_name || "-"}</TableCell>
                 {isAdmin && (
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      {!isVariant(product) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingProduct(product)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          if (isVariant(product)) {
-                            setChildVariantsCount(0);
-                            setDeletingProduct(product);
-                            return;
-                          }
-                          
-                          const { count } = await supabase
-                            .from("products")
-                            .select("*", { count: "exact", head: true })
-                            .eq("base_product_code", product.base_product_code);
-                          
-                          setChildVariantsCount((count || 1) - 1);
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (isVariant(product)) {
+                          setChildVariantsCount(0);
                           setDeletingProduct(product);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                          return;
+                        }
+                        
+                        const { count } = await supabase
+                          .from("products")
+                          .select("*", { count: "exact", head: true })
+                          .eq("base_product_code", product.base_product_code);
+                        
+                        setChildVariantsCount((count || 1) - 1);
+                        setDeletingProduct(product);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 )}
               </TableRow>
