@@ -12,7 +12,7 @@ import PurchaseOrders from "./pages/PurchaseOrders";
 import Products from "./pages/Products";
 import LiveProducts from "./pages/LiveProducts";
 import GoodsReceiving from "./pages/GoodsReceiving";
-import SearchProducts from "./pages/SearchProducts";
+
 import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
@@ -72,13 +72,6 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <GoodsReceiving />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/search-products" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SearchProducts />
                   </Layout>
                 </ProtectedRoute>
               } />

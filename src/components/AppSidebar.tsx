@@ -68,11 +68,6 @@ const adminItems = [
     icon: Tags,
   },
   {
-    title: "Tìm Kiếm SP",
-    url: "/search-products",
-    icon: Search,
-  },
-  {
     title: "Lịch sử chỉnh sửa",
     url: "/activity-log",
     icon: History,

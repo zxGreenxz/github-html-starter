@@ -48,11 +48,6 @@ const moreNavItems = [
     icon: MessageSquare,
   },
   {
-    title: "Tìm Kiếm SP",
-    url: "/search-products",
-    icon: Package,
-  },
-  {
     title: "Cài đặt",
     url: "/settings",
     icon: Package,
