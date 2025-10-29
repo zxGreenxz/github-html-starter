@@ -68,6 +68,8 @@ export function EditTPOSProductDialog({
       setImageBase64(null);
       
       // ✅ Parse AttributeLines từ TPOS → Variant string
+      console.log('📦 [Edit Dialog] Raw product.AttributeLines:', JSON.stringify(product.AttributeLines, null, 2));
+      
       const variantString = formatVariantFromTPOSAttributeLines(product.AttributeLines);
       setSelectedVariants(variantString);
       

@@ -129,9 +129,22 @@ export function formatVariantFromTPOSAttributeLines(
   // Group values by AttributeName
   const grouped: Record<string, string[]> = {};
   
-  attributeLines.forEach(line => {
-    line.Values.forEach(value => {
+  console.log('🔍 [formatVariantFromTPOSAttributeLines] Raw attributeLines:', JSON.stringify(attributeLines, null, 2));
+  
+  attributeLines.forEach((line, lineIndex) => {
+    console.log(`📋 [Line ${lineIndex}] AttributeId: ${line.AttributeId}, Values count: ${line.Values.length}`);
+    
+    line.Values.forEach((value, valueIndex) => {
       const attrName = value.AttributeName;
+      
+      console.log(`  ↳ [Value ${valueIndex}] AttributeName: "${attrName}", Name: "${value.Name}"`);
+      
+      // ✅ CRITICAL: Skip nếu AttributeName bị null/undefined/empty
+      if (!attrName || attrName.trim() === '') {
+        console.warn(`  ⚠️ SKIPPED: Value "${value.Name}" has invalid AttributeName:`, attrName);
+        return;
+      }
+      
       if (!grouped[attrName]) {
         grouped[attrName] = [];
       }
@@ -142,10 +155,15 @@ export function formatVariantFromTPOSAttributeLines(
     });
   });
 
+  console.log('📊 [formatVariantFromTPOSAttributeLines] Grouped:', grouped);
+
   // Format: "(Val1 | Val2) (ValA | ValB)"
   const parts = Object.values(grouped).map(values => 
     `(${values.join(' | ')})`
   );
 
-  return parts.join(' ');
+  const result = parts.join(' ');
+  console.log('✅ [formatVariantFromTPOSAttributeLines] Result:', result);
+
+  return result;
 }
