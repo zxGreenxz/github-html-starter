@@ -41,7 +41,6 @@ export function EditTPOSProductDialog({
   const [selectedVariants, setSelectedVariants] = useState<string>("");
   const [isVariantSelectorOpen, setIsVariantSelectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingVariants, setEditingVariants] = useState<Record<number, string>>({});
   
   useImagePaste((base64) => {
     setImageBase64(base64);
@@ -75,13 +74,6 @@ export function EditTPOSProductDialog({
       setSelectedVariants(variantString);
       
       console.log('🔄 [Edit Dialog] Auto-filled variants from AttributeLines:', variantString);
-      
-      // Initialize editing variants state
-      const initialVariants: Record<number, string> = {};
-      product.ProductVariants?.forEach(v => {
-        initialVariants[v.Id] = v.Name;
-      });
-      setEditingVariants(initialVariants);
     }
   }, [product, open, form]);
   
@@ -149,16 +141,6 @@ export function EditTPOSProductDialog({
         console.log("📦 Stock found, skipping variant structure update.");
       } else {
         console.log("ℹ️ No variant changes, keeping original structure.");
-      }
-      
-      // ✅ Apply edited variant names BEFORE removing quantity fields
-      if (payload.ProductVariants && Object.keys(editingVariants).length > 0) {
-        payload.ProductVariants.forEach((v: any) => {
-          if (editingVariants[v.Id] !== undefined && editingVariants[v.Id] !== v.Name) {
-            console.log(`📝 Updating variant ${v.Id} name: "${v.Name}" → "${editingVariants[v.Id]}"`);
-            v.Name = editingVariants[v.Id];
-          }
-        });
       }
       
       // ✅ ALWAYS remove quantity fields from variants (theo file mẫu line 298-303)
@@ -369,15 +351,7 @@ export function EditTPOSProductDialog({
                         {product.ProductVariants.map((variant) => (
                           <TableRow key={variant.Id}>
                             <TableCell className="font-medium">
-                              <Input
-                                value={editingVariants[variant.Id] || variant.Name}
-                                onChange={(e) => setEditingVariants(prev => ({
-                                  ...prev,
-                                  [variant.Id]: e.target.value
-                                }))}
-                                className="h-8 font-medium"
-                                placeholder={variant.Name}
-                              />
+                              {variant.Name}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {variant.DefaultCode}
