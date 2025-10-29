@@ -9,11 +9,27 @@ export async function convertVariantsToAttributeLines(
 ): Promise<any[]> {
   if (!selectedVariants || selectedVariants === "") return [];
   
-  // Parse selected variant names: "(Đỏ | Xanh | Size M)"
-  const match = selectedVariants.match(/\((.*?)\)/);
-  if (!match) return [];
+  // Parse TẤT CẢ các nhóm: "(1 | 2 | 3) (Trắng | Đen) (S | M)"
+  console.log('🔍 [convertVariantsToAttributeLines] Input:', selectedVariants);
   
-  const variantNames = match[1].split("|").map(s => s.trim());
+  const matches = selectedVariants.match(/\([^)]+\)/g);
+  if (!matches) {
+    console.warn('⚠️ No variant groups found in:', selectedVariants);
+    return [];
+  }
+  
+  console.log('📋 [convertVariantsToAttributeLines] Found groups:', matches);
+  
+  const variantNames: string[] = [];
+  matches.forEach(group => {
+    // Remove ( and ) → "1 | 2 | 3"
+    const content = group.slice(1, -1);
+    const names = content.split("|").map(s => s.trim());
+    variantNames.push(...names);
+  });
+  
+  console.log('📋 [convertVariantsToAttributeLines] All variant names:', variantNames);
+  
   if (variantNames.length === 0) return [];
   
   // Get attribute values from database
@@ -36,9 +52,13 @@ export async function convertVariantsToAttributeLines(
     .eq("is_active", true);
   
   if (error || !attributeValues) {
-    console.error("Error fetching attribute values:", error);
+    console.error("❌ Error fetching attribute values:", error);
     return [];
   }
+  
+  console.log(`✅ Found ${attributeValues.length} attribute values in DB:`, 
+    attributeValues.map(av => `${av.product_attributes.name}: ${av.value}`)
+  );
   
   // Group by attribute
   const attributeMap: Record<string, any> = {};
@@ -74,7 +94,12 @@ export async function convertVariantsToAttributeLines(
     });
   });
   
-  return Object.values(attributeMap);
+  const result = Object.values(attributeMap);
+  console.log(`✅ Generated ${result.length} AttributeLines:`,
+    result.map(al => `${al.Attribute.Id} (${al.Values.length} values)`)
+  );
+  
+  return result;
 }
 
 /**
