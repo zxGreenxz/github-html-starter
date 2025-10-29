@@ -886,7 +886,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
-  const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
+  const updateItem = async (index: number, field: keyof PurchaseOrderItem, value: any) => {
+    // 🧹 Cleanup old reservation when manually changing product_code
+    if (field === 'product_code' && user?.id) {
+      const oldCode = items[index].product_code;
+      const newCode = value as string;
+      
+      if (oldCode && oldCode !== newCode && oldCode.trim()) {
+        await cleanupReservations([oldCode], user.id);
+        console.log(`🧹 Cleaned old code: ${oldCode} → ${newCode}`);
+      }
+    }
+    
     setItems(prevItems => {
       const newItems = [...prevItems];
       newItems[index] = { ...newItems[index], [field]: value };
@@ -954,7 +965,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     setItems(newItems);
   };
 
-  const removeItem = (index: number) => {
+  const removeItem = async (index: number) => {
+    // 🔥 Capture code BEFORE removing
+    const itemToRemove = items[index];
+    const codeToCleanup = itemToRemove.product_code;
+    
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== index));
     } else {
@@ -971,6 +986,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         price_images: [],
         _tempTotalPrice: 0,
       }]);
+    }
+    
+    // 🧹 Cleanup reservation
+    if (user?.id && codeToCleanup?.trim()) {
+      await cleanupReservations([codeToCleanup], user.id);
+      console.log(`🧹 Cleaned reservation: ${codeToCleanup}`);
     }
   };
 
@@ -1186,7 +1207,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Hủy</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {
+                <AlertDialogAction onClick={async () => {
+                  // 🧹 Cleanup ALL reservations before clearing
+                  if (user?.id) {
+                    const codes = items.map(i => i.product_code).filter(Boolean);
+                    await cleanupReservations(codes, user.id);
+                    console.log(`🧹 Cleaned ${codes.length} reservations before clear`);
+                  }
                   resetForm();
                   setShowClearConfirm(false);
                 }}>

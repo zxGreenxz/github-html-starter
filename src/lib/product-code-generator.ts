@@ -344,14 +344,13 @@ export async function generateProductCodeFromMax(
   
   const category = detectProductCategory(productName);
   
-  // Get max from four sources: form, products table, purchase orders, and reservations
+  // Get max from PERMANENT sources only (not temporary reservations)
   const maxFromForm = getMaxNumberFromItems(formItems, category);
   const maxFromProducts = await getMaxNumberFromProducts(category);
   const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
-  const maxFromReservations = await getMaxNumberFromReservations(category);
   
-  // Take the largest one and add 1
-  const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders, maxFromReservations);
+  // Take the largest one and add 1 (reservations are NOT used for max calculation)
+  const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders);
   let nextNumber = maxNumber + 1;
   let candidateCode = `${category}${nextNumber}`;
   
