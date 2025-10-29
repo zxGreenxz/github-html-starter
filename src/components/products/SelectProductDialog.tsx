@@ -51,6 +51,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
       let query = supabase
         .from("products")
         .select("*")
+        .is('base_product_code', null)
         .order("created_at", { ascending: false });
       
       // Nếu có search (>= 2 ký tự): Search trong database

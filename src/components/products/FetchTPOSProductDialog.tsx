@@ -7,7 +7,8 @@ import { Loader2, AlertCircle, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { searchTPOSProductByCode, getTPOSProductFullDetails, type TPOSProductFullDetails } from "@/lib/tpos-api";
 import { EditTPOSProductDialog } from "./EditTPOSProductDialog";
-import { ProductSearchCombobox } from "./ProductSearchCombobox";
+import { SelectProductDialog } from "./SelectProductDialog";
+import { Input } from "@/components/ui/input";
 
 interface FetchTPOSProductDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
   const [error, setError] = useState<string | null>(null);
   const [fetchedProduct, setFetchedProduct] = useState<TPOSProductFullDetails | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isSelectDialogOpen, setIsSelectDialogOpen] = useState(false);
   
   const handleFetch = async () => {
     const trimmedCode = productCode.trim();
@@ -69,26 +71,34 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <ProductSearchCombobox
-                value={productCode}
-                onValueChange={setProductCode}
-                disabled={isLoading}
-                placeholder="Nhập mã sản phẩm (DefaultCode)"
-              />
-              <Button 
-                onClick={handleFetch} 
-                disabled={isLoading || !productCode.trim()}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang tìm...
-                  </>
-                ) : (
-                  "Thêm"
-                )}
-              </Button>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  value={productCode}
+                  readOnly
+                  placeholder="Chọn sản phẩm từ kho..."
+                  className="flex-1 cursor-pointer"
+                  onClick={() => setIsSelectDialogOpen(true)}
+                />
+                <Button 
+                  onClick={handleFetch} 
+                  disabled={isLoading || !productCode.trim()}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Đang tìm...
+                    </>
+                  ) : (
+                    "Thêm"
+                  )}
+                </Button>
+              </div>
+              {productCode && (
+                <div className="text-sm text-muted-foreground">
+                  Đã chọn: <span className="font-medium">{productCode}</span>
+                </div>
+              )}
             </div>
             
             {error && (
@@ -170,6 +180,16 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
           setProductCode("");
           toast.success("Đã cập nhật sản phẩm thành công");
         }}
+      />
+      
+      <SelectProductDialog
+        open={isSelectDialogOpen}
+        onOpenChange={setIsSelectDialogOpen}
+        onSelect={(product) => {
+          setProductCode(product.product_code);
+          setIsSelectDialogOpen(false);
+        }}
+        hidePurchasePrice={true}
       />
     </>
   );
