@@ -1035,6 +1035,63 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     return items.filter(item => item.product_code === productCode).length > 1;
   };
 
+  // ✅ Apply ALL common fields to variants at once
+  const applyAllFieldsToVariants = (sourceIndex: number) => {
+    const sourceItem = items[sourceIndex];
+    if (!sourceItem.product_code) return;
+
+    const fieldsToApply: (keyof PurchaseOrderItem)[] = [
+      'purchase_price',
+      'selling_price', 
+      'product_images',
+      'price_images'
+    ];
+
+    const updatedItems = items.map((item, idx) => {
+      // Only update items with same product_code but different index
+      if (item.product_code === sourceItem.product_code && idx !== sourceIndex) {
+        const updated = { 
+          ...item,
+          purchase_price: sourceItem.purchase_price,
+          selling_price: sourceItem.selling_price,
+          product_images: [...(sourceItem.product_images || [])],
+          price_images: [...(sourceItem.price_images || [])]
+        };
+
+        // ✅ Recalculate _tempTotalPrice
+        updated._tempTotalPrice = updated.quantity * Number(updated.purchase_price || 0);
+        
+        return updated;
+      }
+      return item;
+    });
+
+    setItems(updatedItems);
+    
+    const variantCount = items.filter(i => i.product_code === sourceItem.product_code).length;
+    toast({
+      title: "✅ Đã áp dụng cho tất cả biến thể",
+      description: `Đã cập nhật ${variantCount} dòng: giá mua, giá bán, hình ảnh`,
+    });
+  };
+
+  // Check if should show "Apply All" button
+  const shouldShowApplyAllButton = (index: number) => {
+    const item = items[index];
+    if (!item.product_code) return false;
+    
+    const variantCount = items.filter(i => i.product_code === item.product_code).length;
+    if (variantCount <= 1) return false;
+    
+    // At least ONE field must be filled
+    return (
+      Number(item.purchase_price) > 0 ||
+      Number(item.selling_price) > 0 ||
+      (item.product_images && item.product_images.length > 0) ||
+      (item.price_images && item.price_images.length > 0)
+    );
+  };
+
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
   const finalAmount = totalAmount - formData.discount_amount + formData.shipping_fee;
 
@@ -1265,108 +1322,63 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="0"
-                            value={item.purchase_price === 0 || item.purchase_price === "" ? "" : item.purchase_price}
-                            onChange={(e) => updateItem(index, "purchase_price", parseNumberInput(e.target.value))}
-                            className={`border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm ${
-                              (item.purchase_price === 0 || item.purchase_price === "") 
-                                ? 'ring-2 ring-red-500 ring-inset' 
-                                : ''
-                            }`}
-                          />
-                          {shouldShowApplyButton(item.product_code) && Number(item.purchase_price) > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item.product_code, "purchase_price", item.purchase_price)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={item.purchase_price === 0 || item.purchase_price === "" ? "" : item.purchase_price}
+                          onChange={(e) => updateItem(index, "purchase_price", parseNumberInput(e.target.value))}
+                          className={`border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm ${
+                            (item.purchase_price === 0 || item.purchase_price === "") 
+                              ? 'ring-2 ring-red-500 ring-inset' 
+                              : ''
+                          }`}
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="0"
-                            value={item.selling_price === 0 || item.selling_price === "" ? "" : item.selling_price}
-                            onChange={(e) => updateItem(index, "selling_price", parseNumberInput(e.target.value))}
-                            className={`border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm ${
-                              (item.selling_price === 0 || item.selling_price === "") 
-                                ? 'ring-2 ring-red-500 ring-inset' 
-                                : ''
-                            }`}
-                          />
-                          {shouldShowApplyButton(item.product_code) && Number(item.selling_price) > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item.product_code, "selling_price", item.selling_price)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={item.selling_price === 0 || item.selling_price === "" ? "" : item.selling_price}
+                          onChange={(e) => updateItem(index, "selling_price", parseNumberInput(e.target.value))}
+                          className={`border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm ${
+                            (item.selling_price === 0 || item.selling_price === "") 
+                              ? 'ring-2 ring-red-500 ring-inset' 
+                              : ''
+                          }`}
+                        />
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatVND(item._tempTotalPrice * 1000)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <ImageUploadCell
-                            images={item.product_images}
-                            onImagesChange={(images) => updateItem(index, "product_images", images)}
-                            itemIndex={index}
-                          />
-                          {shouldShowApplyButton(item.product_code) && item.product_images.length > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item.product_code, "product_images", item.product_images)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <ImageUploadCell
+                          images={item.product_images}
+                          onImagesChange={(images) => updateItem(index, "product_images", images)}
+                          itemIndex={index}
+                        />
                       </TableCell>
                       <TableCell className="border-l-2 border-primary/30">
-                        <div className="flex items-center gap-1">
-                          <ImageUploadCell
-                            images={item.price_images}
-                            onImagesChange={(images) => updateItem(index, "price_images", images)}
-                            itemIndex={index}
-                          />
-                          {shouldShowApplyButton(item.product_code) && item.price_images.length > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item.product_code, "price_images", item.price_images)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <ImageUploadCell
+                          images={item.price_images}
+                          onImagesChange={(images) => updateItem(index, "price_images", images)}
+                          itemIndex={index}
+                        />
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {shouldShowApplyAllButton(index) && (
+                            <Button 
+                              onClick={() => applyAllFieldsToVariants(index)} 
+                              size="sm" 
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 hover:text-green-700"
+                              title="Áp dụng giá & hình ảnh cho tất cả biến thể"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button 
                             onClick={() => openSelectProduct(index)} 
                             size="sm" 

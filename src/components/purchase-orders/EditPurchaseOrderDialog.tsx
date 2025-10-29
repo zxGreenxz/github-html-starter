@@ -570,6 +570,63 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     return items.filter(item => item._tempProductCode === productCode).length > 1;
   };
 
+  // ✅ Apply ALL common fields to variants at once
+  const applyAllFieldsToVariants = (sourceIndex: number) => {
+    const sourceItem = items[sourceIndex];
+    if (!sourceItem._tempProductCode) return;
+
+    const fieldsToApply: (keyof PurchaseOrderItem)[] = [
+      '_tempUnitPrice',
+      '_tempSellingPrice', 
+      '_tempProductImages',
+      '_tempPriceImages'
+    ];
+
+    const updatedItems = items.map((item, idx) => {
+      // Only update items with same product_code but different index
+      if (item._tempProductCode === sourceItem._tempProductCode && idx !== sourceIndex) {
+        const updated = { 
+          ...item,
+          _tempUnitPrice: sourceItem._tempUnitPrice,
+          _tempSellingPrice: sourceItem._tempSellingPrice,
+          _tempProductImages: [...(sourceItem._tempProductImages || [])],
+          _tempPriceImages: [...(sourceItem._tempPriceImages || [])]
+        };
+
+        // ✅ Recalculate _tempTotalPrice
+        updated._tempTotalPrice = updated.quantity * Number(updated._tempUnitPrice || 0);
+        
+        return updated;
+      }
+      return item;
+    });
+
+    setItems(updatedItems);
+    
+    const variantCount = items.filter(i => i._tempProductCode === sourceItem._tempProductCode).length;
+    toast({
+      title: "✅ Đã áp dụng cho tất cả biến thể",
+      description: `Đã cập nhật ${variantCount} dòng: giá mua, giá bán, hình ảnh`,
+    });
+  };
+
+  // Check if should show "Apply All" button
+  const shouldShowApplyAllButton = (index: number) => {
+    const item = items[index];
+    if (!item._tempProductCode || item.id) return false; // Don't show for saved items
+    
+    const variantCount = items.filter(i => i._tempProductCode === item._tempProductCode).length;
+    if (variantCount <= 1) return false;
+    
+    // At least ONE field must be filled
+    return (
+      Number(item._tempUnitPrice) > 0 ||
+      Number(item._tempSellingPrice) > 0 ||
+      (item._tempProductImages && item._tempProductImages.length > 0) ||
+      (item._tempPriceImages && item._tempPriceImages.length > 0)
+    );
+  };
+
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
       if (!order?.id) throw new Error("Order ID is required");
@@ -910,110 +967,65 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            disabled={!!item.id}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder=""
-                            value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
-                            onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
-                            className={cn(
-                              "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
-                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
-                            )}
-                          />
-                          {!item.id && shouldShowApplyButton(item._tempProductCode) && Number(item._tempUnitPrice) > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempUnitPrice", item._tempUnitPrice)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
+                        <Input
+                          disabled={!!item.id}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder=""
+                          value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
+                          onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
                           )}
-                        </div>
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            disabled={!!item.id}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder=""
-                            value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
-                            onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
-                            className={cn(
-                              "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
-                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
-                            )}
-                          />
-                          {!item.id && shouldShowApplyButton(item._tempProductCode) && Number(item._tempSellingPrice) > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempSellingPrice", item._tempSellingPrice)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
+                        <Input
+                          disabled={!!item.id}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder=""
+                          value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
+                          onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
                           )}
-                        </div>
+                        />
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatVND(item._tempTotalPrice * 1000)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <ImageUploadCell
-                            images={item._tempProductImages}
-                            onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
-                            itemIndex={index}
-                            disabled={!!item.id}
-                          />
-                          {!item.id && shouldShowApplyButton(item._tempProductCode) && item._tempProductImages.length > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempProductImages", item._tempProductImages)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <ImageUploadCell
+                          images={item._tempProductImages}
+                          onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
+                          itemIndex={index}
+                          disabled={!!item.id}
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <ImageUploadCell
-                            images={item._tempPriceImages}
-                            onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
-                            itemIndex={index}
-                            disabled={!!item.id}
-                          />
-                          {!item.id && shouldShowApplyButton(item._tempProductCode) && item._tempPriceImages.length > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
-                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempPriceImages", item._tempPriceImages)}
-                              title="Áp dụng cho tất cả biến thể"
-                            >
-                              <ArrowDown className="h-3 w-3 text-primary" />
-                            </Button>
-                          )}
-                        </div>
+                        <ImageUploadCell
+                          images={item._tempPriceImages}
+                          onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
+                          itemIndex={index}
+                          disabled={!!item.id}
+                        />
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {shouldShowApplyAllButton(index) && (
+                            <Button 
+                              onClick={() => applyAllFieldsToVariants(index)} 
+                              size="sm" 
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 hover:text-green-700"
+                              title="Áp dụng giá & hình ảnh cho tất cả biến thể"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button 
                             onClick={() => openSelectProduct(index)} 
                             size="sm" 
