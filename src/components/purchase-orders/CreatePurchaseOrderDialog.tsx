@@ -999,6 +999,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     if (currentItemIndex !== null) {
       const newItems = [...items];
       
+      // If currentItemIndex is beyond array, add a new blank row
+      if (currentItemIndex >= newItems.length) {
+        newItems.push({
+          quantity: 1,
+          notes: "",
+          product_name: "",
+          product_code: "",
+          variant: "",
+          purchase_price: 0,
+          selling_price: 0,
+          product_images: [],
+          price_images: [],
+          _tempTotalPrice: 0,
+        });
+      }
+      
       // Fetch images with priority logic
       const productImages = await getProductImages(product);
       
@@ -1028,10 +1044,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
     const newItems = [...items];
     
-    // Validate currentItemIndex is within bounds
-    if (currentItemIndex >= newItems.length || currentItemIndex < 0) {
-      console.error('Invalid currentItemIndex:', currentItemIndex, 'items length:', newItems.length);
-      return;
+    // If currentItemIndex is beyond array, add a new blank row
+    if (currentItemIndex >= newItems.length) {
+      newItems.push({
+        quantity: 1,
+        notes: "",
+        product_name: "",
+        product_code: "",
+        variant: "",
+        purchase_price: 0,
+        selling_price: 0,
+        product_images: [],
+        price_images: [],
+        _tempTotalPrice: 0,
+      });
     }
 
     // Ensure current item has quantity property
