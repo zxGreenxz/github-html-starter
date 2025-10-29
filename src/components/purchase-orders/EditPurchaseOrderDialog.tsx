@@ -780,19 +780,19 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                     <TableHead className="w-[100px]">Hình ảnh sản phẩm</TableHead>
                     <TableHead className="w-[100px]">Hình ảnh Giá mua</TableHead>
                     <TableHead className="w-16">Thao tác</TableHead>
-                    <TableHead className="w-[200px] border-l-2 border-yellow-500/30">
+                    <TableHead className={`border-l-2 border-yellow-500/30 transition-all ${showDebugColumn ? 'w-[200px]' : 'w-8'}`}>
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0"
+                          className="h-6 w-6 p-0 shrink-0"
                           onClick={() => setShowDebugColumn(!showDebugColumn)}
                           title="Toggle debug column"
                         >
                           {showDebugColumn ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
-                        {showDebugColumn && <span className="text-xs text-muted-foreground">Debug: Attr IDs</span>}
+                        {showDebugColumn && <span className="text-xs text-muted-foreground whitespace-nowrap">Debug: Attr IDs</span>}
                       </div>
                     </TableHead>
                   </TableRow>
