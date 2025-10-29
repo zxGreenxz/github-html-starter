@@ -804,6 +804,30 @@ export type Database = {
         }
         Relationships: []
       }
+      product_code_reservations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          product_code: string
+          reserved_by: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          product_code: string
+          reserved_by: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          product_code?: string
+          reserved_by?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           barcode: string | null

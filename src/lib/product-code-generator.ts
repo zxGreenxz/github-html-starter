@@ -149,6 +149,44 @@ export function getMaxNumberFromItems(
 
 
 /**
+ * Get max product number from reservations for a category
+ * @param category - 'N' or 'P'
+ * @returns Max number found, or 0 if none
+ */
+export async function getMaxNumberFromReservations(
+  category: 'N' | 'P'
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("product_code_reservations")
+      .select("product_code")
+      .like("product_code", `${category}%`);
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return 0;
+    }
+    
+    let maxNumber = 0;
+    data.forEach(item => {
+      const match = item.product_code?.match(/\d+$/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    });
+    
+    return maxNumber;
+  } catch (error) {
+    console.error("Error getting max number from reservations:", error);
+    return 0;
+  }
+}
+
+/**
  * Get max product number from purchase order items for a category
  * @param category - 'N' or 'P'
  * @returns Max number found, or 0 if none
@@ -229,14 +267,76 @@ export async function getMaxNumberFromProducts(
 }
 
 /**
+ * Reserve a product code for a user
+ * @param productCode - Code to reserve
+ * @param userId - User ID reserving the code
+ * @returns true if reserved successfully, false if code already reserved
+ */
+export async function reserveProductCode(
+  productCode: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("product_code_reservations")
+      .insert({
+        product_code: productCode,
+        reserved_by: userId
+      });
+    
+    if (error) {
+      // 23505 = unique_violation (code already reserved)
+      if (error.code === '23505') {
+        return false;
+      }
+      throw error;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error reserving product code:", error);
+    return false;
+  }
+}
+
+/**
+ * Cleanup reservations for specific codes and user
+ * @param productCodes - Array of codes to cleanup
+ * @param userId - User ID to cleanup for
+ */
+export async function cleanupReservations(
+  productCodes: string[],
+  userId: string
+): Promise<void> {
+  if (productCodes.length === 0) return;
+  
+  try {
+    const { error } = await supabase
+      .from("product_code_reservations")
+      .delete()
+      .in("product_code", productCodes)
+      .eq("reserved_by", userId);
+    
+    if (error) throw error;
+    
+    console.log(`✅ Cleaned up ${productCodes.length} reservations`);
+  } catch (error) {
+    console.error("Error cleaning up reservations:", error);
+  }
+}
+
+/**
  * Generate product code based on max from form, database, and purchase orders
+ * WITH RESERVATION SUPPORT
  * @param productName - Product name to detect category
  * @param formItems - Current items in the form
+ * @param userId - Current user ID for reservations
  * @returns Generated product code (e.g., 'N128')
  */
 export async function generateProductCodeFromMax(
   productName: string,
-  formItems: Array<{ product_code: string }>
+  formItems: Array<{ product_code: string }>,
+  userId?: string
 ): Promise<string> {
   if (!productName.trim()) {
     throw new Error("Tên sản phẩm không được để trống");
@@ -244,29 +344,43 @@ export async function generateProductCodeFromMax(
   
   const category = detectProductCategory(productName);
   
-  // Get max from three sources: form, products table, and purchase orders
+  // Get max from four sources: form, products table, purchase orders, and reservations
   const maxFromForm = getMaxNumberFromItems(formItems, category);
   const maxFromProducts = await getMaxNumberFromProducts(category);
   const maxFromPurchaseOrders = await getMaxNumberFromPurchaseOrderItems(category);
+  const maxFromReservations = await getMaxNumberFromReservations(category);
   
   // Take the largest one and add 1
-  const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders);
+  const maxNumber = Math.max(maxFromForm, maxFromProducts, maxFromPurchaseOrders, maxFromReservations);
   let nextNumber = maxNumber + 1;
   let candidateCode = `${category}${nextNumber}`;
   
-  // Check TPOS API to ensure code doesn't exist
+  // Check TPOS API and try to reserve
   while (true) {
     const tposProduct = await searchTPOSProduct(candidateCode);
     
-    if (!tposProduct) {
-      // Code doesn't exist on TPOS - use it
-      break;
+    if (tposProduct) {
+      // Code exists on TPOS - increment and try again
+      console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS, thử mã tiếp theo...`);
+      nextNumber++;
+      candidateCode = `${category}${nextNumber}`;
+      continue;
     }
     
-    // Code exists on TPOS - increment and try again
-    console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS, thử mã tiếp theo...`);
-    nextNumber++;
-    candidateCode = `${category}${nextNumber}`;
+    // Try to reserve if userId provided
+    if (userId) {
+      const reserved = await reserveProductCode(candidateCode, userId);
+      if (!reserved) {
+        // Code already reserved by another user - try next
+        console.log(`⚠️ Mã ${candidateCode} đã được đặt trước, thử mã tiếp theo...`);
+        nextNumber++;
+        candidateCode = `${category}${nextNumber}`;
+        continue;
+      }
+    }
+    
+    // Code is available and reserved (if userId provided)
+    break;
   }
   
   return candidateCode;

@@ -19,8 +19,9 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode } from "@/lib/product-code-generator";
+import { generateProductCodeFromMax, incrementProductCode, cleanupReservations } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 interface PurchaseOrderItem {
@@ -75,6 +76,7 @@ interface EditPurchaseOrderDialogProps {
 export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurchaseOrderDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
@@ -120,6 +122,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDebugColumn, setShowDebugColumn] = useState(false);
 
   // Debounce product names for auto-generating codes
@@ -128,13 +131,27 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     500
   );
 
+  // Track unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    if (!order || !open) return false;
+    
+    const formChanged = 
+      supplierName !== (order.supplier_name || "") ||
+      invoiceNumber !== (order.invoice_number || "") ||
+      notes !== (order.notes || "");
+    
+    const itemsChanged = items.some(i => i._tempProductName.trim() || i._tempProductCode.trim());
+    
+    return formChanged || itemsChanged;
+  }, [supplierName, invoiceNumber, notes, items, order, open]);
+
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
     items.forEach(async (item, index) => {
       if (item._tempProductName.trim() && !item._tempProductCode.trim()) {
         try {
           const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
-          const code = await generateProductCodeFromMax(item._tempProductName, tempItems);
+          const code = await generateProductCodeFromMax(item._tempProductName, tempItems, user?.id);
           setItems(prev => {
             const newItems = [...prev];
             if (newItems[index] && !newItems[index]._tempProductCode.trim()) {
@@ -147,7 +164,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         }
       }
     });
-  }, [debouncedProductNames]);
+  }, [debouncedProductNames, user?.id]);
 
   // Validation function - check if all items have required fields
   const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
@@ -708,7 +725,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
       return order.id;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Cleanup reservations
+      if (user?.id) {
+        const codes = items.map(i => i._tempProductCode).filter(Boolean);
+        await cleanupReservations(codes, user.id);
+      }
+      
       // Invalidate queries to refetch fresh data from database
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
@@ -738,8 +761,24 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
   const finalAmount = totalAmount - discountAmount + shippingFee;
 
+  // Handle dialog close with confirmation
+  const handleClose = async () => {
+    if (hasUnsavedChanges) {
+      setShowCloseConfirm(true);
+    } else {
+      if (user?.id) {
+        const codes = items.map(i => i._tempProductCode).filter(Boolean);
+        await cleanupReservations(codes, user.id);
+      }
+      onOpenChange(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) handleClose();
+      else onOpenChange(isOpen);
+    }}>
       <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between pr-10">
           <DialogTitle>Chỉnh sửa đơn hàng #{order?.invoice_number || order?.id.slice(0, 8)}</DialogTitle>
@@ -1173,7 +1212,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           </div>
 
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={handleClose}>
               Hủy
             </Button>
             <Button 
@@ -1276,6 +1315,29 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           setVariantGeneratorIndex(null);
         }}
       />
+
+      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Đóng đơn hàng?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Các thay đổi chưa lưu sẽ bị mất.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (user?.id) {
+                const codes = items.map(i => i._tempProductCode).filter(Boolean);
+                await cleanupReservations(codes, user.id);
+              }
+              onOpenChange(false);
+            }}>
+              Đóng
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

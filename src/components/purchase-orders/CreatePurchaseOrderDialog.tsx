@@ -21,8 +21,9 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
+import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode, cleanupReservations } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Helper: Get product image with priority: product_images > tpos_image_url > parent image
 const getProductImages = async (product: any): Promise<string[]> => {
@@ -91,6 +92,7 @@ interface CreatePurchaseOrderDialogProps {
 export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: CreatePurchaseOrderDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
@@ -130,6 +132,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [showDebugColumn, setShowDebugColumn] = useState(false);
 
@@ -138,6 +141,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     items.map(i => i.product_name).join('|'),
     500
   );
+
+  // Track unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    const hasData = 
+      formData.supplier_name.trim() !== "" ||
+      items.some(i => i.product_name.trim() || i.product_code.trim());
+    return hasData;
+  }, [formData, items]);
 
   // Load initial data when dialog opens with draft
   useEffect(() => {
@@ -181,7 +192,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)) {
         try {
           const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
-          const code = await generateProductCodeFromMax(item.product_name, tempItems);
+          const code = await generateProductCodeFromMax(item.product_name, tempItems, user?.id);
           setItems(prev => {
             const newItems = [...prev];
             if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
@@ -194,7 +205,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         }
       }
     });
-  }, [debouncedProductNames, manualProductCodes]);
+  }, [debouncedProductNames, manualProductCodes, user?.id]);
 
   // Validation function - check if all items have required fields
   const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
@@ -339,7 +350,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       return order;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Cleanup reservations
+      if (user?.id) {
+        const codes = items.map(i => i.product_code).filter(Boolean);
+        await cleanupReservations(codes, user.id);
+      }
+      
       toast({ title: "Đã lưu nháp!" });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       onOpenChange(false);
@@ -699,7 +716,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       return order;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Cleanup reservations
+      if (user?.id) {
+        const codes = items.map(i => i.product_code).filter(Boolean);
+        await cleanupReservations(codes, user.id);
+      }
+      
       // Don't show success toast here - it's shown by polling function
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
@@ -846,6 +869,21 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         _tempTotalPrice: 0,
       }
     ]);
+  };
+
+  // Handle dialog close with confirmation
+  const handleClose = async () => {
+    if (hasUnsavedChanges) {
+      setShowCloseConfirm(true);
+    } else {
+      // No unsaved changes - close directly
+      if (user?.id) {
+        const codes = items.map(i => i.product_code).filter(Boolean);
+        await cleanupReservations(codes, user.id);
+      }
+      onOpenChange(false);
+      resetForm();
+    }
   };
 
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
@@ -1125,7 +1163,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const finalAmount = totalAmount - formData.discount_amount + formData.shipping_fee;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) handleClose();
+      else onOpenChange(isOpen);
+    }}>
       <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between pr-10">
           <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
@@ -1561,7 +1602,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
 
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={handleClose}>
               Hủy
             </Button>
             <Button 
@@ -1677,6 +1718,34 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           setVariantGeneratorIndex(null);
         }}
       />
+
+      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Đóng đơn hàng?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Đơn hàng có {items.length} sản phẩm chưa được lưu.
+              Tất cả dữ liệu sẽ bị mất.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              // Cleanup reservations
+              if (user?.id) {
+                const codes = items.map(i => i.product_code).filter(Boolean);
+                await cleanupReservations(codes, user.id);
+              }
+              
+              // Clear form and close
+              resetForm();
+              onOpenChange(false);
+            }}>
+              Đóng
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
