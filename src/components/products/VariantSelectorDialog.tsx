@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,14 @@ export function VariantSelectorDialog({
   onVariantsChange,
 }: VariantSelectorDialogProps) {
   const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
+  const [tempSelectedVariants, setTempSelectedVariants] = useState<string>(selectedVariants);
+  
+  // Sync tempSelectedVariants when dialog opens
+  useEffect(() => {
+    if (open) {
+      setTempSelectedVariants(selectedVariants);
+    }
+  }, [open, selectedVariants]);
   
   const { data: attributes, isLoading: isLoadingAttributes } = useQuery({
     queryKey: ["product-attributes"],
@@ -68,10 +76,10 @@ export function VariantSelectorDialog({
   }, [attributeValues]);
   
   const selectedValueIds = useMemo(() => {
-    if (!selectedVariants || !attributeValues) return new Set<string>();
+    if (!tempSelectedVariants || !attributeValues) return new Set<string>();
     
     // Match ALL groups: (1 | 2 | 3) (Trắng | Đen) (S | M)
-    const matches = selectedVariants.match(/\([^)]+\)/g);
+    const matches = tempSelectedVariants.match(/\([^)]+\)/g);
     if (!matches) return new Set<string>();
     
     const allNames: string[] = [];
@@ -90,7 +98,7 @@ export function VariantSelectorDialog({
     });
     
     return ids;
-  }, [selectedVariants, attributeValues]);
+  }, [tempSelectedVariants, attributeValues]);
   
   const getFilteredValues = (attributeId: string, values: typeof attributeValues) => {
     const searchTerm = searchFilters[attributeId]?.toLowerCase() || '';
@@ -127,7 +135,18 @@ export function VariantSelectorDialog({
     
     const variantString = parts.join(" ");
     
-    onVariantsChange(variantString);
+    // Only update local state, don't call onVariantsChange yet
+    setTempSelectedVariants(variantString);
+  };
+  
+  const handleSave = () => {
+    onVariantsChange(tempSelectedVariants);
+    onOpenChange(false);
+  };
+  
+  const handleClose = () => {
+    setTempSelectedVariants(selectedVariants); // Reset to original value
+    onOpenChange(false);
   };
   
   const isLoading = isLoadingAttributes || isLoadingValues;
@@ -145,11 +164,6 @@ export function VariantSelectorDialog({
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Header text */}
-            <p className="text-sm text-muted-foreground italic">
-              Chưa chọn giá trị nào
-            </p>
-            
             {/* 3-column grid with borders */}
             <div className="grid grid-cols-3 gap-4">
               {attributes?.map(attr => {
@@ -214,9 +228,14 @@ export function VariantSelectorDialog({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={handleClose}
           >
             Đóng
+          </Button>
+          <Button
+            onClick={handleSave}
+          >
+            Lưu
           </Button>
         </DialogFooter>
       </DialogContent>
