@@ -11,14 +11,17 @@ export function formatVariantForDisplay(
   
   // New format: "(1 | 2) (Nude | Nâu | Hồng)"
   if (trimmed.includes('(') && trimmed.includes(')')) {
-    // Step 1: Remove parentheses → "1 | 2  Nude | Nâu | Hồng"
-    let result = trimmed.replace(/[()]/g, '');
+    // Extract each group using regex
+    const groups = trimmed.match(/\([^)]+\)/g) || [];
     
-    // Step 2: Replace multiple spaces with " | "
-    // "1 | 2  Nude | Nâu | Hồng" → "1 | 2 | Nude | Nâu | Hồng"
-    result = result.replace(/\s{2,}/g, ' | ').trim();
+    // For each group, remove () and split by " | "
+    const allValues = groups.flatMap(group => {
+      const content = group.slice(1, -1); // Remove ( and )
+      return content.split(' | ').map(v => v.trim());
+    });
     
-    return result;
+    // Join all values with " | "
+    return allValues.filter(v => v).join(' | ');
   }
   
   // Legacy format fallback
