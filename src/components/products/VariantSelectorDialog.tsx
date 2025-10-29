@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
 
 interface VariantSelectorDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ export function VariantSelectorDialog({
   selectedVariants,
   onVariantsChange,
 }: VariantSelectorDialogProps) {
+  const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
   const { data: attributes, isLoading: isLoadingAttributes } = useQuery({
     queryKey: ["product-attributes"],
     queryFn: async () => {
@@ -63,6 +65,13 @@ export function VariantSelectorDialog({
     
     return groups;
   }, [attributeValues]);
+  
+  const getFilteredValues = (attributeId: string, values: typeof attributeValues) => {
+    const searchTerm = searchFilters[attributeId]?.toLowerCase() || '';
+    if (!searchTerm) return values;
+    
+    return values.filter(v => v.value.toLowerCase().includes(searchTerm));
+  };
   
   const selectedValueIds = useMemo(() => {
     if (!selectedVariants || !attributeValues) return new Set<string>();
@@ -134,37 +143,70 @@ export function VariantSelectorDialog({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-6">
-            {attributes?.map(attr => {
-              const values = groupedByAttribute[attr.id] || [];
-              
-              if (values.length === 0) return null;
-              
-              return (
-                <div key={attr.id} className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase">
-                    {attr.name}
-                  </h4>
-                  <div className="space-y-2">
-                    {values.map(value => (
-                      <div key={value.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`variant-${value.id}`}
-                          checked={selectedValueIds.has(value.id)}
-                          onCheckedChange={() => handleToggle(value.id)}
-                        />
-                        <Label 
-                          htmlFor={`variant-${value.id}`}
-                          className="text-sm cursor-pointer"
-                        >
-                          {value.value}
-                        </Label>
-                      </div>
-                    ))}
+          <div className="space-y-4">
+            {/* Header text */}
+            <p className="text-sm text-muted-foreground italic">
+              Chưa chọn giá trị nào
+            </p>
+            
+            {/* 3-column grid with borders */}
+            <div className="grid grid-cols-3 gap-4">
+              {attributes?.map(attr => {
+                const values = groupedByAttribute[attr.id] || [];
+                const filteredValues = getFilteredValues(attr.id, values);
+                
+                if (values.length === 0) return null;
+                
+                return (
+                  <div 
+                    key={attr.id} 
+                    className="border rounded-lg p-4 space-y-3"
+                  >
+                    {/* Attribute name header */}
+                    <h4 className="font-semibold text-sm">
+                      {attr.name}
+                    </h4>
+                    
+                    {/* Search input */}
+                    <Input
+                      placeholder="Tìm kiếm..."
+                      value={searchFilters[attr.id] || ''}
+                      onChange={(e) => setSearchFilters(prev => ({
+                        ...prev,
+                        [attr.id]: e.target.value
+                      }))}
+                      className="h-9"
+                    />
+                    
+                    {/* Scrollable checkbox list */}
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {filteredValues.map(value => (
+                        <div key={value.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`variant-${value.id}`}
+                            checked={selectedValueIds.has(value.id)}
+                            onCheckedChange={() => handleToggle(value.id)}
+                          />
+                          <Label 
+                            htmlFor={`variant-${value.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {value.value}
+                          </Label>
+                        </div>
+                      ))}
+                      
+                      {/* No results message */}
+                      {filteredValues.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic text-center py-2">
+                          Không tìm thấy kết quả
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
         
