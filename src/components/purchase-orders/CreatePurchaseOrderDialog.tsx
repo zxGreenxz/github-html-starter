@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -1376,7 +1376,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                               className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 hover:text-green-700"
                               title="Áp dụng giá & hình ảnh cho tất cả biến thể"
                             >
-                              <Copy className="w-4 h-4" />
+                              <ArrowDownToLine className="w-4 h-4" />
                             </Button>
                           )}
                           <Button 
