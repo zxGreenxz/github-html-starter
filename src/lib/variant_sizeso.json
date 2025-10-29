@@ -1,0 +1,237 @@
+{
+  "@odata.context": "http://tomato.tpos.vn/odata/$metadata#ProductAttributeValue",
+  "@odata.count": 21,
+  "value": [
+    {
+      "Id": 18,
+      "Name": "29",
+      "Code": "29",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 29",
+      "DateCreated": null
+    },
+    {
+      "Id": 19,
+      "Name": "30",
+      "Code": "30",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 30",
+      "DateCreated": null
+    },
+    {
+      "Id": 20,
+      "Name": "31",
+      "Code": "31",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 31",
+      "DateCreated": null
+    },
+    {
+      "Id": 21,
+      "Name": "32",
+      "Code": "32",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 32",
+      "DateCreated": null
+    },
+    {
+      "Id": 22,
+      "Name": "1",
+      "Code": "1",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 1",
+      "DateCreated": null
+    },
+    {
+      "Id": 23,
+      "Name": "2",
+      "Code": "2",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 2",
+      "DateCreated": null
+    },
+    {
+      "Id": 24,
+      "Name": "3",
+      "Code": "3",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 3",
+      "DateCreated": null
+    },
+    {
+      "Id": 33,
+      "Name": "35",
+      "Code": "35",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 35",
+      "DateCreated": null
+    },
+    {
+      "Id": 34,
+      "Name": "36",
+      "Code": "36",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 36",
+      "DateCreated": null
+    },
+    {
+      "Id": 35,
+      "Name": "37",
+      "Code": "37",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 37",
+      "DateCreated": null
+    },
+    {
+      "Id": 36,
+      "Name": "38",
+      "Code": "38",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 38",
+      "DateCreated": null
+    },
+    {
+      "Id": 37,
+      "Name": "39",
+      "Code": "39",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 39",
+      "DateCreated": null
+    },
+    {
+      "Id": 44,
+      "Name": "40",
+      "Code": "40",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 40",
+      "DateCreated": null
+    },
+    {
+      "Id": 46,
+      "Name": "34",
+      "Code": "34",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 34",
+      "DateCreated": null
+    },
+    {
+      "Id": 48,
+      "Name": "4",
+      "Code": "4",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 4",
+      "DateCreated": null
+    },
+    {
+      "Id": 80,
+      "Name": "27",
+      "Code": "27",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 27",
+      "DateCreated": null
+    },
+    {
+      "Id": 81,
+      "Name": "28",
+      "Code": "28",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 28",
+      "DateCreated": null
+    },
+    {
+      "Id": 91,
+      "Name": "41",
+      "Code": "41",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 41",
+      "DateCreated": null
+    },
+    {
+      "Id": 92,
+      "Name": "42",
+      "Code": "42",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 42",
+      "DateCreated": null
+    },
+    {
+      "Id": 93,
+      "Name": "43",
+      "Code": "43",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 43",
+      "DateCreated": null
+    },
+    {
+      "Id": 94,
+      "Name": "44",
+      "Code": "44",
+      "Sequence": null,
+      "AttributeId": 4,
+      "AttributeName": "Size Số",
+      "PriceExtra": null,
+      "NameGet": "Size Số: 44",
+      "DateCreated": null
+    }
+  ]
+}
