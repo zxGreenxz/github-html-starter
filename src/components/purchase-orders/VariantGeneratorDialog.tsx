@@ -85,7 +85,7 @@ export function VariantGeneratorDialog({
       );
     };
     
-    return cartesian(...valueArrays).map(combo => combo.join(" | "));
+    return cartesian(...valueArrays).map(combo => combo.join(", "));
   }, [selectedValues]);
 
   // Auto-select all combinations when they change
