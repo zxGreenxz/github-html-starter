@@ -14,6 +14,7 @@ import { useImagePaste } from "@/hooks/use-image-paste";
 import { VariantSelectorDialog } from "./VariantSelectorDialog";
 import { convertVariantsToAttributeLines, generateProductVariants } from "@/lib/tpos-variant-converter";
 import { upsertProductFromTPOS } from "@/lib/tpos-product-sync";
+import { formatVariantFromTPOSAttributeLines } from "@/lib/variant-utils";
 import { getTPOSBearerToken } from "@/lib/tpos-order-details-fetcher";
 
 const formSchema = z.object({
@@ -65,7 +66,12 @@ export function EditTPOSProductDialog({
         qtyAvailable: product.QtyAvailable,
       });
       setImageBase64(null);
-      setSelectedVariants("");
+      
+      // ✅ Parse AttributeLines từ TPOS → Variant string
+      const variantString = formatVariantFromTPOSAttributeLines(product.AttributeLines);
+      setSelectedVariants(variantString);
+      
+      console.log('🔄 [Edit Dialog] Auto-filled variants from AttributeLines:', variantString);
     }
   }, [product, open, form]);
   

@@ -100,3 +100,52 @@ export function formatVariantFromAttributeValues(
   
   return groups.join(' ');
 }
+
+/**
+ * Parse AttributeLines từ TPOS API thành variant string
+ * 
+ * Input: product.AttributeLines (nested structure)
+ * Output: "(Cam | Đỏ | Vàng) (Size M | Size L)"
+ * 
+ * Khác với formatVariantFromAttributeValues:
+ * - AttributeValues: Mảng phẳng { AttributeName, Name }
+ * - AttributeLines: Nested { Attribute, Values[] }
+ */
+export function formatVariantFromTPOSAttributeLines(
+  attributeLines: Array<{
+    Attribute: { Id: number };
+    Values: Array<{
+      Id: number;
+      Name: string;
+      AttributeName: string;
+    }>;
+    AttributeId: number;
+  }> | undefined
+): string {
+  if (!attributeLines || attributeLines.length === 0) {
+    return "";
+  }
+
+  // Group values by AttributeName
+  const grouped: Record<string, string[]> = {};
+  
+  attributeLines.forEach(line => {
+    line.Values.forEach(value => {
+      const attrName = value.AttributeName;
+      if (!grouped[attrName]) {
+        grouped[attrName] = [];
+      }
+      // Tránh duplicate
+      if (!grouped[attrName].includes(value.Name)) {
+        grouped[attrName].push(value.Name);
+      }
+    });
+  });
+
+  // Format: "(Val1 | Val2) (ValA | ValB)"
+  const parts = Object.values(grouped).map(values => 
+    `(${values.join(' | ')})`
+  );
+
+  return parts.join(' ');
+}
