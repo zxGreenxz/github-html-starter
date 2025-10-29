@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -1317,12 +1317,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
           <div className="flex items-center justify-between gap-4">
             <Label className="text-lg font-medium whitespace-nowrap">Danh sách sản phẩm</Label>
-            <Input
-              placeholder="Tìm kiếm sản phẩm theo tên..."
-              value={productSearchQuery}
-              onChange={(e) => setProductSearchQuery(e.target.value)}
-              className="max-w-xs"
-            />
+            <div className="relative max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              <Input
+                placeholder="Tìm kiếm sản phẩm theo tên..."
+                value={productSearchQuery}
+                onChange={(e) => setProductSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <Button onClick={addItem} size="sm" variant="secondary">
                 <Plus className="w-4 h-4 mr-2" />
