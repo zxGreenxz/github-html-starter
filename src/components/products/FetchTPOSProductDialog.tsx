@@ -24,8 +24,7 @@ interface FetchTPOSProductDialogProps {
 
 export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductDialogProps) {
   const [productCode, setProductCode] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedSearch = useDebounce(productCode, 300);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchedProduct, setFetchedProduct] = useState<TPOSProductFullDetails | null>(null);
@@ -110,7 +109,7 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
               <Input
                 value={productCode}
                 onChange={(e) => setProductCode(e.target.value)}
-                placeholder="Nhập hoặc chọn mã sản phẩm..."
+                placeholder="Nhập mã sản phẩm hoặc tìm kiếm (tối thiểu 2 ký tự)..."
                 className="flex-1"
               />
               <Button 
@@ -136,15 +135,9 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
             )}
 
             <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
-              <Input
-                placeholder="Tìm kiếm sản phẩm trong kho (tối thiểu 2 ký tự)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              
               <div className="text-sm text-muted-foreground">
-                {debouncedSearch.length >= 2 
-                  ? `Tìm thấy ${products.length} sản phẩm`
+                {debouncedSearch.trim().length >= 2 
+                  ? `Tìm thấy ${products.length} sản phẩm cho "${debouncedSearch}"`
                   : `Hiển thị ${products.length} sản phẩm mới nhất`
                 }
               </div>
