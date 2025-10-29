@@ -55,6 +55,7 @@ export function ProductSearchCombobox({
       let query = supabase
         .from("products")
         .select("id, product_code, product_name, variant, product_images, tpos_image_url, tpos_product_id, base_product_code")
+        .is('base_product_code', null)
         .order("created_at", { ascending: false })
         .limit(100);
 
