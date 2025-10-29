@@ -13,6 +13,8 @@ import { updateTPOSProductDetails, type TPOSProductFullDetails, type TPOSUpdateP
 import { useImagePaste } from "@/hooks/use-image-paste";
 import { VariantSelectorDialog } from "./VariantSelectorDialog";
 import { convertVariantsToAttributeLines, generateProductVariants } from "@/lib/tpos-variant-converter";
+import { upsertProductFromTPOS } from "@/lib/tpos-product-sync";
+import { getTPOSBearerToken } from "@/lib/tpos-order-details-fetcher";
 
 const formSchema = z.object({
   name: z.string().min(1, "Tên sản phẩm không được để trống"),
@@ -148,7 +150,27 @@ export function EditTPOSProductDialog({
       
       await updateTPOSProductDetails(payload);
       
-      toast.success("Đã cập nhật sản phẩm thành công");
+      // ✅ Fetch lại từ TPOS và upsert vào local DB
+      console.log("🔄 Fetching updated product from TPOS...");
+      try {
+        const bearerToken = await getTPOSBearerToken();
+        const syncResult = await upsertProductFromTPOS(
+          product.DefaultCode, 
+          bearerToken
+        );
+
+        if (syncResult.success) {
+          console.log("✅ Synced to local DB:", syncResult.message);
+          toast.success(`Cập nhật thành công! ${syncResult.message}`);
+        } else {
+          console.warn("⚠️ TPOS update OK but sync failed:", syncResult.message);
+          toast.success("Đã cập nhật TPOS (nhưng chưa đồng bộ về local)");
+        }
+      } catch (syncError) {
+        console.error("⚠️ Sync error:", syncError);
+        toast.success("Đã cập nhật TPOS (nhưng chưa đồng bộ về local)");
+      }
+      
       onSuccess?.();
       
     } catch (error: any) {

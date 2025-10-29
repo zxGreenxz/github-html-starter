@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveTPOSToken, getTPOSHeaders } from "./tpos-config";
+import { searchTPOSProductByCode, getTPOSProductFullDetails } from "./tpos-api";
 
 // =====================================================
 // TYPES
@@ -49,6 +50,151 @@ export interface SyncResult {
   productCode: string;
   message: string;
   variantsUpdated: number;
+}
+
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
+/**
+ * Extract supplier name từ product name
+ * Pattern: ddmm A## format (e.g., "0510 A43 SET ÁO TD" → A43)
+ */
+function extractSupplierFromName(productName: string): string | null {
+  if (!productName) return null;
+  const match = productName.match(/^\d{4}\s+([A-Z]\d{1,4})\s+/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extract variant name từ tên biến thể
+ * Extract phần trong ngoặc cuối cùng (e.g., "SET ÁO TD (Cam)" → "Cam")
+ */
+function extractVariantName(variantName: string): string | null {
+  if (!variantName) return null;
+  const match = variantName.match(/\(([^)]+)\)$/);
+  return match ? match[1] : null;
+}
+
+// =====================================================
+// UPSERT FROM TPOS TO LOCAL DB
+// =====================================================
+
+/**
+ * Fetch sản phẩm từ TPOS và upsert vào local database
+ * @param productCode - Mã sản phẩm cần sync
+ * @param bearerToken - TPOS bearer token
+ * @returns Result object với success status và message
+ */
+export async function upsertProductFromTPOS(
+  productCode: string,
+  bearerToken: string
+): Promise<{ success: boolean; message: string; productId?: string }> {
+  try {
+    console.log(`🔍 Searching TPOS for product: ${productCode}`);
+    
+    // 1. Search TPOS product by code
+    const searchResult = await searchTPOSProductByCode(productCode);
+    
+    if (!searchResult) {
+      return { success: false, message: "Không tìm thấy sản phẩm trên TPOS" };
+    }
+    
+    console.log(`✅ Found product ID: ${searchResult.Id}`);
+    
+    // 2. Fetch full details with expanded data
+    const fullProduct = await getTPOSProductFullDetails(searchResult.Id);
+    
+    console.log(`📦 Fetched full product details: ${fullProduct.Name}`);
+    console.log(`📊 Variants count: ${fullProduct.ProductVariants?.length || 0}`);
+    
+    // 3. Upsert parent product vào local database
+    const upsertData = {
+      product_code: fullProduct.DefaultCode,
+      product_name: fullProduct.Name,
+      tpos_product_id: fullProduct.Id,
+      tpos_image_url: fullProduct.ImageUrl || null,
+      selling_price: fullProduct.ListPrice || 0,
+      purchase_price: fullProduct.PurchasePrice || 0,
+      barcode: fullProduct.Barcode || null,
+      unit: fullProduct.UOM?.Name || 'Cái',
+      supplier_name: extractSupplierFromName(fullProduct.Name),
+      base_product_code: null, // Parent product không có base_product_code
+      variant: null, // Parent product không có variant
+    };
+    
+    const { data: parentData, error: parentError } = await supabase
+      .from("products")
+      .upsert(upsertData, { 
+        onConflict: "product_code",
+        ignoreDuplicates: false 
+      })
+      .select()
+      .single();
+    
+    if (parentError) {
+      console.error("❌ Error upserting parent product:", parentError);
+      throw parentError;
+    }
+    
+    console.log(`✅ Upserted parent product: ${fullProduct.DefaultCode}`);
+    
+    // 4. Upsert variants nếu có
+    let variantsCount = 0;
+    if (fullProduct.ProductVariants && fullProduct.ProductVariants.length > 0) {
+      console.log(`🔄 Processing ${fullProduct.ProductVariants.length} variants...`);
+      
+      for (const variant of fullProduct.ProductVariants) {
+        const variantData = {
+          product_code: variant.DefaultCode,
+          product_name: variant.Name,
+          base_product_code: fullProduct.DefaultCode, // Point to parent
+          variant: extractVariantName(variant.Name),
+          tpos_product_id: fullProduct.Id,
+          productid_bienthe: variant.Id,
+          tpos_image_url: fullProduct.ImageUrl || null,
+          selling_price: variant.ListPrice || fullProduct.ListPrice || 0,
+          purchase_price: variant.StandardPrice || fullProduct.PurchasePrice || 0,
+          stock_quantity: variant.QtyAvailable || 0,
+          virtual_available: variant.VirtualAvailable || 0,
+          barcode: variant.Barcode || null,
+          unit: fullProduct.UOM?.Name || 'Cái',
+          supplier_name: extractSupplierFromName(fullProduct.Name),
+        };
+        
+        const { error: variantError } = await supabase
+          .from("products")
+          .upsert(variantData, { 
+            onConflict: "product_code",
+            ignoreDuplicates: false 
+          });
+        
+        if (!variantError) {
+          variantsCount++;
+          console.log(`  ✅ Upserted variant: ${variant.DefaultCode}`);
+        } else {
+          console.error(`  ❌ Error upserting variant ${variant.DefaultCode}:`, variantError);
+        }
+      }
+    }
+    
+    const message = variantsCount > 0 
+      ? `Đã lưu sản phẩm + ${variantsCount} biến thể`
+      : "Đã lưu sản phẩm";
+    
+    return {
+      success: true,
+      message,
+      productId: parentData.id,
+    };
+    
+  } catch (error) {
+    console.error("❌ Error upserting product from TPOS:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
 }
 
 // =====================================================
