@@ -1317,7 +1317,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
           <div className="flex items-center justify-between gap-4">
             <Label className="text-lg font-medium whitespace-nowrap">Danh sách sản phẩm</Label>
-            <div className="relative max-w-xs">
+            <div className="relative w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
               <Input
                 placeholder="Tìm kiếm sản phẩm theo tên..."
