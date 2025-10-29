@@ -135,6 +135,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [showDebugColumn, setShowDebugColumn] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -1314,8 +1315,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-lg font-medium whitespace-nowrap">Danh sách sản phẩm</Label>
+            <Input
+              placeholder="Tìm kiếm sản phẩm theo tên..."
+              value={productSearchQuery}
+              onChange={(e) => setProductSearchQuery(e.target.value)}
+              className="max-w-xs"
+            />
             <div className="flex items-center gap-2">
               <Button onClick={addItem} size="sm" variant="secondary">
                 <Plus className="w-4 h-4 mr-2" />
@@ -1370,10 +1377,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item, index) => (
+                  {items
+                    .map((item, originalIndex) => ({ item, originalIndex }))
+                    .filter(({ item }) => 
+                      !productSearchQuery || 
+                      item.product_name.toLowerCase().includes(productSearchQuery.toLowerCase())
+                    )
+                    .map(({ item, originalIndex: index }, displayIndex) => (
                     <TableRow key={index}>
                       <TableCell className="text-center font-medium">
-                        {index + 1}
+                        {displayIndex + 1}
                       </TableCell>
                       <TableCell>
                         <Textarea
