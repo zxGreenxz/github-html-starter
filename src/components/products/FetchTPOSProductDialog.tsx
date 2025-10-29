@@ -36,7 +36,6 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
       let query = supabase
         .from("products")
         .select("id, product_code, product_name, variant, product_images, tpos_image_url, tpos_product_id, base_product_code, selling_price")
-        .is('base_product_code', null)
         .order("created_at", { ascending: false });
       
       if (debouncedSearch.length >= 2) {
@@ -51,7 +50,13 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
       
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      
+      // Filter for parent products only (product_code === base_product_code)
+      const parentProducts = (data || []).filter(
+        product => product.product_code === product.base_product_code
+      );
+      
+      return parentProducts;
     },
     enabled: open,
     staleTime: 30000,
