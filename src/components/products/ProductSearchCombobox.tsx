@@ -52,28 +52,33 @@ export function ProductSearchCombobox({
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products-search", debouncedSearch],
     queryFn: async () => {
-      if (debouncedSearch.length < 2) {
-        return [];
-      }
-
       let query = supabase
         .from("products")
         .select("id, product_code, product_name, variant, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .order("created_at", { ascending: false })
         .limit(20);
 
-      query = applyMultiKeywordSearch(
-        query,
-        debouncedSearch,
-        ['product_code', 'product_name', 'variant', 'barcode']
-      );
+      // Nếu có search query, filter theo keyword
+      if (debouncedSearch.trim().length > 0) {
+        query = applyMultiKeywordSearch(
+          query,
+          debouncedSearch,
+          ['product_code', 'product_name', 'variant', 'barcode']
+        );
+      }
 
       const { data, error } = await query;
       if (error) throw error;
       return data as Product[];
     },
-    enabled: debouncedSearch.length >= 2,
+    enabled: open, // Load khi dropdown mở
   });
+
+  const handleSelect = (selectedValue: string) => {
+    onValueChange(selectedValue);
+    setSearchQuery(""); // Clear search sau khi chọn
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -82,10 +87,10 @@ export function ProductSearchCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-full justify-between font-normal"
           disabled={disabled}
         >
-          <span className="truncate">
+          <span className="truncate text-left">
             {value || placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -96,25 +101,23 @@ export function ProductSearchCombobox({
           <CommandInput 
             placeholder="Tìm kiếm theo mã SP, tên, variant..."
             value={searchQuery}
-            onValueChange={setSearchQuery}
+            onValueChange={(val) => {
+              setSearchQuery(val);
+              onValueChange(val); // Cập nhật value luôn khi gõ
+            }}
           />
           <CommandList>
             <CommandEmpty>
               {isLoading
                 ? "Đang tìm kiếm..."
-                : searchQuery.length < 2 
-                ? "Nhập ít nhất 2 ký tự để tìm kiếm"
-                : "Không tìm thấy sản phẩm"}
+                : "Không tìm thấy sản phẩm trong kho"}
             </CommandEmpty>
             <CommandGroup>
               {products.map((product) => (
                 <CommandItem
                   key={product.id}
                   value={product.product_code}
-                  onSelect={(currentValue) => {
-                    onValueChange(currentValue === value ? "" : currentValue);
-                    setOpen(false);
-                  }}
+                  onSelect={() => handleSelect(product.product_code)}
                   className="flex items-center gap-3 py-2"
                 >
                   <div className="h-10 w-10 flex-shrink-0">
