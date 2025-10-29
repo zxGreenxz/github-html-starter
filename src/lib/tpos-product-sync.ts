@@ -92,7 +92,8 @@ function extractVariantName(variantName: string): string | null {
 // =====================================================
 
 /**
- * Fetch sản phẩm từ TPOS và upsert vào local database
+ * Fetch sản phẩm từ TPOS và sync vào local database
+ * STRATEGY: DELETE-THEN-INSERT (xóa product cha + tất cả variants cũ, sau đó insert lại từ TPOS)
  * @param productCode - Mã sản phẩm cần sync
  * @param bearerToken - TPOS bearer token
  * @returns Result object với success status và message
@@ -119,7 +120,22 @@ export async function upsertProductFromTPOS(
     console.log(`📦 Fetched full product details: ${fullProduct.Name}`);
     console.log(`📊 Variants count: ${fullProduct.ProductVariants?.length || 0}`);
     
-    // 3. Collect all unique AttributeValues from all variants for parent
+    // 3. DELETE old product + ALL variants with same base_product_code
+    console.log(`🗑️ Deleting old product and variants for: ${fullProduct.DefaultCode}`);
+    
+    const { error: deleteError } = await supabase
+      .from("products")
+      .delete()
+      .or(`product_code.eq.${fullProduct.DefaultCode},base_product_code.eq.${fullProduct.DefaultCode}`);
+    
+    if (deleteError) {
+      console.error("❌ Error deleting old products:", deleteError);
+      throw deleteError;
+    }
+    
+    console.log(`✅ Deleted old products`);
+    
+    // 4. Collect all unique AttributeValues from all variants for parent
     const allAttributeValues: Array<{AttributeName: string; Name: string}> = [];
     
     if (fullProduct.ProductVariants && fullProduct.ProductVariants.length > 0) {
@@ -143,8 +159,8 @@ export async function upsertProductFromTPOS(
     // Format parent variant - tổng hợp tất cả
     const parentVariant = formatVariantFromAttributeValues(uniqueAttributeValues);
     
-    // 4. Upsert parent product vào local database
-    const upsertData = {
+    // 5. INSERT parent product vào local database
+    const insertData = {
       product_code: fullProduct.DefaultCode,
       product_name: fullProduct.Name,
       tpos_product_id: fullProduct.Id,
@@ -160,21 +176,18 @@ export async function upsertProductFromTPOS(
     
     const { data: parentData, error: parentError } = await supabase
       .from("products")
-      .upsert(upsertData, { 
-        onConflict: "product_code",
-        ignoreDuplicates: false 
-      })
+      .insert(insertData)
       .select()
       .single();
     
     if (parentError) {
-      console.error("❌ Error upserting parent product:", parentError);
+      console.error("❌ Error inserting parent product:", parentError);
       throw parentError;
     }
     
-    console.log(`✅ Upserted parent product: ${fullProduct.DefaultCode}`);
+    console.log(`✅ Inserted parent product: ${fullProduct.DefaultCode}`);
     
-    // 5. Upsert variants nếu có
+    // 6. INSERT variants nếu có
     let variantsCount = 0;
     if (fullProduct.ProductVariants && fullProduct.ProductVariants.length > 0) {
       console.log(`🔄 Processing ${fullProduct.ProductVariants.length} variants...`);
@@ -204,23 +217,20 @@ export async function upsertProductFromTPOS(
         
         const { error: variantError } = await supabase
           .from("products")
-          .upsert(variantData, { 
-            onConflict: "product_code",
-            ignoreDuplicates: false 
-          });
+          .insert(variantData);
         
         if (!variantError) {
           variantsCount++;
-          console.log(`  ✅ Upserted variant: ${variant.DefaultCode}`);
+          console.log(`  ✅ Inserted variant: ${variant.DefaultCode}`);
         } else {
-          console.error(`  ❌ Error upserting variant ${variant.DefaultCode}:`, variantError);
+          console.error(`  ❌ Error inserting variant ${variant.DefaultCode}:`, variantError);
         }
       }
     }
     
     const message = variantsCount > 0 
-      ? `Đã lưu sản phẩm + ${variantsCount} biến thể`
-      : "Đã lưu sản phẩm";
+      ? `Đã đồng bộ sản phẩm + ${variantsCount} biến thể`
+      : "Đã đồng bộ sản phẩm";
     
     return {
       success: true,
@@ -229,7 +239,7 @@ export async function upsertProductFromTPOS(
     };
     
   } catch (error) {
-    console.error("❌ Error upserting product from TPOS:", error);
+    console.error("❌ Error syncing product from TPOS:", error);
     return {
       success: false,
       message: error instanceof Error ? error.message : "Unknown error",
