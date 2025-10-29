@@ -81,74 +81,72 @@ export function ProductSearchCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between font-normal"
-          disabled={disabled}
-        >
-          <span className="truncate text-left">
-            {value || placeholder}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[600px] p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Tìm kiếm theo mã SP, tên, variant..."
-            value={searchQuery}
-            onValueChange={(val) => {
-              setSearchQuery(val);
-              onValueChange(val); // Cập nhật value luôn khi gõ
-            }}
-          />
-          <CommandList>
-            <CommandEmpty>
-              {isLoading
-                ? "Đang tìm kiếm..."
-                : "Không tìm thấy sản phẩm trong kho"}
-            </CommandEmpty>
-            <CommandGroup>
-              {products.map((product) => (
-                <CommandItem
-                  key={product.id}
-                  value={product.product_code}
-                  onSelect={() => handleSelect(product.product_code)}
-                  className="flex items-center gap-3 py-2"
-                >
-                  <div className="h-10 w-10 flex-shrink-0">
-                    <ProductImage
-                      productId={product.id}
-                      productCode={product.product_code}
-                      productImages={product.product_images}
-                      tposImageUrl={product.tpos_image_url}
-                      tposProductId={product.tpos_product_id}
-                      baseProductCode={product.base_product_code}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{product.product_code}</div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {product.product_name}
-                      {product.variant && ` - ${product.variant}`}
+    <div className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <div className="relative">
+            <input
+              type="text"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder={placeholder}
+              value={value}
+              onChange={(e) => {
+                onValueChange(e.target.value);
+                setSearchQuery(e.target.value);
+                if (!open) setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              disabled={disabled}
+            />
+            <ChevronsUpDown className="absolute right-3 top-3 h-4 w-4 shrink-0 opacity-50" />
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-[600px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandList>
+              <CommandEmpty>
+                {isLoading
+                  ? "Đang tìm kiếm..."
+                  : "Không tìm thấy sản phẩm trong kho"}
+              </CommandEmpty>
+              <CommandGroup>
+                {products.map((product) => (
+                  <CommandItem
+                    key={product.id}
+                    value={product.product_code}
+                    onSelect={() => handleSelect(product.product_code)}
+                    className="flex items-center gap-3 py-2"
+                  >
+                    <div className="h-10 w-10 flex-shrink-0">
+                      <ProductImage
+                        productId={product.id}
+                        productCode={product.product_code}
+                        productImages={product.product_images}
+                        tposImageUrl={product.tpos_image_url}
+                        tposProductId={product.tpos_product_id}
+                        baseProductCode={product.base_product_code}
+                      />
                     </div>
-                  </div>
-                  <Check
-                    className={cn(
-                      "ml-auto h-4 w-4 flex-shrink-0",
-                      value === product.product_code ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{product.product_code}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {product.product_name}
+                        {product.variant && ` - ${product.variant}`}
+                      </div>
+                    </div>
+                    <Check
+                      className={cn(
+                        "ml-auto h-4 w-4 flex-shrink-0",
+                        value === product.product_code ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
