@@ -764,29 +764,58 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (completedCount === totalItems) {
         clearInterval(pollInterval);
 
-        if (failedCount === 0) {
-          // ✅ All succeeded
-          sonnerToast.success(
-            `Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
-            { id: toastId, duration: 5000 }
-          );
-        } else if (successCount === 0) {
-          // ❌ All failed
-          sonnerToast.error(
-            `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
-            { id: toastId, duration: 5000 }
-          );
-        } else {
-          // ⚠️ Partial success
-          sonnerToast.warning(
-            `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
-            { id: toastId, duration: 7000 }
-          );
-        }
+        // Wait for matching function to complete (runs after TPOS processing)
+        setTimeout(async () => {
+          // Re-fetch items to check matching results
+          const { data: finalItems } = await supabase
+            .from('purchase_order_items')
+            .select('id, product_code, variant, tpos_sync_error')
+            .eq('purchase_order_id', orderId);
 
-        // Refresh queries after completion
-        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
+          // Count items with matching errors
+          const matchingErrors = finalItems?.filter(item => 
+            item.tpos_sync_error?.includes('Không tìm thấy variant') ||
+            item.tpos_sync_error?.includes('không tìm thấy variant')
+          ) || [];
+
+          if (failedCount === 0) {
+            // ✅ All succeeded
+            if (matchingErrors.length === 0) {
+              sonnerToast.success(
+                `Đã tạo thành công ${successCount} sản phẩm trên TPOS và match với kho!`,
+                { id: toastId, duration: 5000 }
+              );
+            } else {
+              sonnerToast.warning(
+                `Đã tạo ${successCount} sản phẩm trên TPOS, nhưng ${matchingErrors.length} variant không match với kho. Kiểm tra chi tiết đơn hàng.`,
+                { id: toastId, duration: 7000 }
+              );
+            }
+          } else if (successCount === 0) {
+            // ❌ All failed
+            sonnerToast.error(
+              `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
+              { id: toastId, duration: 5000 }
+            );
+          } else {
+            // ⚠️ Partial success
+            if (matchingErrors.length > 0) {
+              sonnerToast.warning(
+                `${successCount} thành công, ${failedCount} lỗi TPOS, ${matchingErrors.length} lỗi matching. Kiểm tra chi tiết đơn hàng.`,
+                { id: toastId, duration: 8000 }
+              );
+            } else {
+              sonnerToast.warning(
+                `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
+                { id: toastId, duration: 7000 }
+              );
+            }
+          }
+
+          // Refresh queries after completion
+          queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
+        }, 3000); // Wait 3s for matching to complete
       }
     }, POLL_INTERVAL);
   };

@@ -178,6 +178,26 @@ Deno.serve(async (req) => {
 
     console.log(`\n✅ Processing complete:`, summary);
 
+    // 🎯 Step 2: Match purchase order items with warehouse products
+    console.log(`\n🔍 Starting product matching...`);
+    try {
+      const { data: matchResult, error: matchError } = await supabase.functions.invoke(
+        'match-purchase-order-products',
+        {
+          body: { purchase_order_id }
+        }
+      );
+
+      if (matchError) {
+        console.error('❌ Error invoking match function:', matchError);
+      } else {
+        console.log('✅ Matching complete:', matchResult);
+      }
+    } catch (matchErr: any) {
+      console.error('❌ Failed to invoke matching function:', matchErr);
+      // Don't throw - matching is optional enhancement
+    }
+
     return new Response(
       JSON.stringify(summary),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
