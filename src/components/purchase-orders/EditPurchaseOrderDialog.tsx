@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, ChevronLeft, ChevronRight, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
@@ -545,6 +545,31 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     setIsSelectProductOpen(true);
   };
 
+  // ✅ Apply value to all variants with same product_code
+  const applyToAllVariants = (productCode: string, fieldName: string, value: any) => {
+    if (!productCode) return;
+    
+    const updatedItems = items.map(item => {
+      if (item._tempProductCode === productCode) {
+        return { ...item, [fieldName]: value };
+      }
+      return item;
+    });
+    
+    setItems(updatedItems);
+    
+    const affectedCount = updatedItems.filter(item => item._tempProductCode === productCode).length;
+    toast({
+      title: "✅ Đã áp dụng",
+      description: `Đã cập nhật ${affectedCount} dòng sản phẩm với mã ${productCode}`,
+    });
+  };
+
+  // Check if should show apply button
+  const shouldShowApplyButton = (productCode: string) => {
+    return items.filter(item => item._tempProductCode === productCode).length > 1;
+  };
+
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
       if (!order?.id) throw new Error("Order ID is required");
@@ -885,51 +910,107 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
-                          disabled={!!item.id}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder=""
-                          value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
-                          onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
-                          className={cn(
-                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
-                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                        <div className="flex items-center gap-1">
+                          <Input
+                            disabled={!!item.id}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder=""
+                            value={item._tempUnitPrice === 0 || item._tempUnitPrice === "" ? "" : item._tempUnitPrice}
+                            onChange={(e) => updateItem(index, "_tempUnitPrice", parseNumberInput(e.target.value))}
+                            className={cn(
+                              "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                            )}
+                          />
+                          {!item.id && shouldShowApplyButton(item._tempProductCode) && Number(item._tempUnitPrice) > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
+                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempUnitPrice", item._tempUnitPrice)}
+                              title="Áp dụng cho tất cả biến thể"
+                            >
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            </Button>
                           )}
-                        />
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Input
-                          disabled={!!item.id}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder=""
-                          value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
-                          onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
-                          className={cn(
-                            "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
-                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                        <div className="flex items-center gap-1">
+                          <Input
+                            disabled={!!item.id}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder=""
+                            value={item._tempSellingPrice === 0 || item._tempSellingPrice === "" ? "" : item._tempSellingPrice}
+                            onChange={(e) => updateItem(index, "_tempSellingPrice", parseNumberInput(e.target.value))}
+                            className={cn(
+                              "border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm",
+                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
+                            )}
+                          />
+                          {!item.id && shouldShowApplyButton(item._tempProductCode) && Number(item._tempSellingPrice) > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
+                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempSellingPrice", item._tempSellingPrice)}
+                              title="Áp dụng cho tất cả biến thể"
+                            >
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            </Button>
                           )}
-                        />
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatVND(item._tempTotalPrice * 1000)}
                       </TableCell>
                       <TableCell>
-                        <ImageUploadCell
-                          images={item._tempProductImages}
-                          onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
-                          itemIndex={index}
-                          disabled={!!item.id}
-                        />
+                        <div className="flex items-center gap-1">
+                          <ImageUploadCell
+                            images={item._tempProductImages}
+                            onImagesChange={(images) => updateItem(index, "_tempProductImages", images)}
+                            itemIndex={index}
+                            disabled={!!item.id}
+                          />
+                          {!item.id && shouldShowApplyButton(item._tempProductCode) && item._tempProductImages.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
+                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempProductImages", item._tempProductImages)}
+                              title="Áp dụng cho tất cả biến thể"
+                            >
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <ImageUploadCell
-                          images={item._tempPriceImages}
-                          onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
-                          itemIndex={index}
-                          disabled={!!item.id}
-                        />
+                        <div className="flex items-center gap-1">
+                          <ImageUploadCell
+                            images={item._tempPriceImages}
+                            onImagesChange={(images) => updateItem(index, "_tempPriceImages", images)}
+                            itemIndex={index}
+                            disabled={!!item.id}
+                          />
+                          {!item.id && shouldShowApplyButton(item._tempProductCode) && item._tempPriceImages.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0 hover:bg-primary/10"
+                              onClick={() => applyToAllVariants(item._tempProductCode, "_tempPriceImages", item._tempPriceImages)}
+                              title="Áp dụng cho tất cả biến thể"
+                            >
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
