@@ -1289,22 +1289,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
 
           <div className="flex items-center justify-between">
+            <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
             <div className="flex items-center gap-2">
-              <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
               <Button onClick={addItem} size="sm" variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
                 Thêm sản phẩm
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1].product_name ? items.length : items.length - 1)}
+              >
+                <Warehouse className="h-4 w-4 mr-2" />
+                Chọn từ Kho SP
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1].product_name ? items.length : items.length - 1)}
-            >
-              <Warehouse className="h-4 w-4 mr-2" />
-              Chọn từ Kho SP
-            </Button>
           </div>
         </div>
 
