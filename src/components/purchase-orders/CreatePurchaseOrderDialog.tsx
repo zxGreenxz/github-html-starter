@@ -1289,7 +1289,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
 
           <div className="flex items-center justify-between">
-            <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
+            <div className="flex items-center gap-2">
+              <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
+              <Button onClick={addItem} size="sm" variant="outline">
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm sản phẩm
+              </Button>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -1537,13 +1543,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   </TableRow>
                 </TableBody>
               </Table>
-            </div>
-
-            <div className="flex justify-center">
-              <Button onClick={addItem} size="sm" variant="outline">
-                <Plus className="w-4 h-4 mr-2" />
-                Thêm sản phẩm
-              </Button>
             </div>
           </div>
         </div>
