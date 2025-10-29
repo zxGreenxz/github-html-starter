@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { searchTPOSProductByCode, getTPOSProductFullDetails, type TPOSProductFullDetails } from "@/lib/tpos-api";
 import { EditTPOSProductDialog } from "./EditTPOSProductDialog";
+import { ProductSearchCombobox } from "./ProductSearchCombobox";
 
 interface FetchTPOSProductDialogProps {
   open: boolean;
@@ -57,12 +57,6 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
     }
   };
   
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleFetch();
-    }
-  };
-  
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,13 +70,11 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
           
           <div className="space-y-4">
             <div className="flex gap-2">
-              <Input
-                placeholder="Nhập mã sản phẩm (DefaultCode)"
+              <ProductSearchCombobox
                 value={productCode}
-                onChange={(e) => setProductCode(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onValueChange={setProductCode}
                 disabled={isLoading}
-                className="flex-1"
+                placeholder="Nhập mã sản phẩm (DefaultCode)"
               />
               <Button 
                 onClick={handleFetch} 
