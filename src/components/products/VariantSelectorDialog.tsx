@@ -67,14 +67,21 @@ export function VariantSelectorDialog({
   const selectedValueIds = useMemo(() => {
     if (!selectedVariants || !attributeValues) return new Set<string>();
     
-    const match = selectedVariants.match(/\((.*?)\)/);
-    if (!match) return new Set<string>();
+    // Match ALL groups: (1 | 2 | 3) (Trắng | Đen) (S | M)
+    const matches = selectedVariants.match(/\([^)]+\)/g);
+    if (!matches) return new Set<string>();
     
-    const names = match[1].split("|").map(s => s.trim());
+    const allNames: string[] = [];
+    matches.forEach(group => {
+      // Remove ( and ) → "1 | 2 | 3"
+      const content = group.slice(1, -1);
+      const names = content.split("|").map(s => s.trim());
+      allNames.push(...names);
+    });
+    
     const ids = new Set<string>();
-    
     attributeValues.forEach(value => {
-      if (names.includes(value.value)) {
+      if (allNames.includes(value.value)) {
         ids.add(value.id);
       }
     });
@@ -91,13 +98,24 @@ export function VariantSelectorDialog({
       newSet.add(valueId);
     }
     
-    const selectedNames = attributeValues
-      ?.filter(v => newSet.has(v.id))
-      .map(v => v.value) || [];
+    // Group by attribute_id
+    const selectedByAttribute: Record<string, string[]> = {};
     
-    const variantString = selectedNames.length > 0 
-      ? `(${selectedNames.join(" | ")})` 
-      : "";
+    attributeValues?.forEach(value => {
+      if (newSet.has(value.id)) {
+        if (!selectedByAttribute[value.attribute_id]) {
+          selectedByAttribute[value.attribute_id] = [];
+        }
+        selectedByAttribute[value.attribute_id].push(value.value);
+      }
+    });
+    
+    // Format: "(Val1 | Val2) (ValA | ValB)"
+    const parts = Object.values(selectedByAttribute).map(values =>
+      `(${values.join(" | ")})`
+    );
+    
+    const variantString = parts.join(" ");
     
     onVariantsChange(variantString);
   };
