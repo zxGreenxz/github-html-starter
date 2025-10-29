@@ -73,49 +73,65 @@ Deno.serve(async (req) => {
 
     console.log(`📦 Processing ${items.length} items for order ${purchase_order_id}`);
 
-    // Process items SEQUENTIALLY (as requested by user)
+    // Step 1: Group items by (product_code + selected_attribute_value_ids)
+    const groups = new Map<string, typeof items>();
+
+    for (const item of items) {
+      const sortedIds = (item.selected_attribute_value_ids || []).sort().join(',');
+      const groupKey = `${item.product_code}|${sortedIds}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(item);
+    }
+
+    console.log(`📦 Grouped ${items.length} items into ${groups.size} unique products`);
+
+    // Step 2: Process each group (upload TPOS once per group)
     let successCount = 0;
     let failedCount = 0;
     const failedItems: Array<{ id: string; error: string }> = [];
 
-    for (const [index, item] of items.entries()) {
-      console.log(`\n🔄 Processing item ${index + 1}/${items.length}: ${item.product_code}`);
+    for (const [groupKey, groupItems] of groups.entries()) {
+      const primaryItem = groupItems[0]; // Use first item as representative
+      console.log(`\n🔄 Processing group: ${groupKey} (${groupItems.length} items)`);
 
-      // 🔒 LOCK CHECK: Skip if already processing
-      if (item.tpos_sync_status === 'processing') {
-        console.log(`⚠️ Item ${item.product_code} is already being processed, skipping...`);
+      // 🔒 LOCK CHECK: Skip if already processing (check primary item)
+      if (primaryItem.tpos_sync_status === 'processing') {
+        console.log(`⚠️ Group ${groupKey} is already being processed, skipping...`);
         continue;
       }
 
-      // Mark as processing (atomic operation - only if status unchanged)
+      // Mark ALL items in group as 'processing' (atomic operation with race condition protection)
       const { error: updateError } = await supabase
         .from('purchase_order_items')
         .update({ 
           tpos_sync_status: 'processing',
           tpos_sync_started_at: new Date().toISOString()
         })
-        .eq('id', item.id)
-        .eq('tpos_sync_status', item.tpos_sync_status); // ✅ Only update if status unchanged
+        .in('id', groupItems.map(i => i.id))
+        .neq('tpos_sync_status', 'processing'); // ✅ Prevent race condition
 
       if (updateError) {
-        console.error(`❌ Failed to lock item ${item.product_code}:`, updateError);
-        continue; // Skip this item if can't lock
+        console.error(`❌ Failed to lock group ${groupKey}:`, updateError);
+        continue; // Skip this group if can't lock
       }
 
       try {
-        // Call TPOS creation edge function (same as frontend logic)
+        // Call TPOS creation ONCE for this group
         const { data: tposResult, error: tposError } = await supabase.functions.invoke(
           'create-tpos-variants-from-order',
           {
             body: {
-              baseProductCode: item.product_code.trim().toUpperCase(),
-              productName: item.product_name.trim().toUpperCase(),
-              purchasePrice: Number(item.purchase_price || 0) / 1000, // Convert back from storage format
-              sellingPrice: Number(item.selling_price || 0) / 1000,
-              selectedAttributeValueIds: item.selected_attribute_value_ids || [],
-              productImages: Array.isArray(item.product_images) 
-                ? item.product_images 
-                : (item.product_images ? [item.product_images] : []),
+              baseProductCode: primaryItem.product_code.trim().toUpperCase(),
+              productName: primaryItem.product_name.trim().toUpperCase(),
+              purchasePrice: Number(primaryItem.purchase_price || 0) / 1000, // Convert back from storage format
+              sellingPrice: Number(primaryItem.selling_price || 0) / 1000,
+              selectedAttributeValueIds: primaryItem.selected_attribute_value_ids || [],
+              productImages: Array.isArray(primaryItem.product_images) 
+                ? primaryItem.product_images 
+                : (primaryItem.product_images ? [primaryItem.product_images] : []),
               supplierName: order.supplier_name?.trim().toUpperCase() || 'UNKNOWN'
             }
           }
@@ -129,27 +145,23 @@ Deno.serve(async (req) => {
           throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
         }
 
-        // Extract tpos_product_id if available
-        const tposProductId = tposResult.tpos_product_id || null;
-
-        // Mark as success
+        // ✅ Success: Update ALL items in group
         await supabase
           .from('purchase_order_items')
           .update({ 
             tpos_sync_status: 'success',
             tpos_sync_completed_at: new Date().toISOString(),
-            tpos_sync_error: null,
-            tpos_product_id: tposProductId
+            tpos_sync_error: null
           })
-          .eq('id', item.id);
+          .in('id', groupItems.map(i => i.id));
 
-        successCount++;
-        console.log(`✅ Success: ${item.product_code} (TPOS ID: ${tposProductId || 'N/A'})`);
+        successCount += groupItems.length;
+        console.log(`✅ Group success: ${groupKey} (${groupItems.length} items)`);
 
       } catch (error: any) {
-        // Mark as failed with error message
         const errorMessage = error.message || 'Unknown error';
         
+        // ❌ Failed: Update ALL items in group
         await supabase
           .from('purchase_order_items')
           .update({ 
@@ -157,13 +169,14 @@ Deno.serve(async (req) => {
             tpos_sync_completed_at: new Date().toISOString(),
             tpos_sync_error: errorMessage
           })
-          .eq('id', item.id);
+          .in('id', groupItems.map(i => i.id));
 
-        failedCount++;
-        failedItems.push({ id: item.id, error: errorMessage });
-        console.error(`❌ Failed: ${item.product_code}`, errorMessage);
-
-        // Continue processing other items (don't throw)
+        failedCount += groupItems.length;
+        groupItems.forEach(item => {
+          failedItems.push({ id: item.id, error: errorMessage });
+        });
+        
+        console.error(`❌ Group failed: ${groupKey}`, errorMessage);
       }
     }
 

@@ -12,6 +12,8 @@ interface PurchaseOrderItem {
   tpos_product_id?: number | null;
   tpos_deleted?: boolean;
   tpos_deleted_at?: string | null;
+  tpos_sync_status?: 'pending' | 'processing' | 'success' | 'failed' | null;
+  tpos_sync_error?: string | null;
   // Primary fields (renamed from snapshot)
   product_code: string;
   product_name: string;
@@ -61,7 +63,7 @@ export function PurchaseOrderStats({ filteredOrders, allOrders, isLoading, isMob
 
   // Calculate TPOS sync stats from filteredOrders
   const allItems = filteredOrders.flatMap(order => order.items || []);
-  const syncedItems = allItems.filter(item => item.tpos_product_id);
+  const syncedItems = allItems.filter(item => item.tpos_sync_status === 'success');
   const tposSyncRatio = allItems.length > 0 ? ((syncedItems.length / allItems.length) * 100).toFixed(1) : '0';
 
 
