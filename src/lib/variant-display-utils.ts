@@ -1,7 +1,6 @@
 /**
  * Format variant for display in ProductList
- * Handles both old format "A, B, C" and new format "(A B) (C D)"
- * Removes parentheses and displays values separated by spaces
+ * Converts: "(1 | 2) (Nude | Nâu | Hồng)" → "1 | 2 | Nude | Nâu | Hồng"
  */
 export function formatVariantForDisplay(
   variant: string | null | undefined
@@ -10,22 +9,18 @@ export function formatVariantForDisplay(
   
   const trimmed = variant.trim();
   
-  // ✅ New format with parentheses "(A B) (C D)" → Remove parentheses → "A B C D"
+  // New format: "(1 | 2) (Nude | Nâu | Hồng)"
   if (trimmed.includes('(') && trimmed.includes(')')) {
-    return trimmed
-      .replace(/[()]/g, '') // Remove all parentheses
-      .replace(/\s+/g, ' ') // Normalize whitespace (multiple spaces → single space)
-      .trim();
+    // Step 1: Remove parentheses → "1 | 2  Nude | Nâu | Hồng"
+    let result = trimmed.replace(/[()]/g, '');
+    
+    // Step 2: Replace multiple spaces with " | "
+    // "1 | 2  Nude | Nâu | Hồng" → "1 | 2 | Nude | Nâu | Hồng"
+    result = result.replace(/\s{2,}/g, ' | ').trim();
+    
+    return result;
   }
   
-  // ⚠️ Old format (comma-separated) → "A, B, C" → "A B C"
-  const values = trimmed
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean);
-  
-  if (values.length === 0) return '';
-  
-  // Join with spaces, no parentheses
-  return values.join(' ');
+  // Legacy format fallback
+  return trimmed;
 }

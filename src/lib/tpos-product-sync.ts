@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveTPOSToken, getTPOSHeaders } from "./tpos-config";
 import { searchTPOSProductByCode, getTPOSProductFullDetails } from "./tpos-api";
+import { formatVariantFromAttributeValues } from "./variant-utils";
 
 // =====================================================
 // TYPES
@@ -9,6 +10,16 @@ import { searchTPOSProductByCode, getTPOSProductFullDetails } from "./tpos-api";
 interface TPOSProductVariant {
   Id: number;
   DefaultCode: string;
+  Name: string;
+  ListPrice: number;
+  StandardPrice: number;
+  QtyAvailable: number;
+  VirtualAvailable: number;
+  Barcode: string | null;
+  AttributeValues: Array<{
+    Name: string;
+    AttributeName: string;
+  }>;
 }
 
 interface TPOSProductResponse {
@@ -108,7 +119,31 @@ export async function upsertProductFromTPOS(
     console.log(`📦 Fetched full product details: ${fullProduct.Name}`);
     console.log(`📊 Variants count: ${fullProduct.ProductVariants?.length || 0}`);
     
-    // 3. Upsert parent product vào local database
+    // 3. Collect all unique AttributeValues from all variants for parent
+    const allAttributeValues: Array<{AttributeName: string; Name: string}> = [];
+    
+    if (fullProduct.ProductVariants && fullProduct.ProductVariants.length > 0) {
+      for (const variant of fullProduct.ProductVariants) {
+        if (variant.AttributeValues) {
+          allAttributeValues.push(...variant.AttributeValues);
+        }
+      }
+    }
+    
+    // Remove duplicates based on AttributeName + Name
+    const uniqueAttributeValues = Array.from(
+      new Map(
+        allAttributeValues.map(av => [
+          `${av.AttributeName}-${av.Name}`, 
+          av
+        ])
+      ).values()
+    );
+    
+    // Format parent variant - tổng hợp tất cả
+    const parentVariant = formatVariantFromAttributeValues(uniqueAttributeValues);
+    
+    // 4. Upsert parent product vào local database
     const upsertData = {
       product_code: fullProduct.DefaultCode,
       product_name: fullProduct.Name,
@@ -119,8 +154,8 @@ export async function upsertProductFromTPOS(
       barcode: fullProduct.Barcode || null,
       unit: fullProduct.UOM?.Name || 'Cái',
       supplier_name: extractSupplierFromName(fullProduct.Name),
-      base_product_code: null, // Parent product không có base_product_code
-      variant: null, // Parent product không có variant
+      base_product_code: fullProduct.DefaultCode, // Point to itself
+      variant: parentVariant || null,
     };
     
     const { data: parentData, error: parentError } = await supabase
@@ -139,17 +174,22 @@ export async function upsertProductFromTPOS(
     
     console.log(`✅ Upserted parent product: ${fullProduct.DefaultCode}`);
     
-    // 4. Upsert variants nếu có
+    // 5. Upsert variants nếu có
     let variantsCount = 0;
     if (fullProduct.ProductVariants && fullProduct.ProductVariants.length > 0) {
       console.log(`🔄 Processing ${fullProduct.ProductVariants.length} variants...`);
       
       for (const variant of fullProduct.ProductVariants) {
+        // Format variant from AttributeValues
+        const formattedVariant = formatVariantFromAttributeValues(
+          variant.AttributeValues || []
+        );
+        
         const variantData = {
           product_code: variant.DefaultCode,
           product_name: variant.Name,
           base_product_code: fullProduct.DefaultCode, // Point to parent
-          variant: extractVariantName(variant.Name),
+          variant: formattedVariant || null,
           tpos_product_id: fullProduct.Id,
           productid_bienthe: variant.Id,
           tpos_image_url: fullProduct.ImageUrl || null,

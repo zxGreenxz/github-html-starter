@@ -62,3 +62,41 @@ export const getVariantName = (variant: string | null | undefined): string => {
 export const getVariantCode = (variant: string | null | undefined): string => {
   return parseVariant(variant).code;
 };
+
+/**
+ * Format variant từ AttributeValues của TPOS theo cấu trúc AttributeLines
+ * 
+ * Input: [
+ *   { AttributeName: "Số lượng", Name: "1" },
+ *   { AttributeName: "Số lượng", Name: "2" },
+ *   { AttributeName: "Màu sắc", Name: "Nude" },
+ *   { AttributeName: "Màu sắc", Name: "Nâu" },
+ *   { AttributeName: "Màu sắc", Name: "Hồng" }
+ * ]
+ * 
+ * Output: "(1 | 2) (Nude | Nâu | Hồng)"
+ */
+export function formatVariantFromAttributeValues(
+  attributeValues: Array<{
+    AttributeName: string;
+    Name: string;
+  }>
+): string {
+  if (!attributeValues || attributeValues.length === 0) return '';
+  
+  // Group by AttributeName
+  const grouped = attributeValues.reduce((acc, attr) => {
+    if (!acc[attr.AttributeName]) {
+      acc[attr.AttributeName] = [];
+    }
+    acc[attr.AttributeName].push(attr.Name);
+    return acc;
+  }, {} as Record<string, string[]>);
+  
+  // Format: Tất cả đều dùng " | " làm separator
+  const groups = Object.values(grouped).map(values => {
+    return `(${values.join(' | ')})`;
+  });
+  
+  return groups.join(' ');
+}
