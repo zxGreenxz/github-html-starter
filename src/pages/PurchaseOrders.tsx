@@ -586,15 +586,15 @@ const PurchaseOrders = () => {
         isMobile={isMobile}
       />
 
-      <Tabs defaultValue="orders" className="w-full">
+      <Tabs defaultValue="drafts" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="orders" className="gap-2">
-            <FileText className="w-4 h-4" />
-            Đơn hàng
-          </TabsTrigger>
           <TabsTrigger value="drafts" className="gap-2">
             <FileText className="w-4 h-4" />
             Nháp ({draftOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="orders" className="gap-2">
+            <FileText className="w-4 h-4" />
+            Đơn hàng
           </TabsTrigger>
         </TabsList>
 
