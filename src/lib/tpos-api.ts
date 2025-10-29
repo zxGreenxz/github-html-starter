@@ -122,7 +122,23 @@ export interface TPOSProductFullDetails {
   
   // === VARIANTS & ATTRIBUTES ===
   ProductVariants: TPOSProductVariantDetail[];
-  AttributeLines?: any[];
+  AttributeLines?: Array<{
+    Attribute: {
+      Id: number;
+    };
+    Values: Array<{
+      Id: number;
+      Name: string;
+      Code: string | null;
+      Sequence: number | null;
+      AttributeId: number;
+      AttributeName: string;
+      PriceExtra: number | null;
+      NameGet: string;
+      DateCreated: string | null;
+    }>;
+    AttributeId: number;
+  }>;
   
   // === POLICIES ===
   Tracking?: string | null;
@@ -190,6 +206,7 @@ export interface TPOSProductVariantDetail {
   DefaultCode: string;
   Barcode: string | null;
   QtyAvailable: number;
+  VirtualAvailable?: number; // ✅ Thêm field này theo file mẫu
   QtyForecast: number;
   ListPrice: number;
   PurchasePrice: number;
@@ -434,7 +451,7 @@ export async function getTPOSProductFullDetails(
     
     await randomDelay(200, 600);
     
-    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
     
     console.log(`📦 [Fetch & Edit] Fetching full details for product ID: ${productId}`);
     

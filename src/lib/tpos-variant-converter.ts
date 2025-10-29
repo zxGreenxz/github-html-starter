@@ -51,12 +51,9 @@ export async function convertVariantsToAttributeLines(
     
     if (!attributeMap[attrId]) {
       attributeMap[attrId] = {
+        // ✅ CHỈ CÓ Id theo file mẫu line 35
         Attribute: {
-          Id: attrId,
-          Name: attrName,
-          Code: null,
-          Sequence: av.product_attributes.display_order,
-          CreateVariant: true,
+          Id: attrId
         },
         Values: [],
         AttributeId: attrId,
@@ -114,124 +111,83 @@ export function generateProductVariants(
   return combinations.map((attrs) => {
     const variantName = attrs.map((a) => a.Name).join(", ");
     
+    // ✅ THỨ TỰ CHÍNH XÁC 100% THEO FILE MẪU LINE 82 edit-modal-2.js
     return {
-      // ✅ Basic identity fields
-      Id: 0, // New variant
+      Id: 0,
       EAN13: null,
       DefaultCode: null,
       NameTemplate: productName,
-      Name: `${productName} (${variantName})`,
       NameNoSign: null,
-      NameGet: `${productName} (${variantName})`,
-      NameTemplateNoSign: productName,
-      
-      // ✅ Product template reference
       ProductTmplId: productTmplId || 0,
-      
-      // ✅ Unit of measure
-      UOMId: baseProduct?.UOMId || 1,
+      UOMId: baseProduct?.UOMId || 0,
       UOMName: null,
-      UOMPOId: baseProduct?.UOMPOId || 1,
-      Product_UOMId: null,
-      
-      // ✅ Inventory
+      UOMPOId: baseProduct?.UOMPOId || 0,
       QtyAvailable: 0,
       VirtualAvailable: 0,
       OutgoingQty: null,
       IncomingQty: null,
-      InitInventory: 0,
-      StockValue: null,
-      
-      // ✅ Category & Position
+      NameGet: `${productName} (${variantName})`,
       POSCategId: baseProduct?.POSCategId || null,
-      CategId: baseProduct?.CategId || 0,
-      CategName: null,
-      AvailableInPOS: baseProduct?.AvailableInPOS ?? true,
-      
-      // ✅ Pricing
       Price: null,
-      ListPrice: 0,
-      LstPrice: 0,
-      PriceVariant: listPrice,
-      StandardPrice: listPrice,
-      PurchasePrice: null,
-      OldPrice: null,
-      DiscountSale: null,
-      DiscountPurchase: null,
-      
-      // ✅ Barcode & Images
       Barcode: null,
       Image: imageBase64 || null,
       ImageUrl: null,
       Thumbnails: [],
-      
-      // ✅ Sales & Purchase flags
+      PriceVariant: listPrice,
       SaleOK: baseProduct?.SaleOK ?? true,
       PurchaseOK: baseProduct?.PurchaseOK ?? true,
+      DisplayAttributeValues: null,
+      LstPrice: 0,
       Active: baseProduct?.Active ?? true,
-      
-      // ✅ Product type & tracking
-      Type: baseProduct?.Type || "product",
-      Tracking: baseProduct?.Tracking || null,
-      
-      // ✅ Costing & valuation
-      CostMethod: baseProduct?.CostMethod || null,
-      PropertyCostMethod: baseProduct?.PropertyCostMethod || null,
-      Valuation: baseProduct?.Valuation || null,
-      PropertyValuation: baseProduct?.PropertyValuation || null,
-      
-      // ✅ Policies
-      InvoicePolicy: baseProduct?.InvoicePolicy || "order",
-      PurchaseMethod: baseProduct?.PurchaseMethod || "receive",
-      
-      // ✅ Physical properties
+      ListPrice: 0,
+      PurchasePrice: null,
+      DiscountSale: null,
+      DiscountPurchase: null,
+      StandardPrice: baseProduct?.StandardPrice || 0,
       Weight: baseProduct?.Weight || 0,
       Volume: baseProduct?.Volume || null,
-      
-      // ✅ Miscellaneous
-      DisplayAttributeValues: null,
+      OldPrice: null,
       IsDiscount: false,
       ProductTmplEnableAll: false,
       Version: 0,
       Description: null,
       LastUpdated: null,
-      DateCreated: null,
-      IsCombo: baseProduct?.IsCombo || null,
+      Type: baseProduct?.Type || "product",
+      CategId: baseProduct?.CategId || 0,
+      CostMethod: baseProduct?.CostMethod || null,
+      InvoicePolicy: baseProduct?.InvoicePolicy || "order",
       Variant_TeamId: 0,
+      Name: `${productName} (${variantName})`,
+      PropertyCostMethod: baseProduct?.PropertyCostMethod || null,
+      PropertyValuation: baseProduct?.PropertyValuation || null,
+      PurchaseMethod: baseProduct?.PurchaseMethod || "receive",
       SaleDelay: baseProduct?.SaleDelay || 0,
+      Tracking: baseProduct?.Tracking || null,
+      Valuation: baseProduct?.Valuation || null,
+      AvailableInPOS: baseProduct?.AvailableInPOS ?? true,
       CompanyId: baseProduct?.CompanyId || null,
-      
-      // ✅ Tax & additional data
+      IsCombo: baseProduct?.IsCombo || null,
+      NameTemplateNoSign: productName,
       TaxesIds: baseProduct?.TaxesIds || [],
+      StockValue: null,
+      SaleValue: null,
+      PosSalesCount: null,
+      Factor: null,
+      CategName: null,
+      AmountTotal: null,
+      NameCombos: [],
+      RewardName: null,
+      Product_UOMId: null,
       Tags: null,
+      DateCreated: null,
+      InitInventory: 0,
       OrderTag: null,
       StringExtraProperties: null,
       CreatedById: null,
       TaxAmount: null,
       Error: null,
-      
-      // ✅ Sales tracking
-      SaleValue: null,
-      PosSalesCount: null,
-      AmountTotal: null,
-      
-      // ✅ Combos & rewards
-      NameCombos: [],
-      RewardName: null,
-      Factor: null,
-      
-      // ✅ CRITICAL: AttributeValues array
-      AttributeValues: attrs.map(a => ({
-        Id: a.Id,
-        Name: a.Name,
-        Code: a.Code,
-        Sequence: a.Sequence,
-        AttributeId: a.AttributeId,
-        AttributeName: a.AttributeName,
-        PriceExtra: a.PriceExtra,
-        NameGet: a.NameGet,
-        DateCreated: a.DateCreated,
-      })),
+      // ✅ AttributeValues ở CUỐI CÙNG - full objects theo file mẫu
+      AttributeValues: attrs
     };
   });
 }

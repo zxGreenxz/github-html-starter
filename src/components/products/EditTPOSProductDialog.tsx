@@ -81,48 +81,64 @@ export function EditTPOSProductDialog({
       payload.Name = data.name;
       payload.ListPrice = data.listPrice;
       payload.PurchasePrice = data.purchasePrice;
-      payload.QtyAvailable = data.qtyAvailable;
+      payload.StandardPrice = data.purchasePrice;
       
       // ✅ Handle Image correctly
+      let imageData: string | undefined = undefined;
       if (imageBase64) {
+        // imageBase64 có dạng "data:image/png;base64,..." → lấy phần sau dấu ,
+        imageData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      }
+      
+      if (imageData) {
         // User pasted new image → Update it
-        payload.Image = imageBase64;
+        payload.Image = imageData;
+        payload.ImageUrl = null;
+        if (payload.Images) payload.Images = [];
       } else if (product.Image) {
         // No new image, keep existing from API
         payload.Image = product.Image;
       }
-      // If both are null/undefined, Image field stays as is
       
-      // ⚠️ CRITICAL: Remove ImageUrl (TPOS generates this automatically)
-      delete payload.ImageUrl;
+      // ✅ Check if we can update variants (theo file mẫu line 287-295)
+      const hasStock = product.ProductVariants && 
+        product.ProductVariants.some(v => 
+          (v.QtyAvailable || 0) > 0 || (v.VirtualAvailable || 0) > 0
+        );
       
-      // ✅ XỬ LÝ BIẾN THỂ - QUAN TRỌNG!
-      if (selectedVariants && selectedVariants !== "") {
-        console.log("🔄 Converting variants to AttributeLines...");
+      // ✅ CHỈ regenerate khi KHÔNG CÓ STOCK
+      if (!hasStock && selectedVariants && selectedVariants !== "") {
+        console.log("🔄 No stock found, regenerating variants based on new attributes...");
         
         // Convert selectedVariants sang AttributeLines format
         const attributeLines = await convertVariantsToAttributeLines(selectedVariants);
         
         if (attributeLines.length > 0) {
-          // Generate ProductVariants từ AttributeLines
-          const newVariants = generateProductVariants(
+          // Update payload với AttributeLines và ProductVariants mới
+          payload.AttributeLines = attributeLines;
+          payload.ProductVariants = generateProductVariants(
             data.name,
             data.listPrice,
             attributeLines,
-            imageBase64 || product.Image || undefined,
+            imageData || product.Image || undefined,
             product.Id,
             product
           );
           
-          console.log(`✅ Generated ${newVariants.length} variants from AttributeLines`);
-          
-          // Update payload
-          payload.AttributeLines = attributeLines;
-          payload.ProductVariants = newVariants;
+          console.log(`✅ Generated ${payload.ProductVariants.length} variants from AttributeLines`);
         }
+      } else if (hasStock) {
+        console.log("📦 Stock found, skipping variant structure update.");
       } else {
-        // Không có biến thể mới → Giữ nguyên ProductVariants cũ
-        console.log("ℹ️ No variant changes, keeping original ProductVariants");
+        console.log("ℹ️ No variant changes, keeping original structure.");
+      }
+      
+      // ✅ ALWAYS remove quantity fields from variants (theo file mẫu line 298-303)
+      if (payload.ProductVariants) {
+        payload.ProductVariants.forEach((v: any) => {
+          delete v.QtyAvailable;
+          delete v.VirtualAvailable;
+        });
       }
       
       console.log("📤 [Edit Dialog] Submitting FULL product payload (all fields preserved)");
