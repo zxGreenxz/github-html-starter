@@ -156,15 +156,18 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                   products.map((product) => (
                     <Card
                       key={product.id}
-                      className="p-4 hover:bg-muted/50 transition-colors"
+                      className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => onSelectMultiple ? toggleProductSelection(product.id) : handleSelect(product)}
                     >
                       <div className="flex items-start gap-3">
                         {onSelectMultiple && (
-                          <Checkbox
-                            checked={selectedProducts.has(product.id)}
-                            onCheckedChange={() => toggleProductSelection(product.id)}
-                            className="mt-1"
-                          />
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedProducts.has(product.id)}
+                              onCheckedChange={() => toggleProductSelection(product.id)}
+                              className="mt-1"
+                            />
+                          </div>
                         )}
                         <ProductImage
                           productId={product.id}
@@ -174,7 +177,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                           tposProductId={product.tpos_product_id}
                           baseProductCode={product.base_product_code}
                         />
-                        <div className="flex-1 space-y-2 cursor-pointer" onClick={() => handleSelect(product)}>
+                        <div className="flex-1 space-y-2">
                           <div className="font-semibold">{product.product_name}</div>
                           <div className="text-sm text-muted-foreground">
                             {product.product_code}
@@ -288,7 +291,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                     <TableRow 
                       key={product.id} 
                       className="hover:bg-muted/50 cursor-pointer"
-                      onClick={() => !onSelectMultiple && handleSelect(product)}
+                      onClick={() => onSelectMultiple ? toggleProductSelection(product.id) : handleSelect(product)}
                     >
                       <TableCell>
                         <ProductImage
