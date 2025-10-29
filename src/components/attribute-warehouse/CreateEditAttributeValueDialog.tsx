@@ -108,6 +108,9 @@ export function CreateEditAttributeValueDialog({
           code: formData.code.trim() || null,
           price_extra: formData.price_extra || 0,
           name_get: autoNameGet,
+          tpos_id: syncResult.tpos_id,
+          tpos_attribute_id: syncResult.tpos_attribute_id,
+          sequence: syncResult.sequence,
         });
 
         toast({

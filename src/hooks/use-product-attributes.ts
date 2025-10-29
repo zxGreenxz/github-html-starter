@@ -117,13 +117,19 @@ export function useProductAttributes() {
       value, 
       code, 
       price_extra, 
-      name_get 
+      name_get,
+      tpos_id,
+      tpos_attribute_id,
+      sequence
     }: { 
       attributeId: string; 
       value: string;
       code?: string | null;
       price_extra?: number;
       name_get?: string;
+      tpos_id?: number;
+      tpos_attribute_id?: number;
+      sequence?: number | null;
     }) => {
       const valuesForAttribute = attributeValues.filter(v => v.attribute_id === attributeId);
       const maxOrder = valuesForAttribute.length > 0 
@@ -138,6 +144,9 @@ export function useProductAttributes() {
           code,
           price_extra,
           name_get,
+          tpos_id,
+          tpos_attribute_id,
+          sequence,
           display_order: maxOrder + 1 
         })
         .select()

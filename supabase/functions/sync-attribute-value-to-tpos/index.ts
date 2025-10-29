@@ -153,7 +153,13 @@ Deno.serve(async (req) => {
     console.log('TPOS sync successful:', result);
 
     return new Response(
-      JSON.stringify({ success: true, data: result }),
+      JSON.stringify({ 
+        success: true, 
+        data: result,
+        tpos_id: result.Id,
+        tpos_attribute_id: result.AttributeId,
+        sequence: result.Sequence
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
