@@ -1507,20 +1507,50 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             : undefined
         }
         onSubmit={(result) => {
-          if (variantGeneratorIndex !== null) {
-            // Update item with variant data
-            updateItemMultiple(variantGeneratorIndex, {
-              variant: result.variantString,
-              quantity: result.totalQuantity,
-              selectedAttributeValueIds: result.selectedAttributeValueIds, // NEW
-              hasVariants: result.hasVariants, // NEW
+          if (variantGeneratorIndex !== null && result.hasVariants && result.combinations) {
+            const sourceItem = items[variantGeneratorIndex];
+            
+            console.log('🔵 Creating variants from source item:', {
+              sourceIndex: variantGeneratorIndex,
+              sourceName: sourceItem.product_name,
+              sourceCode: sourceItem.product_code,
+              combinationsCount: result.combinations.length
             });
-
+            
+            // Create N new variant items
+            const newVariantItems = result.combinations.map((combo, index) => ({
+              product_name: sourceItem.product_name,
+              product_code: sourceItem.product_code,
+              variant: combo.combinationString,
+              purchase_price: sourceItem.purchase_price,
+              selling_price: sourceItem.selling_price,
+              quantity: 1,
+              product_images: [...(sourceItem.product_images || [])],
+              price_images: [...(sourceItem.price_images || [])],
+              selectedAttributeValueIds: combo.selectedAttributeValueIds,
+              hasVariants: true,
+              notes: sourceItem.notes || "",
+              _tempTotalPrice: 1 * Number(sourceItem.purchase_price || 0),
+              tempId: `variant-${Date.now()}-${index}`
+            }));
+            
+            console.log('✅ Created variant items:', {
+              count: newVariantItems.length,
+              sample: newVariantItems[0]
+            });
+            
+            // Remove source item and add new variant items
+            setItems(prev => {
+              const filtered = prev.filter((_, idx) => idx !== variantGeneratorIndex);
+              return [...filtered, ...newVariantItems];
+            });
+            
             toast({
-              title: "Đã lưu thông tin biến thể",
-              description: `Đã chọn ${result.totalQuantity} biến thể. Biến thể sẽ được tạo khi bấm "Tạo đơn hàng".`,
+              title: "✅ Đã tạo biến thể",
+              description: `Đã tạo ${newVariantItems.length} dòng sản phẩm từ các biến thể đã chọn`,
             });
           }
+          
           setIsVariantGeneratorOpen(false);
           setVariantGeneratorIndex(null);
         }}
