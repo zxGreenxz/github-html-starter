@@ -4,9 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface VariantSelectorDialogProps {
   open: boolean;
@@ -100,6 +101,45 @@ export function VariantSelectorDialog({
     return ids;
   }, [tempSelectedVariants, attributeValues]);
   
+  const selectedBadges = useMemo(() => {
+    if (!tempSelectedVariants || !attributeValues || !attributes) return [];
+    
+    const badges: Array<{
+      attributeId: string;
+      attributeName: string;
+      valueId: string;
+      valueName: string;
+    }> = [];
+    
+    // Parse "(Val1 | Val2) (Val3 | Val4)"
+    const matches = tempSelectedVariants.match(/\([^)]+\)/g);
+    if (!matches) return [];
+    
+    matches.forEach(group => {
+      const content = group.slice(1, -1); // Remove ( and )
+      const valueNames = content.split("|").map(s => s.trim());
+      
+      valueNames.forEach(valueName => {
+        // Find the attributeValue object
+        const attrValue = attributeValues.find(av => av.value === valueName);
+        if (!attrValue) return;
+        
+        // Find the attribute object
+        const attribute = attributes.find(a => a.id === attrValue.attribute_id);
+        if (!attribute) return;
+        
+        badges.push({
+          attributeId: attrValue.attribute_id,
+          attributeName: attribute.name,
+          valueId: attrValue.id,
+          valueName: attrValue.value,
+        });
+      });
+    });
+    
+    return badges;
+  }, [tempSelectedVariants, attributeValues, attributes]);
+  
   const getFilteredValues = (attributeId: string, values: typeof attributeValues) => {
     const searchTerm = searchFilters[attributeId]?.toLowerCase() || '';
     if (!searchTerm) return values;
@@ -139,6 +179,30 @@ export function VariantSelectorDialog({
     setTempSelectedVariants(variantString);
   };
   
+  const handleRemoveBadge = (valueId: string) => {
+    const newSet = new Set(selectedValueIds);
+    newSet.delete(valueId);
+    
+    // Rebuild variant string from remaining values
+    const selectedByAttribute: Record<string, string[]> = {};
+    
+    attributeValues?.forEach(value => {
+      if (newSet.has(value.id)) {
+        if (!selectedByAttribute[value.attribute_id]) {
+          selectedByAttribute[value.attribute_id] = [];
+        }
+        selectedByAttribute[value.attribute_id].push(value.value);
+      }
+    });
+    
+    const parts = Object.values(selectedByAttribute).map(values =>
+      `(${values.join(" | ")})`
+    );
+    
+    const variantString = parts.join(" ");
+    setTempSelectedVariants(variantString);
+  };
+  
   const handleSave = () => {
     onVariantsChange(tempSelectedVariants);
     onOpenChange(false);
@@ -157,6 +221,25 @@ export function VariantSelectorDialog({
         <DialogHeader>
           <DialogTitle>Chọn biến thể</DialogTitle>
         </DialogHeader>
+        
+        {/* Selected variants badges */}
+        {selectedBadges.length > 0 && (
+          <div className="flex flex-wrap gap-2 p-4 bg-muted/50 rounded-lg border">
+            {selectedBadges.map(badge => (
+              <Badge 
+                key={badge.valueId} 
+                variant="secondary" 
+                className="gap-1.5 pr-1.5 py-1.5 text-xs"
+              >
+                <span>{badge.valueName}</span>
+                <X 
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-destructive transition-colors ml-1" 
+                  onClick={() => handleRemoveBadge(badge.valueId)}
+                />
+              </Badge>
+            ))}
+          </div>
+        )}
         
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
