@@ -1188,8 +1188,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (!isOpen) handleClose();
       else onOpenChange(isOpen);
     }}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between pr-10">
+      <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
+        <DialogHeader className="flex flex-row items-center justify-between pr-10 px-6 pt-6 shrink-0">
           <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
           <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
             <AlertDialogTrigger asChild>
@@ -1224,7 +1224,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </AlertDialog>
         </DialogHeader>
 
-        <div className="space-y-6">
+        {/* Fixed Header Section */}
+        <div className="shrink-0 px-6 pt-4 space-y-4">
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="supplier">Nhà cung cấp *</Label>
@@ -1287,20 +1288,23 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1].product_name ? items.length : items.length - 1)}
-              >
-                <Warehouse className="h-4 w-4 mr-2" />
-                Chọn từ Kho SP
-              </Button>
-            </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-lg font-medium">Danh sách sản phẩm</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openSelectProduct(items.length > 0 && items[items.length - 1].product_name ? items.length : items.length - 1)}
+            >
+              <Warehouse className="h-4 w-4 mr-2" />
+              Chọn từ Kho SP
+            </Button>
+          </div>
+        </div>
 
+        {/* Scrollable Middle Section - Product Table */}
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="space-y-4">
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
@@ -1542,7 +1546,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               </Button>
             </div>
           </div>
+        </div>
 
+        {/* Fixed Footer Section */}
+        <div className="shrink-0 px-6 pb-6 space-y-4 border-t pt-4">
           <div className="space-y-2">
             <Label htmlFor="notes">Ghi chú</Label>
             <Textarea
@@ -1553,9 +1560,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             />
           </div>
 
-          <div className="border-t pt-4">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
                 <span className="font-medium">Tổng tiền:</span>
                 <span>{formatVND(totalAmount * 1000)}</span>
               </div>
@@ -1625,7 +1631,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 <span>Thành tiền:</span>
                 <span>{formatVND(finalAmount * 1000)}</span>
               </div>
-            </div>
           </div>
 
           <div className="flex gap-2 justify-end">
