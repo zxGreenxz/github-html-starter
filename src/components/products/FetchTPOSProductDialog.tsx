@@ -3,11 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, AlertCircle, Edit } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { searchTPOSProductByCode, getTPOSProductFullDetails, type TPOSProductFullDetails } from "@/lib/tpos-api";
 import { EditTPOSProductDialog } from "./EditTPOSProductDialog";
@@ -86,6 +86,7 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
       const details = await getTPOSProductFullDetails(searchResult.Id);
       
       setFetchedProduct(details);
+      setIsEditDialogOpen(true);
       toast.success(`Đã tìm thấy: ${details.Name}`);
       
     } catch (err: any) {
@@ -206,63 +207,6 @@ export function FetchTPOSProductDialog({ open, onOpenChange }: FetchTPOSProductD
               </div>
             </div>
             
-            {fetchedProduct && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{fetchedProduct.Name}</CardTitle>
-                  <CardDescription>
-                    Mã: {fetchedProduct.DefaultCode} | ID: {fetchedProduct.Id}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Giá bán</p>
-                      <p className="font-semibold text-lg">
-                        {fetchedProduct.ListPrice.toLocaleString('vi-VN')} đ
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Giá mua</p>
-                      <p className="font-semibold text-lg">
-                        {fetchedProduct.PurchasePrice.toLocaleString('vi-VN')} đ
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">SL thực tế</p>
-                      <p className="font-semibold text-lg">
-                        {fetchedProduct.QtyAvailable}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Số biến thể</p>
-                      <p className="font-semibold text-lg">
-                        {fetchedProduct.ProductVariants?.length || 0}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {fetchedProduct.ImageUrl && (
-                    <div className="mt-4">
-                      <p className="text-sm text-muted-foreground mb-2">Hình ảnh</p>
-                      <img 
-                        src={fetchedProduct.ImageUrl} 
-                        alt={fetchedProduct.Name}
-                        className="max-h-48 rounded-md border"
-                      />
-                    </div>
-                  )}
-                  
-                  <Button 
-                    onClick={() => setIsEditDialogOpen(true)}
-                    className="w-full mt-4"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Chỉnh sửa
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </DialogContent>
       </Dialog>
