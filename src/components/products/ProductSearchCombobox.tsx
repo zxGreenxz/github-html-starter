@@ -56,7 +56,7 @@ export function ProductSearchCombobox({
         .from("products")
         .select("id, product_code, product_name, variant, product_images, tpos_image_url, tpos_product_id, base_product_code")
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(100);
 
       // Nếu có search query, filter theo keyword
       if (debouncedSearch.trim().length > 0) {
@@ -71,7 +71,7 @@ export function ProductSearchCombobox({
       if (error) throw error;
       return data as Product[];
     },
-    enabled: open, // Load khi dropdown mở
+    enabled: open,
   });
 
   const handleSelect = (selectedValue: string) => {
@@ -93,7 +93,6 @@ export function ProductSearchCombobox({
               onChange={(e) => {
                 onValueChange(e.target.value);
                 setSearchQuery(e.target.value);
-                if (!open) setOpen(true);
               }}
               onFocus={() => setOpen(true)}
               disabled={disabled}
