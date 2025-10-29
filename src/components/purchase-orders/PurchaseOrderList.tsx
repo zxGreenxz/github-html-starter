@@ -99,8 +99,6 @@ export function PurchaseOrderList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
-  const [isDeleteItemDialogOpen, setIsDeleteItemDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<PurchaseOrderItem | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -320,54 +318,6 @@ export function PurchaseOrderList({
     }
   };
 
-  const handleDeleteItem = (item: PurchaseOrderItem) => {
-    setItemToDelete(item);
-    setIsDeleteItemDialogOpen(true);
-  };
-
-  const deleteItemMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      // Delete goods_receiving_items first
-      const { error: receivingError } = await supabase
-        .from("goods_receiving_items")
-        .delete()
-        .eq("purchase_order_item_id", itemId);
-      
-      if (receivingError) throw receivingError;
-      
-      // Delete purchase_order_item
-      const { error: itemError } = await supabase
-        .from("purchase_order_items")
-        .delete()
-        .eq("id", itemId);
-      
-      if (itemError) throw itemError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      toast({
-        title: "Thành công",
-        description: "Sản phẩm đã được xóa",
-      });
-      setIsDeleteItemDialogOpen(false);
-      setItemToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Lỗi",
-        description: "Không thể xóa sản phẩm",
-        variant: "destructive",
-      });
-      console.error("Error deleting item:", error);
-    }
-  });
-
-  const confirmDeleteItem = () => {
-    if (itemToDelete && itemToDelete.id) {
-      deleteItemMutation.mutate(itemToDelete.id);
-    }
-  };
-
   if (isLoading) {
     return <div className="text-center py-8">Đang tải...</div>;
   }
@@ -509,7 +459,6 @@ export function PurchaseOrderList({
               <TableHead>Giá bán (VND)</TableHead>
               <TableHead>Ghi chú</TableHead>
               <TableHead>Trạng thái</TableHead>
-              <TableHead className="border-r text-center">Chỉnh sửa ĐH</TableHead>
               <TableHead>
                 <div className="flex items-center gap-2">
                   <span>Thao tác</span>
@@ -525,7 +474,7 @@ export function PurchaseOrderList({
           <TableBody>
             {flattenedItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   Không có đơn hàng nào
                 </TableCell>
               </TableRow>
@@ -733,11 +682,14 @@ export function PurchaseOrderList({
                            )}
                          </div>
                        </TableCell>
-                      {/* Order-level Edit Button */}
-                      <TableCell 
-                        className="border-r text-center" 
-                        rowSpan={flatItem.itemCount}
-                      >
+                    </>
+                  )}
+                  
+                  {/* Actions column - only on first item with rowSpan */}
+                  {flatItem.isFirstItem && (
+                    <TableCell rowSpan={flatItem.itemCount}>
+                      <div className="flex items-center gap-2 justify-center">
+                        {/* Edit button */}
                         {flatItem.status === 'draft' ? (
                           <Button
                             variant="ghost"
@@ -757,34 +709,27 @@ export function PurchaseOrderList({
                             <Pencil className="w-4 h-4 text-blue-600" />
                           </Button>
                         )}
-                      </TableCell>
-                    </>
-                  )}
-                  
-                  {/* Item-level actions - each item has its own buttons */}
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {/* Delete button for each item */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteItem(flatItem.item!)}
-                        className="text-destructive hover:text-destructive"
-                        title="Xóa sản phẩm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      
-                      {/* Order selection checkbox - only on first item with rowSpan */}
-                      {flatItem.isFirstItem && (
+                        
+                        {/* Delete order button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteOrder(flatItem)}
+                          className="text-destructive hover:text-destructive"
+                          title="Xóa toàn bộ đơn hàng"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        
+                        {/* Order selection checkbox */}
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => onToggleSelect(flatItem.id)}
                           aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
                         />
-                      )}
-                    </div>
-                  </TableCell>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })
@@ -812,27 +757,6 @@ export function PurchaseOrderList({
             <AlertDialogCancel>Hủy</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Xóa
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={isDeleteItemDialogOpen} onOpenChange={setIsDeleteItemDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa sản phẩm</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa sản phẩm "{itemToDelete?.product_name}"? 
-              Hành động này không thể hoàn tác.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteItem}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Xóa
