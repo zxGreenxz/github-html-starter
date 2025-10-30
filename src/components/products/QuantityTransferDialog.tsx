@@ -246,6 +246,35 @@ export function QuantityTransferDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* PRODUCT INFO HEADER */}
+        {productDetails && (
+          <div className="border rounded-lg p-4 bg-muted/50">
+            <div className="flex items-start gap-4">
+              {/* Ảnh sản phẩm */}
+              {productDetails.ImageUrl && (
+                <img
+                  src={productDetails.ImageUrl}
+                  alt={productDetails.Name}
+                  className="w-20 h-20 object-cover rounded border"
+                />
+              )}
+              
+              {/* Thông tin sản phẩm */}
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">
+                  {productDetails.NameGet || productDetails.Name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Mã: {productDetails.DefaultCode}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Tổng số biến thể: {productDetails.ProductVariants?.length || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Instruction Box */}
         <div className="text-sm text-muted-foreground mb-4 bg-blue-50 dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
           💡 <strong>Hướng dẫn:</strong> Chọn hai biến thể để chuyển đổi số
