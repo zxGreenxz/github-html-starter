@@ -583,7 +583,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           discount_amount: discountAmount,
           shipping_fee: shippingFee,
           invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
-          notes: formData.notes.trim().toUpperCase()
+          notes: formData.notes.trim().toUpperCase(),
+          status: 'awaiting_export'
         })
         .select()
         .single();
