@@ -16,19 +16,18 @@ function generateRandomId(): string {
 
 function getTPOSHeaders(bearerToken: string) {
   return {
-    accept: "application/json, text/plain, */*",
-    "accept-language": "en-US,en;q=0.9,vi;q=0.8",
-    authorization: `Bearer ${bearerToken}`,
-    priority: "u=1, i",
-    "sec-ch-ua": '"Google Chrome";v="126", "Chromium";v="126", "Not?A_Brand";v="8"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    tposappversion: "5.9.10.1",
-    Referer: "https://tomato.tpos.vn/",
-    "x-request-id": generateRandomId(),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "X-Tpos-Lang": "vi",
+    "Authorization": `Bearer ${bearerToken}`,
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://tomato.tpos.vn/",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
+    "TPOSAppVersion": "5.10.26.1",
+    "Priority": "u=3, i",
   };
 }
 

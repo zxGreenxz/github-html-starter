@@ -91,7 +91,7 @@ export const UploadOrderLiveTool = () => {
       
       const response = await fetch(url, {
         method: 'GET',
-        headers: getTPOSHeaders(token),
+        headers: await getTPOSHeaders(token),
       });
       
       if (!response.ok) {
@@ -145,7 +145,7 @@ export const UploadOrderLiveTool = () => {
       
       const response = await fetch(url, {
         method: 'GET',
-        headers: getTPOSHeaders(token),
+        headers: await getTPOSHeaders(token),
       });
       
       if (!response.ok) {
@@ -199,7 +199,7 @@ export const UploadOrderLiveTool = () => {
       const productPromises = codes.map(async (code) => {
         const searchUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${code}'&$top=1`;
         const response = await fetch(searchUrl, {
-          headers: getTPOSHeaders(token),
+          headers: await getTPOSHeaders(token),
         });
         
         if (!response.ok) {
@@ -238,7 +238,7 @@ export const UploadOrderLiveTool = () => {
       
       const updateResponse = await fetch(updateUrl, {
         method: 'PUT',
-        headers: getTPOSHeaders(token),
+        headers: await getTPOSHeaders(token),
         body: JSON.stringify(payload),
       });
       

@@ -99,6 +99,29 @@ export function EditTPOSProductDialog({
       // This ensures all fields are preserved (TPOS requires round-trip pattern)
       const payload: any = JSON.parse(JSON.stringify(product));
       
+      // ✅ CRITICAL: Clean up nested objects that TPOS API doesn't accept
+      if (payload.UOM) delete payload.UOM;
+      if (payload.UOMPO) delete payload.UOMPO;
+      if (payload.Categ) delete payload.Categ;
+      if (payload.POSCateg) delete payload.POSCateg;
+      if (payload.Taxes) delete payload.Taxes;
+      if (payload.SupplierTaxes) delete payload.SupplierTaxes;
+      if (payload.Product_Teams) delete payload.Product_Teams;
+      if (payload.Images) delete payload.Images;
+      if (payload.UOMView) delete payload.UOMView;
+      if (payload.Distributor) delete payload.Distributor;
+      if (payload.Importer) delete payload.Importer;
+      if (payload.Producer) delete payload.Producer;
+      if (payload.OriginCountry) delete payload.OriginCountry;
+      
+      // ✅ Clean AttributeLines nested objects
+      if (payload.AttributeLines) {
+        payload.AttributeLines = payload.AttributeLines.map((line: any) => ({
+          AttributeId: line.AttributeId,
+          ValueIds: line.ValueIds || line.Values?.map((v: any) => v.Id) || []
+        }));
+      }
+      
       // ✅ Only override the fields that user edited
       payload.Name = data.name;
       payload.ListPrice = data.listPrice;
@@ -155,24 +178,33 @@ export function EditTPOSProductDialog({
         console.log("ℹ️ No variant changes, keeping original structure.");
       }
       
-      // ✅ Update NameGet for variants and remove quantity fields (theo file mẫu)
+      // ✅ Clean ProductVariants nested objects and update NameGet
       if (payload.ProductVariants) {
         payload.ProductVariants = payload.ProductVariants.map((variant: any) => {
-          const editedNameGet = editableVariants[variant.Id]?.NameGet;
+          // Remove nested objects
+          const cleanedVariant: any = { ...variant };
+          delete cleanedVariant.UOM;
+          delete cleanedVariant.UOMPO;
+          delete cleanedVariant.Categ;
+          delete cleanedVariant.POSCateg;
+          delete cleanedVariant.AttributeValues; // ⚠️ CRITICAL: Remove nested AttributeValues
           
-          // Chỉ update NameGet nếu có thay đổi
+          // Remove quantity fields
+          delete cleanedVariant.QtyAvailable;
+          delete cleanedVariant.VirtualAvailable;
+          
+          // Update NameGet if edited
+          const editedNameGet = editableVariants[variant.Id]?.NameGet;
           if (editedNameGet && editedNameGet !== (variant.NameGet || variant.Name)) {
             console.log(`🔄 Updating variant ${variant.Id} NameGet: "${variant.NameGet || variant.Name}" → "${editedNameGet}"`);
-            variant.NameGet = editedNameGet;
+            cleanedVariant.NameGet = editedNameGet;
           }
           
-          // XÓA CÁC TRƯỜNG SỐ LƯỢNG ĐỂ TRÁNH UPDATE NHẦM
-          delete variant.QtyAvailable;
-          delete variant.VirtualAvailable;
-          
-          return variant;
+          return cleanedVariant;
         });
       }
+      
+      console.log("🧹 [Edit Dialog] Cleaned payload - removed nested objects");
       
       console.log("📤 [Edit Dialog] Submitting FULL product payload (all fields preserved)");
       console.log("📋 [Edit Dialog] Total fields:", Object.keys(payload).length);
