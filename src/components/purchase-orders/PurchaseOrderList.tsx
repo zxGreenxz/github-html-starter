@@ -831,11 +831,17 @@ export function PurchaseOrderList({
                         </Button>
                         
                         {/* Order selection checkbox */}
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => onToggleSelect(flatItem.id)}
-                          aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
-                        />
+                        <div 
+                          className="flex items-center justify-center p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                          onClick={() => onToggleSelect(flatItem.id)}
+                          title="Chọn đơn hàng"
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => onToggleSelect(flatItem.id)}
+                            aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
+                          />
+                        </div>
                       </div>
                     </TableCell>
                   )}
