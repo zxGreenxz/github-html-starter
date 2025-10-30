@@ -11,6 +11,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -831,9 +832,8 @@ export function PurchaseOrderList({
                         </Button>
                         
                         {/* Order selection checkbox */}
-                        <div 
-                          className="flex items-center justify-center p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
-                          onClick={() => onToggleSelect(flatItem.id)}
+                        <Label 
+                          className="flex items-center justify-center p-2 hover:bg-accent rounded-md cursor-pointer transition-colors m-0"
                           title="Chọn đơn hàng"
                         >
                           <Checkbox
@@ -841,7 +841,7 @@ export function PurchaseOrderList({
                             onCheckedChange={() => onToggleSelect(flatItem.id)}
                             aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
                           />
-                        </div>
+                        </Label>
                       </div>
                     </TableCell>
                   )}
