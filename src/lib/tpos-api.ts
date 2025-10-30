@@ -203,6 +203,7 @@ export interface TPOSProductVariantDetail {
   Id: number;
   ProductIdBienThe: number;
   Name: string;
+  NameGet: string; // ✅ Thêm field NameGet để hiển thị tên biến thể
   DefaultCode: string;
   Barcode: string | null;
   QtyAvailable: number;
@@ -451,7 +452,7 @@ export async function getTPOSProductFullDetails(
     
     await randomDelay(200, 600);
     
-    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues;$select=Id,Name,NameGet,DefaultCode,Barcode,ListPrice,StandardPrice,PurchasePrice,QtyAvailable,VirtualAvailable,QtyForecast,Active,ProductIdBienThe,UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
     
     console.log(`📦 [Fetch & Edit] Fetching full details for product ID: ${productId}`);
     
@@ -490,10 +491,28 @@ export async function updateTPOSProductDetails(
     
     await randomDelay(200, 600);
     
-    const url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
+    // ✅ Kiểm tra xem đây là ProductTemplate hay ProductVariant (Product)
+    // Nếu payload chỉ có NameGet và không có Name, đây là variant update
+    const isVariantUpdate = payload.hasOwnProperty('NameGet') && 
+                            !payload.hasOwnProperty('Name') && 
+                            !payload.hasOwnProperty('AttributeLines');
     
-    console.log(`📤 [Fetch & Edit] Updating product ID: ${payload.Id}`);
-    console.log(`📋 [Fetch & Edit] Full payload (with all fields):`, payload);
+    let url: string;
+    let method: string;
+    
+    if (isVariantUpdate) {
+      // Update variant (Product entity) bằng PATCH
+      url = `https://tomato.tpos.vn/odata/Product(${payload.Id})`;
+      method = 'PATCH';
+      console.log(`📤 [Fetch & Edit] Updating variant ID: ${payload.Id}`);
+    } else {
+      // Update product template bằng UpdateV2
+      url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
+      method = 'POST';
+      console.log(`📤 [Fetch & Edit] Updating product template ID: ${payload.Id}`);
+    }
+    
+    console.log(`📋 [Fetch & Edit] Payload:`, payload);
     
     // Only clean Base64 if Image field exists
     const cleanedPayload = { ...payload };
@@ -501,10 +520,10 @@ export async function updateTPOSProductDetails(
       cleanedPayload.Image = cleanBase64(cleanedPayload.Image);
     }
     
-    console.log(`📤 [Fetch & Edit] Sending cleaned payload to TPOS`);
+    console.log(`📤 [Fetch & Edit] Sending to ${isVariantUpdate ? 'variant' : 'product template'} endpoint`);
     
     const response = await fetch(url, {
-      method: 'POST',
+      method: method,
       headers: getTPOSHeaders(token),
       body: JSON.stringify(cleanedPayload)
     });
@@ -512,11 +531,17 @@ export async function updateTPOSProductDetails(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ [Fetch & Edit] Update failed: ${errorText}`);
-      throw new Error(`Failed to update product: ${errorText}`);
+      throw new Error(`Failed to update: ${errorText}`);
+    }
+    
+    // PATCH thường trả về 204 No Content
+    if (response.status === 204) {
+      console.log(`✅ [Fetch & Edit] ${isVariantUpdate ? 'Variant' : 'Product'} updated successfully (204)`);
+      return { success: true };
     }
     
     const data = await response.json();
-    console.log(`✅ [Fetch & Edit] Product updated successfully:`, data);
+    console.log(`✅ [Fetch & Edit] ${isVariantUpdate ? 'Variant' : 'Product'} updated successfully:`, data);
     
     return data;
   }, 'tpos');

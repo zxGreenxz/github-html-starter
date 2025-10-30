@@ -41,6 +41,7 @@ export function EditTPOSProductDialog({
   const [selectedVariants, setSelectedVariants] = useState<string>("");
   const [isVariantSelectorOpen, setIsVariantSelectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editableVariants, setEditableVariants] = useState<Record<number, { NameGet: string }>>({});
   
   useImagePaste((base64) => {
     setImageBase64(base64);
@@ -74,6 +75,16 @@ export function EditTPOSProductDialog({
       setSelectedVariants(variantString);
       
       console.log('🔄 [Edit Dialog] Auto-filled variants from AttributeLines:', variantString);
+      
+      // ✅ Initialize editableVariants with NameGet from TPOS
+      if (product.ProductVariants) {
+        const initial: Record<number, { NameGet: string }> = {};
+        product.ProductVariants.forEach(v => {
+          initial[v.Id] = { NameGet: v.NameGet || v.Name };
+        });
+        setEditableVariants(initial);
+        console.log('🔄 [Edit Dialog] Initialized editableVariants:', initial);
+      }
     }
   }, [product, open, form]);
   
@@ -156,7 +167,32 @@ export function EditTPOSProductDialog({
       console.log("📋 [Edit Dialog] Has AttributeLines:", !!payload.AttributeLines);
       console.log("📋 [Edit Dialog] Variants count:", payload.ProductVariants?.length || 0);
       
-      await updateTPOSProductDetails(payload);
+      const updateSuccess = await updateTPOSProductDetails(payload);
+      
+      // ✅ Update từng variant có thay đổi NameGet
+      if (updateSuccess && product.ProductVariants) {
+        for (const variant of product.ProductVariants) {
+          const editedNameGet = editableVariants[variant.Id]?.NameGet;
+          const originalNameGet = variant.NameGet || variant.Name;
+          
+          if (editedNameGet && editedNameGet !== originalNameGet) {
+            console.log(`🔄 Updating variant ${variant.Id} NameGet: "${originalNameGet}" → "${editedNameGet}"`);
+            
+            try {
+              const variantPayload = {
+                Id: variant.Id,
+                NameGet: editedNameGet
+              };
+              
+              await updateTPOSProductDetails(variantPayload);
+              console.log(`✅ Updated variant ${variant.Id} successfully`);
+            } catch (error) {
+              console.error(`❌ Failed to update variant ${variant.Id}:`, error);
+              toast.error(`Không thể cập nhật biến thể ${variant.DefaultCode}`);
+            }
+          }
+        }
+      }
       
       // ✅ Fetch lại từ TPOS và upsert vào local DB
       console.log("🔄 Fetching updated product from TPOS...");
@@ -352,7 +388,17 @@ export function EditTPOSProductDialog({
                         {product.ProductVariants.map((variant) => (
                           <TableRow key={variant.Id}>
                             <TableCell className="font-medium">
-                              {variant.Name}
+                              <Input
+                                value={editableVariants[variant.Id]?.NameGet || ''}
+                                onChange={(e) => {
+                                  setEditableVariants(prev => ({
+                                    ...prev,
+                                    [variant.Id]: { NameGet: e.target.value }
+                                  }));
+                                }}
+                                className="h-8 min-w-[200px]"
+                                placeholder="Nhập tên biến thể"
+                              />
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {variant.DefaultCode}
