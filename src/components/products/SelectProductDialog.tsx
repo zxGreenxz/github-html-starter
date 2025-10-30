@@ -51,7 +51,6 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
       let query = supabase
         .from("products")
         .select("*")
-        .is('base_product_code', null)
         .order("created_at", { ascending: false });
       
       // Nếu có search (>= 2 ký tự): Search trong database
@@ -62,13 +61,24 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
           ['product_name', 'product_code', 'barcode', 'variant']
         );
       } else {
-        // Load 50 SP mới nhất (không search)
-        query = query.range(0, 49);
+        // Load 100 SP để đủ sau khi filter
+        query = query.range(0, 99);
       }
       
       const { data, error } = await query;
       if (error) throw error;
-      return data as Product[];
+      
+      // Client-side filter:
+      // 1. Sản phẩm KHÔNG có variant → Lấy hết
+      // 2. Sản phẩm CÓ variant → CHỈ lấy child (base_product_code != product_code)
+      const filtered = (data as Product[]).filter(p => {
+        if (!p.variant || p.variant.trim() === '') {
+          return true; // Sản phẩm không có variant
+        }
+        return p.base_product_code !== p.product_code; // Chỉ lấy child variants
+      });
+      
+      return filtered;
     },
     enabled: open,
     staleTime: 30000,
