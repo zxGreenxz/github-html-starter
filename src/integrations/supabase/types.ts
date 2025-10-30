@@ -1283,7 +1283,6 @@ export type Database = {
           id: string
           name: string
           password: string
-          request_headers: Json | null
           token_type: string
           updated_at: string | null
           username: string
@@ -1294,7 +1293,6 @@ export type Database = {
           id?: string
           name: string
           password: string
-          request_headers?: Json | null
           token_type?: string
           updated_at?: string | null
           username: string
@@ -1305,7 +1303,6 @@ export type Database = {
           id?: string
           name?: string
           password?: string
-          request_headers?: Json | null
           token_type?: string
           updated_at?: string | null
           username?: string

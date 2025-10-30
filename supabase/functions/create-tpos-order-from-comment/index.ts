@@ -17,19 +17,14 @@ function generateRandomId(): string {
 
 function getTPOSHeaders(bearerToken: string) {
   return {
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Content-Type": "application/json;charset=UTF-8",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-    "X-Tpos-Lang": "vi",
-    "Authorization": `Bearer ${bearerToken}`,
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://tomato.tpos.vn/",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
-    "TPOSAppVersion": "5.10.26.1",
-    "Priority": "u=3, i",
+    'accept': 'application/json, text/plain, */*',
+    'authorization': `Bearer ${bearerToken}`,
+    'content-type': 'application/json;charset=UTF-8',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'tposappversion': '5.9.10.1',
+    'x-request-id': generateRandomId(),
+    'x-requested-with': 'XMLHttpRequest',
+    'Referer': 'https://tomato.tpos.vn/',
   };
 }
 

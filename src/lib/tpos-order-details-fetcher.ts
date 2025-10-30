@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getTPOSHeaders } from "@/lib/tpos-config";
 
 export interface TPOSOrderDetail {
   Id: string;
@@ -50,7 +49,10 @@ export async function fetchTPOSOrdersBySessionIndex(
 
   const response = await fetch(url, {
     method: 'GET',
-    headers: await getTPOSHeaders(bearerToken),
+    headers: {
+      'Authorization': `Bearer ${bearerToken}`,
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) {
@@ -78,7 +80,10 @@ export async function fetchTPOSOrderDetails(
 
   const response = await fetch(url, {
     method: 'GET',
-    headers: await getTPOSHeaders(bearerToken),
+    headers: {
+      'Authorization': `Bearer ${bearerToken}`,
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) {

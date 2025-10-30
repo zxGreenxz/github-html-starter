@@ -21,19 +21,23 @@ function generateRandomId(): string {
 
 function getTPOSHeaders(bearerToken: string) {
   return {
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Content-Type": "application/json;charset=UTF-8",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-    "X-Tpos-Lang": "vi",
-    "Authorization": `Bearer ${bearerToken}`,
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://tomato.tpos.vn/",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
-    "TPOSAppVersion": "5.10.26.1",
-    "Priority": "u=3, i",
+    accept: "application/json, text/plain, */*",
+    "accept-encoding": "gzip, deflate, br",
+    "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+    "content-type": "application/json;charset=UTF-8",
+    authorization: `Bearer ${bearerToken}`,
+    "x-tpos-lang": "vi",
+    origin: "https://tomato.tpos.vn",
+    referer: "https://tomato.tpos.vn/",
+    "sec-ch-ua": '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    tposappversion: "5.9.10.1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "x-request-id": generateRandomId(),
   };
 }
 
