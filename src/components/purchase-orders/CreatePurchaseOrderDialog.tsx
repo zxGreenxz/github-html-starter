@@ -1574,15 +1574,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                       )}
                     </TableRow>
                   ))}
-                  <TableRow className="bg-muted/50">
-                    <TableCell colSpan={3} className="text-right font-semibold">
-                      Tổng số lượng:
-                    </TableCell>
-                    <TableCell className="text-center font-bold">
-                      {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-                    </TableCell>
-                    <TableCell colSpan={showDebugColumn ? 8 : 7}></TableCell>
-                  </TableRow>
                 </TableBody>
               </Table>
             </div>
@@ -1602,6 +1593,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
 
           <div className="space-y-2">
+            <div className="flex justify-between items-center py-2 border-t border-b bg-muted/30">
+              <span className="font-semibold">Tổng số lượng:</span>
+              <span className="font-bold">{items.reduce((sum, item) => sum + (item.quantity || 0), 0)}</span>
+            </div>
             <div className="flex justify-between items-center">
                 <span className="font-medium">Tổng tiền:</span>
                 <span>{formatVND(totalAmount * 1000)}</span>
