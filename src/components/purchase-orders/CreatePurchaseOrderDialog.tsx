@@ -1593,8 +1593,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         {/* Fixed Footer Section */}
         <div className="shrink-0 px-6 pb-6 space-y-4 border-t pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="notes">Ghi chú</Label>
+          <div>
             <Textarea
               id="notes"
               placeholder="Ghi chú thêm cho đơn hàng..."
