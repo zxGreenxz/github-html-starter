@@ -41,7 +41,6 @@ export function EditTPOSProductDialog({
   const [selectedVariants, setSelectedVariants] = useState<string>("");
   const [isVariantSelectorOpen, setIsVariantSelectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editableVariants, setEditableVariants] = useState<Record<number, { NameGet: string }>>({});
   
   useImagePaste((base64) => {
     setImageBase64(base64);
@@ -75,16 +74,6 @@ export function EditTPOSProductDialog({
       setSelectedVariants(variantString);
       
       console.log('🔄 [Edit Dialog] Auto-filled variants from AttributeLines:', variantString);
-      
-      // ✅ Initialize editableVariants with NameGet from TPOS
-      if (product.ProductVariants) {
-        const initial: Record<number, { NameGet: string }> = {};
-        product.ProductVariants.forEach(v => {
-          initial[v.Id] = { NameGet: v.NameGet || v.Name };
-        });
-        setEditableVariants(initial);
-        console.log('🔄 [Edit Dialog] Initialized editableVariants:', initial);
-      }
     }
   }, [product, open, form]);
   
@@ -152,30 +141,6 @@ export function EditTPOSProductDialog({
         console.log("📦 Stock found, skipping variant structure update.");
       } else {
         console.log("ℹ️ No variant changes, keeping original structure.");
-      }
-      
-      // ✅ Update NameGet trong ProductVariants nếu có thay đổi
-      if (payload.ProductVariants && product.ProductVariants) {
-        let hasNameGetChanges = false;
-        
-        payload.ProductVariants = payload.ProductVariants.map((v: any) => {
-          const editedNameGet = editableVariants[v.Id]?.NameGet;
-          const originalNameGet = product.ProductVariants?.find(pv => pv.Id === v.Id)?.NameGet || v.Name;
-          
-          if (editedNameGet && editedNameGet !== originalNameGet) {
-            console.log(`🔄 Will update variant ${v.Id} NameGet: "${originalNameGet}" → "${editedNameGet}"`);
-            hasNameGetChanges = true;
-            return {
-              ...v,
-              NameGet: editedNameGet
-            };
-          }
-          return v;
-        });
-        
-        if (hasNameGetChanges) {
-          console.log("✅ Merged NameGet changes into payload.ProductVariants");
-        }
       }
       
       // ✅ ALWAYS remove quantity fields from variants (theo file mẫu line 298-303)
@@ -387,17 +352,7 @@ export function EditTPOSProductDialog({
                         {product.ProductVariants.map((variant) => (
                           <TableRow key={variant.Id}>
                             <TableCell className="font-medium">
-                              <Input
-                                value={editableVariants[variant.Id]?.NameGet || ''}
-                                onChange={(e) => {
-                                  setEditableVariants(prev => ({
-                                    ...prev,
-                                    [variant.Id]: { NameGet: e.target.value }
-                                  }));
-                                }}
-                                className="h-8 min-w-[200px]"
-                                placeholder="Nhập tên biến thể"
-                              />
+                              {variant.Name}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {variant.DefaultCode}
