@@ -41,9 +41,6 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
   // Sản phẩm đã fetch từ TPOS
   const [fetchedProduct, setFetchedProduct] = useState<TPOSProductFullDetails | null>(null);
   
-  // Template items từ TPOS
-  const [templateItems, setTemplateItems] = useState<StockChangeItem[]>([]);
-  
   // Hai biến thể được chọn
   const [variantAId, setVariantAId] = useState<number | null>(null);
   const [variantBId, setVariantBId] = useState<number | null>(null);
@@ -92,20 +89,14 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
   const variantA = fetchedProduct?.ProductVariants.find(v => v.Id === variantAId);
   const variantB = fetchedProduct?.ProductVariants.find(v => v.Id === variantBId);
   
-  // Tìm số lượng gốc từ template (LocationId = 12)
-  const variantAOriginalQty = templateItems.find(
-    item => item.Product.Id === variantAId && item.LocationId === 12
-  )?.TheoreticalQuantity || 0;
-  
-  const variantBOriginalQty = templateItems.find(
-    item => item.Product.Id === variantBId && item.LocationId === 12
-  )?.TheoreticalQuantity || 0;
+  // Tìm số lượng gốc từ ProductVariants
+  const variantAOriginalQty = variantA?.QtyAvailable || 0;
+  const variantBOriginalQty = variantB?.QtyAvailable || 0;
   
   // === RESET STATE ===
   const resetState = () => {
     setProductCode("");
     setFetchedProduct(null);
-    setTemplateItems([]);
     setVariantAId(null);
     setVariantBId(null);
     setVariantANewQty(0);
@@ -125,7 +116,6 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
     setIsLoading(true);
     setError(null);
     setFetchedProduct(null);
-    setTemplateItems([]);
     
     try {
       console.log(`🔍 [Change Size] Searching for: ${trimmedCode}`);
@@ -143,12 +133,7 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
         throw new Error("Sản phẩm phải có ít nhất 2 biến thể để chuyển đổi số lượng");
       }
       
-      // ✅ Lấy template ngay sau khi fetch
-      console.log(`📋 [Change Size] Getting stock template...`);
-      const template = await getStockChangeTemplate(details.Id);
-      
       setFetchedProduct(details);
-      setTemplateItems(template);
       
       toast.success(`Đã tìm thấy: ${details.Name} (${details.ProductVariants.length} biến thể)`);
       
@@ -164,20 +149,16 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
   
   // === EFFECT: Initialize quantities when variants are selected ===
   useEffect(() => {
-    if (variantAId && variantBId && templateItems.length > 0) {
-      const itemA = templateItems.find(
-        item => item.Product.Id === variantAId && item.LocationId === 12
-      );
-      const itemB = templateItems.find(
-        item => item.Product.Id === variantBId && item.LocationId === 12
-      );
+    if (variantAId && variantBId && fetchedProduct) {
+      const variantA = fetchedProduct.ProductVariants.find(v => v.Id === variantAId);
+      const variantB = fetchedProduct.ProductVariants.find(v => v.Id === variantBId);
       
-      if (itemA && itemB) {
-        setVariantANewQty(itemA.TheoreticalQuantity);
-        setVariantBNewQty(itemB.TheoreticalQuantity);
+      if (variantA && variantB) {
+        setVariantANewQty(variantA.QtyAvailable || 0);
+        setVariantBNewQty(variantB.QtyAvailable || 0);
       }
     }
-  }, [variantAId, variantBId, templateItems]);
+  }, [variantAId, variantBId, fetchedProduct]);
   
   // === ADJUST QUANTITY HANDLERS ===
   const handleAdjustVariantA = (delta: number) => {
@@ -264,8 +245,16 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
     setIsSubmitting(true);
     
     try {
-      // ✅ Step 1: Đã có template rồi, chỉ cần modify
-      const modifiedItems = templateItems.map(item => {
+      console.log(`📋 [Change Size] Step 1: Getting stock template for ProductTmplId: ${fetchedProduct.Id}`);
+      
+      // ✅ Step 1: Lấy template TRƯỚC KHI post (giống file mẫu)
+      const template = await getStockChangeTemplate(fetchedProduct.Id);
+      
+      console.log(`📤 [Change Size] Step 2: Modifying template with new quantities`);
+      
+      // ✅ Step 2: Modify template
+      const modifiedItems = template.map(item => {
+        // Chỉ update LocationId = 12 (kho chính)
         if (item.LocationId === 12) {
           if (item.Product.Id === variantAId) {
             return { ...item, NewQuantity: variantANewQty };
@@ -277,7 +266,7 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
         return item;
       });
       
-      console.log(`📤 [Change Size] Submitting changes:`, {
+      console.log(`📤 [Change Size] Step 3: Posting quantity changes:`, {
         variantA: {
           id: variantAId,
           code: variantA?.DefaultCode,
@@ -294,10 +283,12 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
         }
       });
       
-      // ✅ Step 2: Post quantity changes
+      // ✅ Step 3: Post changes
       await postStockChangeQuantity(modifiedItems);
       
-      // ✅ Step 3: Execute stock change
+      console.log(`✅ [Change Size] Step 4: Executing stock change`);
+      
+      // ✅ Step 4: Execute
       await executeStockChange(fetchedProduct.Id);
       
       toast.success(`✅ Đã chuyển ${totalChange} sản phẩm thành công!`);
