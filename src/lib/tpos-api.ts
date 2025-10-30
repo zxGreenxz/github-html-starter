@@ -197,6 +197,56 @@ export interface TPOSProductFullDetails {
 }
 
 /**
+ * Wrapper to handle /api/ endpoints correctly
+ * Matches the logic from sample tpos-api-12.js tposRequest function
+ */
+async function tposRequestWrapper(endpoint: string, options: {
+  method?: string;
+  body?: any;
+  token?: string;
+} = {}) {
+  const { method = "GET", body = null, token } = options;
+  
+  const bearerToken = token || await getActiveTPOSToken();
+  if (!bearerToken) {
+    throw new Error("TPOS Bearer Token not found");
+  }
+  
+  // Handle different endpoint types
+  let url: string;
+  if (endpoint.startsWith("http")) {
+    url = endpoint;
+  } else if (endpoint.startsWith("/api/")) {
+    // Use root domain for /api/ endpoints
+    url = `${TPOS_CONFIG.API_BASE_ROOT}${endpoint}`;
+  } else {
+    // OData endpoints
+    const cleanedEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+    url = `${TPOS_CONFIG.API_BASE}/${cleanedEndpoint}`;
+  }
+  
+  const headers = getTPOSHeaders(bearerToken);
+  const fetchOptions: RequestInit = { method, headers };
+  
+  // Stringify body here (wrapper handles it)
+  if (body && method !== "GET") {
+    fetchOptions.body = JSON.stringify(body);
+  }
+  
+  console.log(`🌐 TPOS Request: ${method} ${url}`);
+  
+  const response = await fetch(url, fetchOptions);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ HTTP Error ${response.status}:`, errorText);
+    throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+  }
+  
+  return response.json();
+}
+
+/**
  * Product variant details
  */
 export interface TPOSProductVariantDetail {
@@ -591,34 +641,20 @@ export async function getStockChangeTemplate(
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
   return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
     await randomDelay(200, 600);
-    
-    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-get-template`;
     
     console.log(`📋 [Stock Change] Step 1: Getting template for ProductTmplId: ${productTmplId}`);
     
-    const response = await fetch(url, {
+    const getTemplatePayload = { 
+      model: { 
+        ProductTmplId: productTmplId 
+      } 
+    };
+    
+    const data = await tposRequestWrapper('/api/stock-change-get-template', {
       method: 'POST',
-      headers: getTPOSHeaders(token),
-      body: JSON.stringify({
-        model: {
-          ProductTmplId: productTmplId
-        }
-      })
+      body: getTemplatePayload
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Get template failed:`, errorText);
-      throw new Error(`Failed to get stock change template: ${response.status}`);
-    }
-    
-    const data: StockChangeTemplateResponse = await response.json();
     
     // Response có dạng { value: [...] }
     if (!data.value || !Array.isArray(data.value)) {
@@ -627,7 +663,7 @@ export async function getStockChangeTemplate(
     
     console.log(`✅ [Stock Change] Template received:`, {
       totalItems: data.value.length,
-      items: data.value.map(item => ({
+      items: data.value.map((item: any) => ({
         variantId: item.Product.Id,
         code: item.Product.DefaultCode,
         locationId: item.LocationId,
@@ -651,14 +687,7 @@ export async function postStockChangeQuantity(
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
   return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
     await randomDelay(200, 600);
-    
-    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-post-qty`;
     
     console.log(`📤 [Stock Change] Step 2: Posting quantity changes...`);
     console.log(`📋 [Stock Change] Modified items:`, items.map(item => ({
@@ -670,21 +699,14 @@ export async function postStockChangeQuantity(
       diff: item.NewQuantity - item.TheoreticalQuantity
     })));
     
-    const payload: StockChangePostPayload = {
-      model: items  // ✅ Gửi dạng array
+    const payload = { 
+      model: items
     };
     
-    const response = await fetch(url, {
+    await tposRequestWrapper('/api/stock-change-post-qty', {
       method: 'POST',
-      headers: getTPOSHeaders(token),
-      body: JSON.stringify(payload)
+      body: payload
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Post quantity failed:`, errorText);
-      throw new Error(`Failed to post stock changes: ${response.status}`);
-    }
     
     console.log(`✅ [Stock Change] Quantities posted successfully`);
   }, 'tpos');
@@ -702,32 +724,18 @@ export async function executeStockChange(
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
   return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
     await randomDelay(200, 600);
-    
-    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-execute`;
     
     console.log(`✅ [Stock Change] Step 3: Executing stock change for ProductTmplId: ${productTmplId}`);
     
-    const payload: StockChangeExecutePayload = {
-      ids: [productTmplId]  // ⚠️ Array of IDs
+    const executePayload = {
+      ids: [productTmplId]
     };
     
-    const response = await fetch(url, {
+    await tposRequestWrapper('/api/stock-change-execute', {
       method: 'POST',
-      headers: getTPOSHeaders(token),
-      body: JSON.stringify(payload)
+      body: executePayload
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Execute failed:`, errorText);
-      throw new Error(`Failed to execute stock change: ${response.status}`);
-    }
     
     console.log(`✅ [Stock Change] Stock change executed successfully`);
   }, 'tpos');
