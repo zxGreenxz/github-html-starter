@@ -154,6 +154,30 @@ export function EditTPOSProductDialog({
         console.log("ℹ️ No variant changes, keeping original structure.");
       }
       
+      // ✅ Update NameGet trong ProductVariants nếu có thay đổi
+      if (payload.ProductVariants && product.ProductVariants) {
+        let hasNameGetChanges = false;
+        
+        payload.ProductVariants = payload.ProductVariants.map((v: any) => {
+          const editedNameGet = editableVariants[v.Id]?.NameGet;
+          const originalNameGet = product.ProductVariants?.find(pv => pv.Id === v.Id)?.NameGet || v.Name;
+          
+          if (editedNameGet && editedNameGet !== originalNameGet) {
+            console.log(`🔄 Will update variant ${v.Id} NameGet: "${originalNameGet}" → "${editedNameGet}"`);
+            hasNameGetChanges = true;
+            return {
+              ...v,
+              NameGet: editedNameGet
+            };
+          }
+          return v;
+        });
+        
+        if (hasNameGetChanges) {
+          console.log("✅ Merged NameGet changes into payload.ProductVariants");
+        }
+      }
+      
       // ✅ ALWAYS remove quantity fields from variants (theo file mẫu line 298-303)
       if (payload.ProductVariants) {
         payload.ProductVariants.forEach((v: any) => {
@@ -167,32 +191,7 @@ export function EditTPOSProductDialog({
       console.log("📋 [Edit Dialog] Has AttributeLines:", !!payload.AttributeLines);
       console.log("📋 [Edit Dialog] Variants count:", payload.ProductVariants?.length || 0);
       
-      const updateSuccess = await updateTPOSProductDetails(payload);
-      
-      // ✅ Update từng variant có thay đổi NameGet
-      if (updateSuccess && product.ProductVariants) {
-        for (const variant of product.ProductVariants) {
-          const editedNameGet = editableVariants[variant.Id]?.NameGet;
-          const originalNameGet = variant.NameGet || variant.Name;
-          
-          if (editedNameGet && editedNameGet !== originalNameGet) {
-            console.log(`🔄 Updating variant ${variant.Id} NameGet: "${originalNameGet}" → "${editedNameGet}"`);
-            
-            try {
-              const variantPayload = {
-                Id: variant.Id,
-                NameGet: editedNameGet
-              };
-              
-              await updateTPOSProductDetails(variantPayload);
-              console.log(`✅ Updated variant ${variant.Id} successfully`);
-            } catch (error) {
-              console.error(`❌ Failed to update variant ${variant.Id}:`, error);
-              toast.error(`Không thể cập nhật biến thể ${variant.DefaultCode}`);
-            }
-          }
-        }
-      }
+      await updateTPOSProductDetails(payload);
       
       // ✅ Fetch lại từ TPOS và upsert vào local DB
       console.log("🔄 Fetching updated product from TPOS...");

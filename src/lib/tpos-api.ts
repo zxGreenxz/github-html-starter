@@ -528,8 +528,25 @@ export async function updateTPOSProductDetails(
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ [Fetch & Edit] Update failed: ${errorText}`);
-      throw new Error(`Failed to update: ${errorText}`);
+      console.error(`❌ [Fetch & Edit] Update failed`);
+      console.error(`❌ [Fetch & Edit] Status: ${response.status}`);
+      console.error(`❌ [Fetch & Edit] Response: ${errorText}`);
+      console.error(`❌ [Fetch & Edit] Payload sent:`, JSON.stringify(cleanedPayload, null, 2));
+      
+      // Parse error message từ TPOS để hiển thị rõ hơn
+      let errorMessage = `Failed to update (Status ${response.status})`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message?.value) {
+          errorMessage = errorJson.error.message.value;
+        } else if (errorJson.message) {
+          errorMessage = errorJson.message;
+        }
+      } catch (e) {
+        errorMessage = errorText.substring(0, 200);
+      }
+      
+      throw new Error(errorMessage);
     }
     
     // PATCH thường trả về 204 No Content
