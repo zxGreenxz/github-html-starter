@@ -325,6 +325,7 @@ export function EditTPOSProductDialog({
                         type="number" 
                         {...field} 
                         placeholder="0"
+                        disabled
                       />
                     </FormControl>
                     <FormMessage />
