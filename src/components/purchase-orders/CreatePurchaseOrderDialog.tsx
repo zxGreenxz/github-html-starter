@@ -1584,8 +1584,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         {/* Fixed Total Quantity Row - Outside scroll area */}
         <div className="shrink-0 px-6 py-3 border-t-2 border-primary/30 bg-muted/90 backdrop-blur-sm">
           <div className="flex items-center justify-center gap-3">
-            <span className="font-semibold text-sm text-muted-foreground">Tổng số lượng:</span>
-            <span className="font-bold text-2xl text-primary">
+            <span className="font-normal text-sm">Tổng số lượng:</span>
+            <span className="font-normal text-sm">
               {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
             </span>
           </div>
