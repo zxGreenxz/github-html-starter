@@ -102,7 +102,7 @@ const PurchaseOrders = () => {
 
   // Filter states moved from PurchaseOrderList
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("pending");
+  const [statusFilter, setStatusFilter] = useState<string>("awaiting_export");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string>("all");
@@ -305,8 +305,10 @@ const PurchaseOrders = () => {
       );
     
     // Status filter - draft orders are excluded from regular filtering
-    const matchesStatus = statusFilter === "all" || 
-      order.status === statusFilter;
+    const matchesStatus = 
+      statusFilter === "all" || 
+      order.status === statusFilter ||
+      (statusFilter === "pending" && (order.status === "pending" || order.status === "awaiting_export"));
     
     return matchesSearch && matchesStatus;
   }) || [];
@@ -540,6 +542,33 @@ const PurchaseOrders = () => {
         title: "Xuất Excel thành công!",
         description: `Đã tạo file ${fileName}`,
       });
+
+      // Update status from awaiting_export to pending for exported orders
+      const ordersToUpdate = ordersToExport
+        .filter(order => order.status === 'awaiting_export')
+        .map(order => order.id);
+
+      if (ordersToUpdate.length > 0) {
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ status: 'pending' })
+          .in('id', ordersToUpdate);
+
+        if (updateError) {
+          console.error('Error updating order status:', updateError);
+          toast({
+            title: "Cảnh báo",
+            description: "Xuất file thành công nhưng không thể cập nhật trạng thái đơn hàng",
+            variant: "destructive",
+          });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+          toast({
+            title: "Đã cập nhật trạng thái",
+            description: `${ordersToUpdate.length} đơn hàng chuyển sang trạng thái Chờ Hàng`,
+          });
+        }
+      }
     } catch (error) {
       console.error("Error exporting Excel:", error);
       toast({

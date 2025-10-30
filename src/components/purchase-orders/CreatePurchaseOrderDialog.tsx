@@ -442,7 +442,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             shipping_fee: shippingFee,
             invoice_images: formData.invoice_images.length > 0 ? formData.invoice_images : null,
             notes: formData.notes.trim().toUpperCase(),
-            status: 'pending'
+            status: 'awaiting_export'
           })
           .eq("id", initialData.id)
           .select()

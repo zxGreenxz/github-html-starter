@@ -94,7 +94,7 @@ export default function GoodsReceiving() {
       // Apply status filter
       let filteredOrders;
       if (statusFilter === "needInspection") {
-        filteredOrders = ordersWithStatus.filter(o => (o.status === 'confirmed' || o.status === 'pending') && !o.hasReceiving);
+        filteredOrders = ordersWithStatus.filter(o => (o.status === 'confirmed' || o.status === 'pending' || o.status === 'awaiting_export') && !o.hasReceiving);
       } else if (statusFilter === "inspected") {
         filteredOrders = ordersWithStatus.filter(o => o.hasReceiving);
       } else if (statusFilter === "shortage") {

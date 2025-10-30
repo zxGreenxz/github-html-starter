@@ -269,6 +269,8 @@ export function PurchaseOrderList({
     switch (status) {
       case "draft":
         return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Nháp</Badge>;
+      case "awaiting_export":
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">CHỜ MUA</Badge>;
       case "pending":
         return <Badge variant="secondary">Chờ Hàng</Badge>;
       case "received":
@@ -410,6 +412,22 @@ export function PurchaseOrderList({
         title: "Xuất Excel thành công!",
         description: `Đã tạo file ${fileName}`,
       });
+
+      // Update status if order is awaiting_export
+      if (order.status === 'awaiting_export') {
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ status: 'pending' })
+          .eq('id', order.id);
+
+        if (!updateError) {
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+          toast({
+            title: "Đã cập nhật trạng thái",
+            description: "Đơn hàng chuyển sang trạng thái Chờ Hàng",
+          });
+        }
+      }
     } catch (error) {
       console.error("Error exporting Excel:", error);
       toast({
@@ -540,6 +558,7 @@ export function PurchaseOrderList({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="awaiting_export">CHỜ MUA</SelectItem>
                 <SelectItem value="pending">Chờ Hàng</SelectItem>
                 <SelectItem value="received">Đã Nhận Hàng</SelectItem>
               </SelectContent>
