@@ -1599,6 +1599,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               placeholder="Ghi chú thêm cho đơn hàng..."
               value={formData.notes}
               onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={1}
+              className="min-h-[40px] resize-none"
             />
           </div>
 
