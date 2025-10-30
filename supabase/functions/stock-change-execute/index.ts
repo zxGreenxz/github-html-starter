@@ -76,26 +76,41 @@ serve(async (req) => {
       body: JSON.stringify(payload),
     });
 
+    console.log(`📊 [Step 3] TPOS API response status: ${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ [Step 3] TPOS API error: ${response.status}`, errorText);
       throw new Error(`TPOS API error: ${response.status}`);
     }
 
-    // TPOS API may return empty response for successful operations
-    let data = { success: true, ids };
+    // TPOS API may return empty response (204) for successful operations
+    let data = { success: true, ids, status: response.status };
+    
+    // Check if response has body content
+    const contentLength = response.headers.get('content-length');
     const contentType = response.headers.get('content-type');
     
-    // Only try to parse JSON if response has content-type JSON and has content
-    if (contentType && contentType.includes('application/json')) {
-      const text = await response.text();
-      if (text && text.length > 0) {
+    console.log(`📊 [Step 3] Response headers - Content-Type: ${contentType}, Content-Length: ${contentLength}`);
+    
+    // Only parse JSON if there's actually content to parse
+    if (response.status !== 204 && contentLength !== '0') {
+      const responseText = await response.text();
+      console.log(`📊 [Step 3] Response text length: ${responseText.length}`);
+      
+      if (responseText && responseText.trim().length > 0) {
         try {
-          data = JSON.parse(text);
+          data = JSON.parse(responseText);
+          console.log(`✅ [Step 3] Successfully parsed JSON response`);
         } catch (e) {
-          console.log('⚠️ [Step 3] Response is not valid JSON, using default success response');
+          console.log(`⚠️ [Step 3] Response is not valid JSON: ${responseText.substring(0, 100)}`);
+          // Keep the default success response
         }
+      } else {
+        console.log(`⚠️ [Step 3] Response body is empty, using default success response`);
       }
+    } else {
+      console.log(`✅ [Step 3] Response has no content (204 or Content-Length: 0), using default success response`);
     }
     
     console.log(`✅ [Step 3] Stock change executed successfully.`);
