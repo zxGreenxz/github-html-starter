@@ -55,7 +55,7 @@ export function TPOSVariantLookup() {
           throw new Error("Không tìm thấy TPOS bearer token");
         }
         
-        const headers = getTPOSHeaders(token);
+        const headers = await getTPOSHeaders(token);
         const response = await fetch(searchUrl, { method: "GET", headers });
         
         if (!response.ok) {
@@ -92,7 +92,7 @@ export function TPOSVariantLookup() {
           throw new Error("Không tìm thấy TPOS bearer token");
         }
 
-        const headers = getTPOSHeaders(token);
+        const headers = await getTPOSHeaders(token);
         const response = await fetch(detailUrl, { method: "GET", headers });
 
         if (!response.ok) {
@@ -143,7 +143,7 @@ export function TPOSVariantLookup() {
           throw new Error("Không tìm thấy TPOS bearer token");
         }
         
-        const headers = getTPOSHeaders(token);
+        const headers = await getTPOSHeaders(token);
         const response = await fetch(searchUrl, { method: "GET", headers });
         
         if (!response.ok) {
@@ -180,7 +180,7 @@ export function TPOSVariantLookup() {
           throw new Error("Không tìm thấy TPOS bearer token");
         }
 
-        const headers = getTPOSHeaders(token);
+        const headers = await getTPOSHeaders(token);
         const response = await fetch(detailUrl, { method: "GET", headers });
 
         if (!response.ok) {

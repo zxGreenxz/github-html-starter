@@ -22,7 +22,7 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
 
     if (!response.ok) {
@@ -356,7 +356,7 @@ export async function createProductDirectly(
     `${TPOS_CONFIG.API_BASE}/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO`,
     {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(payload)
     }
   );
@@ -392,7 +392,7 @@ export async function getProductDetail(productId: number): Promise<any> {
 
   const response = await fetch(url, {
     method: "GET",
-    headers: getTPOSHeaders(token),
+    headers: await getTPOSHeaders(token),
   });
 
   if (!response.ok) {
@@ -452,7 +452,7 @@ export async function searchTPOSProductByCode(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -499,7 +499,7 @@ export async function getTPOSProductFullDetails(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -547,7 +547,7 @@ export async function updateTPOSProductDetails(
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(cleanedPayload)
     });
     
@@ -604,7 +604,7 @@ export async function getStockChangeTemplate(
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify({
         model: {
           ProductTmplId: productTmplId
@@ -647,7 +647,7 @@ export async function getStockChangeTemplate(
  */
 export async function postStockChangeQuantity(
   items: StockChangeItem[]
-): Promise<void> {
+): Promise<any> {
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
   return queryWithAutoRefresh(async () => {
@@ -671,12 +671,12 @@ export async function postStockChangeQuantity(
     })));
     
     const payload: StockChangePostPayload = {
-      model: items  // ✅ Gửi dạng array
+      model: items
     };
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(payload)
     });
     
@@ -686,7 +686,10 @@ export async function postStockChangeQuantity(
       throw new Error(`Failed to post stock changes: ${response.status}`);
     }
     
-    console.log(`✅ [Stock Change] Quantities posted successfully`);
+    const data = await response.json();
+    console.log(`✅ [Stock Change] Quantities posted successfully, response:`, data);
+    
+    return data;
   }, 'tpos');
 }
 
@@ -697,7 +700,7 @@ export async function postStockChangeQuantity(
  * @param productTmplId - ID của product template
  */
 export async function executeStockChange(
-  productTmplId: number
+  postQtyResponse: any
 ): Promise<void> {
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
@@ -711,15 +714,22 @@ export async function executeStockChange(
     
     const url = 'https://tomato.tpos.vn/api/stock-change-execute';
     
-    console.log(`✅ [Stock Change] Step 3: Executing stock change for ProductTmplId: ${productTmplId}`);
+    // Extract IDs from Step 2 response
+    if (!postQtyResponse || !Array.isArray(postQtyResponse.value) || postQtyResponse.value.length === 0) {
+      throw new Error("Không thể lấy IDs từ response của bước đăng tải số lượng.");
+    }
+    
+    const idsToExecute = postQtyResponse.value.map((item: any) => item.Id);
+    
+    console.log(`✅ [Stock Change] Step 3: Executing stock change for IDs:`, idsToExecute);
     
     const payload: StockChangeExecutePayload = {
-      ids: [productTmplId]  // ⚠️ Array of IDs
+      ids: idsToExecute
     };
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(payload)
     });
     

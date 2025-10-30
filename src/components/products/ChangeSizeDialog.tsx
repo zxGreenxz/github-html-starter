@@ -284,12 +284,12 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
       });
       
       // ✅ Step 3: Post changes
-      await postStockChangeQuantity(modifiedItems);
+      const postResponse = await postStockChangeQuantity(modifiedItems);
       
       console.log(`✅ [Change Size] Step 4: Executing stock change`);
       
       // ✅ Step 4: Execute
-      await executeStockChange(fetchedProduct.Id);
+      await executeStockChange(postResponse);
       
       toast.success(`✅ Đã chuyển ${totalChange} sản phẩm thành công!`);
       

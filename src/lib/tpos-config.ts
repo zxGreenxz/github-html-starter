@@ -98,8 +98,20 @@ export function cleanBase64(base64String: string | null | undefined): string | n
   return base64String.replace(/\s/g, "");
 }
 
-export function getTPOSHeaders(bearerToken: string) {
-  return {
+export async function getTPOSHeaders(bearerToken: string) {
+  // Fetch custom headers from server if available
+  let customHeaders: Record<string, string> = {};
+  
+  try {
+    const response = await fetch('/api/settings/header-template');
+    if (response.ok) {
+      customHeaders = await response.json();
+    }
+  } catch (error) {
+    console.warn("Could not load custom header template:", error);
+  }
+  
+  const standardHeaders = {
     accept: "application/json, text/plain, */*",
     "accept-encoding": "gzip, deflate, br",
     "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -118,4 +130,6 @@ export function getTPOSHeaders(bearerToken: string) {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
     "x-request-id": generateRandomId(),
   };
+  
+  return { ...customHeaders, ...standardHeaders };
 }
