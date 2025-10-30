@@ -760,16 +760,18 @@ const PurchaseOrders = () => {
                 )}
 
                 {/* Regular export actions */}
-                <div className="flex gap-2">
-                  <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
-                    <ShoppingCart className="w-4 h-4" />
-                    Xuất Excel mua hàng
-                  </Button>
-                  <Button onClick={handleExportExcel} variant="outline" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Xuất Excel Thêm SP
-                  </Button>
-                </div>
+                {selectedOrders.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Xuất Excel mua hàng
+                    </Button>
+                    <Button onClick={handleExportExcel} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Xuất Excel Thêm SP
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
