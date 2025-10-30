@@ -41,6 +41,7 @@ export function EditTPOSProductDialog({
   const [selectedVariants, setSelectedVariants] = useState<string>("");
   const [isVariantSelectorOpen, setIsVariantSelectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editableVariants, setEditableVariants] = useState<Record<number, { NameGet: string }>>({});
   
   useImagePaste((base64) => {
     setImageBase64(base64);
@@ -74,6 +75,17 @@ export function EditTPOSProductDialog({
       setSelectedVariants(variantString);
       
       console.log('🔄 [Edit Dialog] Auto-filled variants from AttributeLines:', variantString);
+      
+      // ✅ Initialize editable variants with current NameGet values
+      if (product.ProductVariants && product.ProductVariants.length > 0) {
+        const initialVariants: Record<number, { NameGet: string }> = {};
+        product.ProductVariants.forEach(variant => {
+          initialVariants[variant.Id] = {
+            NameGet: variant.NameGet || variant.Name
+          };
+        });
+        setEditableVariants(initialVariants);
+      }
     }
   }, [product, open, form]);
   
@@ -143,11 +155,22 @@ export function EditTPOSProductDialog({
         console.log("ℹ️ No variant changes, keeping original structure.");
       }
       
-      // ✅ ALWAYS remove quantity fields from variants (theo file mẫu line 298-303)
+      // ✅ Update NameGet for variants and remove quantity fields (theo file mẫu)
       if (payload.ProductVariants) {
-        payload.ProductVariants.forEach((v: any) => {
-          delete v.QtyAvailable;
-          delete v.VirtualAvailable;
+        payload.ProductVariants = payload.ProductVariants.map((variant: any) => {
+          const editedNameGet = editableVariants[variant.Id]?.NameGet;
+          
+          // Chỉ update NameGet nếu có thay đổi
+          if (editedNameGet && editedNameGet !== (variant.NameGet || variant.Name)) {
+            console.log(`🔄 Updating variant ${variant.Id} NameGet: "${variant.NameGet || variant.Name}" → "${editedNameGet}"`);
+            variant.NameGet = editedNameGet;
+          }
+          
+          // XÓA CÁC TRƯỜNG SỐ LƯỢNG ĐỂ TRÁNH UPDATE NHẦM
+          delete variant.QtyAvailable;
+          delete variant.VirtualAvailable;
+          
+          return variant;
         });
       }
       
@@ -342,7 +365,7 @@ export function EditTPOSProductDialog({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>TÊN BIẾN THỂ</TableHead>
+                          <TableHead>TÊN BIẾN THỂ (NAMEGET)</TableHead>
                           <TableHead>MÃ SP CON</TableHead>
                           <TableHead className="text-right">SL THỰC TẾ</TableHead>
                           <TableHead className="text-right">GIÁ BÁN</TableHead>
@@ -352,7 +375,17 @@ export function EditTPOSProductDialog({
                         {product.ProductVariants.map((variant) => (
                           <TableRow key={variant.Id}>
                             <TableCell className="font-medium">
-                              {variant.Name}
+                              <Input
+                                value={editableVariants[variant.Id]?.NameGet || variant.NameGet || variant.Name}
+                                onChange={(e) => {
+                                  setEditableVariants(prev => ({
+                                    ...prev,
+                                    [variant.Id]: { NameGet: e.target.value }
+                                  }));
+                                }}
+                                className="min-w-[200px]"
+                                placeholder="Tên biến thể"
+                              />
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {variant.DefaultCode}

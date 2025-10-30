@@ -203,6 +203,7 @@ export interface TPOSProductVariantDetail {
   Id: number;
   ProductIdBienThe: number;
   Name: string;
+  NameGet?: string; // ✅ Tên biến thể hiển thị (có thể khác với Name)
   DefaultCode: string;
   Barcode: string | null;
   QtyAvailable: number;
@@ -512,7 +513,17 @@ export async function updateTPOSProductDetails(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ [Fetch & Edit] Update failed: ${errorText}`);
-      throw new Error(`Failed to update product: ${errorText}`);
+      console.error(`❌ [Fetch & Edit] Status: ${response.status}`);
+      console.error(`❌ [Fetch & Edit] Payload sent:`, JSON.stringify(cleanedPayload, null, 2));
+      
+      // Parse error message nếu có
+      let errorMessage = errorText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorJson.message || errorText;
+      } catch {}
+      
+      throw new Error(`Failed to update product: ${errorMessage}`);
     }
     
     const data = await response.json();
