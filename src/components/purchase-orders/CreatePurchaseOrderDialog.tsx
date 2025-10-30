@@ -1575,17 +1575,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                       )}
                     </TableRow>
                   ))}
-                  <TableRow className="sticky bottom-0 z-10 bg-muted/50 border-t-2 border-primary/20">
-                    <TableCell colSpan={3} className="text-right font-semibold bg-muted/50">
-                      Tổng số lượng:
-                    </TableCell>
-                    <TableCell className="text-center font-bold bg-muted/50">
-                      {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-                    </TableCell>
-                    <TableCell colSpan={showDebugColumn ? 8 : 7} className="bg-muted/50"></TableCell>
-                  </TableRow>
                 </TableBody>
               </Table>
+              
+              {/* Fixed Total Row - Outside table, always visible */}
+              <div className="bg-muted/90 border-t-2 border-primary/30 py-3 px-4 flex items-center sticky bottom-0 z-20 backdrop-blur-sm">
+                <div className="flex items-center gap-4 w-full">
+                  <span className="font-semibold text-sm">Tổng số lượng:</span>
+                  <span className="font-bold text-lg text-primary">
+                    {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
