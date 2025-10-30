@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Settings2, Edit } from "lucide-react";
+import { Package, Settings2, Edit, ArrowLeftRight } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { ImportProductsDialog } from "@/components/products/ImportProductsDialog
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
+import { SearchProductForTransferDialog } from "@/components/products/SearchProductForTransferDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -20,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
+import type { TPOSProductFullDetails } from "@/lib/tpos-api";
 
 export default function Products() {
   const isMobile = useIsMobile();
@@ -31,6 +33,8 @@ export default function Products() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
+  const [isSearchTransferOpen, setIsSearchTransferOpen] = useState(false);
+  const [selectedProductForTransfer, setSelectedProductForTransfer] = useState<TPOSProductFullDetails | null>(null);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -113,6 +117,13 @@ export default function Products() {
     setSearchQuery(supplierName);
   };
 
+  const handleProductSelectedForTransfer = (productDetails: TPOSProductFullDetails) => {
+    console.log("📦 [Products] Product selected for transfer:", productDetails);
+    setSelectedProductForTransfer(productDetails);
+    // TODO: Open QuantityTransferDialog in Step 2
+    toast.success(`Đã chọn sản phẩm: ${productDetails.Name}. Bước 2 sẽ được hiện thực sau.`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className={`${isMobile ? "p-4 space-y-4" : "p-8 space-y-6"}`}>
@@ -184,14 +195,12 @@ export default function Products() {
                 </div>
 
                 <Button
-                  onClick={() => {
-                    // TODO: Implement size change functionality
-                    toast.info("Chức năng đang được phát triển");
-                  }}
+                  onClick={() => setIsSearchTransferOpen(true)}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
                   className="gap-2"
                 >
+                  <ArrowLeftRight className="h-4 w-4" />
                   Đổi SIZE
                 </Button>
 
@@ -283,6 +292,12 @@ export default function Products() {
         <FetchTPOSProductDialog
           open={isFetchTPOSDialogOpen}
           onOpenChange={setIsFetchTPOSDialogOpen}
+        />
+
+        <SearchProductForTransferDialog
+          open={isSearchTransferOpen}
+          onOpenChange={setIsSearchTransferOpen}
+          onProductSelected={handleProductSelectedForTransfer}
         />
       </div>
     </div>
