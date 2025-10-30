@@ -1582,21 +1582,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         </div>
 
         {/* Fixed Total Quantity Row - Outside scroll area */}
-        <div className="shrink-0 px-6 border-t-2 border-primary/30 bg-muted/90 backdrop-blur-sm">
-          <div className="py-3 grid grid-cols-12 gap-4 items-center">
-            {/* Left side - labels (matching table structure) */}
-            <div className="col-span-3"></div>
-            
-            {/* Quantity column aligned with table */}
-            <div className="col-span-1 flex flex-col items-center gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Tổng SL</span>
-              <span className="font-bold text-xl text-primary">
-                {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-              </span>
-            </div>
-            
-            {/* Right side spacer */}
-            <div className="col-span-8"></div>
+        <div className="shrink-0 px-6 py-3 border-t-2 border-primary/30 bg-muted/90 backdrop-blur-sm">
+          <div className="flex items-center justify-center gap-3">
+            <span className="font-semibold text-sm text-muted-foreground">Tổng số lượng:</span>
+            <span className="font-bold text-2xl text-primary">
+              {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+            </span>
           </div>
         </div>
 
