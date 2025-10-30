@@ -699,26 +699,30 @@ const PurchaseOrders = () => {
       />
 
       <Tabs defaultValue="drafts" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="drafts" className="gap-2">
             <FileText className="w-4 h-4" />
             Nháp ({draftOrders.length})
           </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-2">
-            <FileText className="w-4 h-4" />
-            Đơn hàng
+          <TabsTrigger value="awaiting_purchase" className="gap-2">
+            <ShoppingCart className="w-4 h-4" />
+            Chờ mua
+          </TabsTrigger>
+          <TabsTrigger value="awaiting_delivery" className="gap-2">
+            <Package className="w-4 h-4" />
+            Chờ hàng
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="orders" className="space-y-4">
+        <TabsContent value="awaiting_purchase" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Danh sách đơn đặt hàng</CardTitle>
+                    <CardTitle>Đơn hàng chờ mua</CardTitle>
                     <CardDescription>
-                      Xem và quản lý tất cả đơn đặt hàng với nhà cung cấp
+                      Đơn hàng đã export, đang chờ đặt mua từ nhà cung cấp
                     </CardDescription>
                   </div>
                 </div>
@@ -780,7 +784,94 @@ const PurchaseOrders = () => {
               isLoading={isLoading}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
-              statusFilter={statusFilter}
+              statusFilter="awaiting_export"
+              setStatusFilter={setStatusFilter}
+              dateFrom={dateFrom}
+              setDateFrom={setDateFrom}
+              dateTo={dateTo}
+              setDateTo={setDateTo}
+              quickFilter={quickFilter}
+              applyQuickFilter={applyQuickFilter}
+              selectedOrders={selectedOrders}
+              onToggleSelect={toggleSelectOrder}
+              onToggleSelectAll={toggleSelectAll}
+              onEditDraft={handleEditDraft}
+            />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="awaiting_delivery" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Đơn hàng chờ giao</CardTitle>
+                    <CardDescription>
+                      Đơn hàng đang chờ nhà cung cấp giao hàng
+                    </CardDescription>
+                  </div>
+                </div>
+
+                {/* Bulk selection actions */}
+                {selectedOrders.length > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <span className="text-sm font-medium">
+                      Đã chọn: <span className="text-primary">{selectedOrders.length}</span> đơn hàng
+                    </span>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={clearSelection} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Bỏ chọn
+                      </Button>
+                      <Button 
+                        onClick={handleBulkDelete}
+                        variant="destructive" 
+                        size="sm"
+                        disabled={deleteBulkOrdersMutation.isPending}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa đã chọn
+                      </Button>
+                      <Button onClick={handleExportPurchaseExcel} variant="outline" size="sm">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Xuất Excel Mua hàng
+                      </Button>
+                      <Button onClick={handleExportExcel} variant="outline" size="sm">
+                        <Download className="w-4 h-4 mr-2" />
+                        Xuất Excel Thêm SP
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regular export actions */}
+                {selectedOrders.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Xuất Excel mua hàng
+                    </Button>
+                    <Button onClick={handleExportExcel} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Xuất Excel Thêm SP
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+            <PurchaseOrderList
+              filteredOrders={activeOrders}
+              isLoading={isLoading}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              statusFilter="pending"
               setStatusFilter={setStatusFilter}
               dateFrom={dateFrom}
               setDateFrom={setDateFrom}
