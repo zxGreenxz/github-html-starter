@@ -252,20 +252,17 @@ const PurchaseOrders = () => {
         item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     
-    // Status filter - "pending" includes both pending and draft orders
+    // Status filter - draft orders are excluded from regular filtering
     const matchesStatus = statusFilter === "all" || 
-      order.status === statusFilter ||
-      (statusFilter === "pending" && order.status === "draft");
+      order.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   }) || [];
 
   // Separate draft orders from active orders
   const draftOrders = orders?.filter(order => order.status === 'draft') || [];
-  // Keep draft orders in activeOrders only when statusFilter is NOT "all" and NOT specifically filtering drafts
-  const activeOrders = statusFilter === "pending" 
-    ? filteredOrders  // Show both pending and draft when filter is "pending"
-    : filteredOrders.filter(order => order.status !== 'draft');  // Hide draft from other views
+  // Always exclude draft orders from the main orders tab
+  const activeOrders = filteredOrders.filter(order => order.status !== 'draft');
 
   const handleEditDraft = (order: PurchaseOrder) => {
     setDraftToEdit(order);
