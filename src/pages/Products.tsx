@@ -184,6 +184,18 @@ export default function Products() {
                 </div>
 
                 <Button
+                  onClick={() => {
+                    // TODO: Implement size change functionality
+                    toast.info("Chức năng đang được phát triển");
+                  }}
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  className="gap-2"
+                >
+                  Đổi SIZE
+                </Button>
+
+                <Button
                   onClick={() => setIsFetchTPOSDialogOpen(true)}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
