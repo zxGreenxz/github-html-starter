@@ -22,7 +22,7 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
 
     if (!response.ok) {
@@ -315,7 +315,7 @@ export async function createProductDirectly(
     `${TPOS_CONFIG.API_BASE}/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO`,
     {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(payload)
     }
   );
@@ -351,7 +351,7 @@ export async function getProductDetail(productId: number): Promise<any> {
 
   const response = await fetch(url, {
     method: "GET",
-    headers: getTPOSHeaders(token),
+    headers: await getTPOSHeaders(token),
   });
 
   if (!response.ok) {
@@ -411,7 +411,7 @@ export async function searchTPOSProductByCode(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -458,7 +458,7 @@ export async function getTPOSProductFullDetails(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -506,7 +506,7 @@ export async function updateTPOSProductDetails(
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: getTPOSHeaders(token),
+      headers: await getTPOSHeaders(token),
       body: JSON.stringify(cleanedPayload)
     });
     

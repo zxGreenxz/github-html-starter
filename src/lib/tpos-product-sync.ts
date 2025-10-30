@@ -263,7 +263,7 @@ async function fetchTPOSProductDetail(
     
     const response = await fetch(url, {
       method: "GET",
-      headers: getTPOSHeaders(bearerToken),
+      headers: await getTPOSHeaders(bearerToken),
     });
 
     if (!response.ok) {
@@ -520,7 +520,7 @@ async function fetchTPOSVariantDetail(
     
     const response = await fetch(url, {
       method: "GET",
-      headers: getTPOSHeaders(bearerToken),
+      headers: await getTPOSHeaders(bearerToken),
     });
 
     if (!response.ok) {
