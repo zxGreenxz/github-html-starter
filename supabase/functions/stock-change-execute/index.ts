@@ -82,7 +82,22 @@ serve(async (req) => {
       throw new Error(`TPOS API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    // TPOS API may return empty response for successful operations
+    let data = { success: true, ids };
+    const contentType = response.headers.get('content-type');
+    
+    // Only try to parse JSON if response has content-type JSON and has content
+    if (contentType && contentType.includes('application/json')) {
+      const text = await response.text();
+      if (text && text.length > 0) {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.log('⚠️ [Step 3] Response is not valid JSON, using default success response');
+        }
+      }
+    }
+    
     console.log(`✅ [Step 3] Stock change executed successfully.`);
 
     return new Response(JSON.stringify(data), {
