@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Minus, ArrowLeftRight } from "lucide-react";
+import { Plus, Minus, ArrowLeftRight, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { TPOSProductFullDetails, TPOSProductVariantDetail } from "@/lib/tpos-api";
 
@@ -50,6 +50,8 @@ export function QuantityTransferDialog({
     currentQty1: 0,
     currentQty2: 0,
   });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset state khi dialog đóng hoặc product thay đổi
   useEffect(() => {
@@ -147,7 +149,7 @@ export function QuantityTransferDialog({
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validation
     if (!state.variant1 || !state.variant2) {
       toast({
@@ -209,13 +211,35 @@ export function QuantityTransferDialog({
       changedQtyMap,
     });
 
-    // TODO Bước 3: Gọi transferQuantitiesThreeStep()
-    toast({
-      title: "⏸️ Chức năng đang phát triển",
-      description: "Logic upload sẽ được hiện thực ở Bước 3",
-    });
+    // Call 3-step TPOS API
+    setIsSubmitting(true);
 
-    onOpenChange(false);
+    try {
+      // Import service function
+      const { transferQuantitiesThreeStep } = await import('@/lib/tpos-quantity-transfer');
+
+      // Call 3-step process
+      await transferQuantitiesThreeStep(productDetails!.Id, changedQtyMap);
+
+      // Success
+      toast({
+        title: "✅ Thành công",
+        description: "Đã chuyển đổi số lượng thành công!",
+      });
+
+      // Close dialog và callback
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error) {
+      console.error('❌ [Transfer] Upload error:', error);
+      toast({
+        title: "❌ Lỗi",
+        description: error instanceof Error ? error.message : "Lỗi không xác định",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const hasChanges =
@@ -238,7 +262,19 @@ export function QuantityTransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (isSubmitting) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isSubmitting) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Đổi Size - Chuyển đổi số lượng</DialogTitle>
           <DialogDescription>
@@ -428,11 +464,18 @@ export function QuantityTransferDialog({
 
         {/* Footer */}
         <DialogFooter className="flex gap-2 justify-end pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Hủy
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitDisabled}>
-            💾 Lưu chuyển đổi số lượng
+          <Button onClick={handleSubmit} disabled={isSubmitDisabled || isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Đang lưu...
+              </>
+            ) : (
+              <>💾 Lưu chuyển đổi số lượng</>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

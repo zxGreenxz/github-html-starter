@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.create-tpos-variants-from-order]
 verify_jwt = false
+
+[functions.stock-change-get-template]
+verify_jwt = false
+
+[functions.stock-change-post-qty]
+verify_jwt = false
+
+[functions.stock-change-execute]
+verify_jwt = false
