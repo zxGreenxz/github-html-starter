@@ -13,7 +13,6 @@ import { ImportProductsDialog } from "@/components/products/ImportProductsDialog
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
-import { ChangeSizeDialog } from "@/components/products/ChangeSizeDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -32,7 +31,6 @@ export default function Products() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
-  const [isChangeSizeDialogOpen, setIsChangeSizeDialogOpen] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
@@ -186,7 +184,10 @@ export default function Products() {
                 </div>
 
                 <Button
-                  onClick={() => setIsChangeSizeDialogOpen(true)}
+                  onClick={() => {
+                    // TODO: Implement size change functionality
+                    toast.info("Chức năng đang được phát triển");
+                  }}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
                   className="gap-2"
@@ -282,11 +283,6 @@ export default function Products() {
         <FetchTPOSProductDialog
           open={isFetchTPOSDialogOpen}
           onOpenChange={setIsFetchTPOSDialogOpen}
-        />
-
-        <ChangeSizeDialog
-          open={isChangeSizeDialogOpen}
-          onOpenChange={setIsChangeSizeDialogOpen}
         />
       </div>
     </div>

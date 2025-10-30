@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const TPOS_CONFIG = {
   API_BASE: "https://tomato.tpos.vn/odata/ProductTemplate",
-  API_BASE_ROOT: "https://tomato.tpos.vn",
   
   // Upload settings
   CONCURRENT_UPLOADS: 3,
@@ -98,20 +97,8 @@ export function cleanBase64(base64String: string | null | undefined): string | n
   return base64String.replace(/\s/g, "");
 }
 
-export async function getTPOSHeaders(bearerToken: string) {
-  // Fetch custom headers from server if available
-  let customHeaders: Record<string, string> = {};
-  
-  try {
-    const response = await fetch('/api/settings/header-template');
-    if (response.ok) {
-      customHeaders = await response.json();
-    }
-  } catch (error) {
-    console.warn("Could not load custom header template:", error);
-  }
-  
-  const standardHeaders = {
+export function getTPOSHeaders(bearerToken: string) {
+  return {
     accept: "application/json, text/plain, */*",
     "accept-encoding": "gzip, deflate, br",
     "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -130,6 +117,4 @@ export async function getTPOSHeaders(bearerToken: string) {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
     "x-request-id": generateRandomId(),
   };
-  
-  return { ...customHeaders, ...standardHeaders };
 }

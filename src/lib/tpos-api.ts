@@ -22,7 +22,7 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: await getTPOSHeaders(token),
+      headers: getTPOSHeaders(token),
     });
 
     if (!response.ok) {
@@ -227,47 +227,6 @@ export interface TPOSAttributeValueDetail {
   PriceExtra: number;
 }
 
-// =====================================================
-// STOCK CHANGE INTERFACES
-// =====================================================
-
-/**
- * Item trong response từ /api/stock-change-get-template
- * Response structure: { value: [StockChangeItem, ...] }
- */
-export interface StockChangeItem {
-  Product: {
-    Id: number;              // Variant ID
-    Name: string;
-    DefaultCode: string;
-    Barcode: string | null;
-  };
-  LocationId: number;         // Kho (cố định = 12)
-  NewQuantity: number;        // Số lượng mới (sẽ update)
-  TheoreticalQuantity: number;// Số lượng hiện tại
-}
-
-/**
- * Response từ GET template
- */
-export interface StockChangeTemplateResponse {
-  value: StockChangeItem[];
-}
-
-/**
- * Payload để POST quantity changes
- */
-export interface StockChangePostPayload {
-  model: StockChangeItem[];  // Array of modified items
-}
-
-/**
- * Payload để execute stock change
- */
-export interface StockChangeExecutePayload {
-  ids: number[];  // Array of ProductTmplId
-}
-
 /**
  * Update product payload - MUST send back entire product object
  * Only override the fields that were edited
@@ -356,7 +315,7 @@ export async function createProductDirectly(
     `${TPOS_CONFIG.API_BASE}/ODataService.InsertV2?$expand=ProductVariants,UOM,UOMPO`,
     {
       method: 'POST',
-      headers: await getTPOSHeaders(token),
+      headers: getTPOSHeaders(token),
       body: JSON.stringify(payload)
     }
   );
@@ -392,7 +351,7 @@ export async function getProductDetail(productId: number): Promise<any> {
 
   const response = await fetch(url, {
     method: "GET",
-    headers: await getTPOSHeaders(token),
+    headers: getTPOSHeaders(token),
   });
 
   if (!response.ok) {
@@ -452,7 +411,7 @@ export async function searchTPOSProductByCode(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: await getTPOSHeaders(token),
+      headers: getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -499,7 +458,7 @@ export async function getTPOSProductFullDetails(
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: await getTPOSHeaders(token),
+      headers: getTPOSHeaders(token),
     });
     
     if (!response.ok) {
@@ -547,7 +506,7 @@ export async function updateTPOSProductDetails(
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: await getTPOSHeaders(token),
+      headers: getTPOSHeaders(token),
       body: JSON.stringify(cleanedPayload)
     });
     
@@ -571,287 +530,6 @@ export async function updateTPOSProductDetails(
     console.log(`✅ [Fetch & Edit] Product updated successfully:`, data);
     
     return data;
-  }, 'tpos');
-}
-
-// =====================================================
-// STOCK CHANGE FUNCTIONS - OData Direct Update
-// =====================================================
-
-/**
- * Lấy chi tiết một variant từ TPOS
- * Endpoint: GET /odata/Product({Id})?$expand=...
- * 
- * @param variantId - ID của variant (Product ID, không phải ProductTemplate ID)
- * @returns Chi tiết đầy đủ của variant
- */
-export async function getVariantDetails(variantId: number): Promise<any> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
-    await randomDelay(200, 600);
-    
-    const url = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
-    
-    console.log(`📦 [Change Size] Fetching variant details: ${variantId}`);
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: await getTPOSHeaders(token),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Failed to fetch variant ${variantId}:`, errorText);
-      throw new Error(`Failed to fetch variant: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(`✅ Fetched variant ${variantId}:`, data.DefaultCode, `Qty: ${data.QtyAvailable}`);
-    
-    return data;
-  }, 'tpos');
-}
-
-/**
- * Cập nhật stock của một variant
- * Endpoint: POST /odata/Product/ODataService.UpdateV2
- * 
- * ⚠️ QUAN TRỌNG: Phải truyền FULL variant data, chỉ thay đổi QtyAvailable
- * 
- * @param variantId - ID của variant
- * @param newQty - Số lượng mới
- * @param fullVariantData - Dữ liệu đầy đủ của variant (từ getVariantDetails)
- * @returns Response từ TPOS
- */
-export async function updateVariantStock(
-  variantId: number, 
-  newQty: number,
-  fullVariantData: any
-): Promise<any> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
-    await randomDelay(200, 600);
-    
-    const url = 'https://tomato.tpos.vn/odata/Product/ODataService.UpdateV2';
-    
-    // ✅ Clone full data và chỉ update QtyAvailable
-    const payload = {
-      ...fullVariantData,
-      QtyAvailable: newQty,
-      VirtualAvailable: newQty  // Đồng bộ cả VirtualAvailable
-    };
-    
-    // Remove expanded fields (TPOS không cho phép gửi lại)
-    delete payload.UOM;
-    delete payload.Categ;
-    delete payload.UOMPO;
-    delete payload.POSCateg;
-    delete payload.AttributeValues;
-    
-    console.log(`📤 [Change Size] Updating variant ${variantId}: ${fullVariantData.DefaultCode}`);
-    console.log(`   Old Qty: ${fullVariantData.QtyAvailable} → New Qty: ${newQty}`);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: await getTPOSHeaders(token),
-      body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Failed to update variant ${variantId}:`, errorText);
-      throw new Error(`Failed to update stock: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    console.log(`✅ Successfully updated variant ${variantId} stock to ${newQty}`);
-    
-    return data;
-  }, 'tpos');
-}
-
-// =====================================================
-// DEPRECATED STOCK CHANGE FUNCTIONS (using /api/stock-change-*)
-// These functions are kept for reference but should not be used
-// =====================================================
-
-/**
- * @deprecated Use getVariantDetails + updateVariantStock instead
- * Step 1: Lấy template để thay đổi số lượng tồn kho
- * POST https://tomato.tpos.vn/api/stock-change-get-template
- * 
- * @param productTmplId - ID của product template (sản phẩm cha)
- * @returns Array of stock change items cho từng variant và location
- */
-export async function getStockChangeTemplate(
-  productTmplId: number
-): Promise<StockChangeItem[]> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
-    await randomDelay(200, 600);
-    
-    const url = 'https://tomato.tpos.vn/api/stock-change-get-template';
-    
-    console.log(`📋 [Stock Change] Step 1: Getting template for ProductTmplId: ${productTmplId}`);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: await getTPOSHeaders(token),
-      body: JSON.stringify({
-        model: {
-          ProductTmplId: productTmplId
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Get template failed:`, errorText);
-      throw new Error(`Failed to get stock change template: ${response.status}`);
-    }
-    
-    const data: StockChangeTemplateResponse = await response.json();
-    
-    // Response có dạng { value: [...] }
-    if (!data.value || !Array.isArray(data.value)) {
-      throw new Error("Invalid response format from TPOS");
-    }
-    
-    console.log(`✅ [Stock Change] Template received:`, {
-      totalItems: data.value.length,
-      items: data.value.map(item => ({
-        variantId: item.Product.Id,
-        code: item.Product.DefaultCode,
-        locationId: item.LocationId,
-        currentQty: item.TheoreticalQuantity
-      }))
-    });
-    
-    return data.value;
-  }, 'tpos');
-}
-
-/**
- * @deprecated Use getVariantDetails + updateVariantStock instead
- * Step 2: Gửi số lượng đã thay đổi lên TPOS
- * POST https://tomato.tpos.vn/api/stock-change-post-qty
- * 
- * @param items - Array of modified stock change items
- */
-export async function postStockChangeQuantity(
-  items: StockChangeItem[]
-): Promise<any> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
-    await randomDelay(200, 600);
-    
-    const url = 'https://tomato.tpos.vn/api/stock-change-post-qty';
-    
-    console.log(`📤 [Stock Change] Step 2: Posting quantity changes...`);
-    console.log(`📋 [Stock Change] Modified items:`, items.map(item => ({
-      variantId: item.Product.Id,
-      code: item.Product.DefaultCode,
-      locationId: item.LocationId,
-      oldQty: item.TheoreticalQuantity,
-      newQty: item.NewQuantity,
-      diff: item.NewQuantity - item.TheoreticalQuantity
-    })));
-    
-    const payload: StockChangePostPayload = {
-      model: items
-    };
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: await getTPOSHeaders(token),
-      body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Post quantity failed:`, errorText);
-      throw new Error(`Failed to post stock changes: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(`✅ [Stock Change] Quantities posted successfully, response:`, data);
-    
-    return data;
-  }, 'tpos');
-}
-
-/**
- * @deprecated Use getVariantDetails + updateVariantStock instead
- * Step 3: Thực thi việc thay đổi số lượng
- * POST https://tomato.tpos.vn/api/stock-change-execute
- * 
- * @param productTmplId - ID của product template
- */
-export async function executeStockChange(
-  postQtyResponse: any
-): Promise<void> {
-  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
-  return queryWithAutoRefresh(async () => {
-    const token = await getActiveTPOSToken();
-    if (!token) {
-      throw new Error("TPOS Bearer Token not found");
-    }
-    
-    await randomDelay(200, 600);
-    
-    const url = 'https://tomato.tpos.vn/api/stock-change-execute';
-    
-    // Extract IDs from Step 2 response
-    if (!postQtyResponse || !Array.isArray(postQtyResponse.value) || postQtyResponse.value.length === 0) {
-      throw new Error("Không thể lấy IDs từ response của bước đăng tải số lượng.");
-    }
-    
-    const idsToExecute = postQtyResponse.value.map((item: any) => item.Id);
-    
-    console.log(`✅ [Stock Change] Step 3: Executing stock change for IDs:`, idsToExecute);
-    
-    const payload: StockChangeExecutePayload = {
-      ids: idsToExecute
-    };
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: await getTPOSHeaders(token),
-      body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [Stock Change] Execute failed:`, errorText);
-      throw new Error(`Failed to execute stock change: ${response.status}`);
-    }
-    
-    console.log(`✅ [Stock Change] Stock change executed successfully`);
   }, 'tpos');
 }
 
