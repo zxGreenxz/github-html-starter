@@ -14,6 +14,7 @@ import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
 import { SearchProductForTransferDialog } from "@/components/products/SearchProductForTransferDialog";
+import { QuantityTransferDialog } from "@/components/products/QuantityTransferDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -34,6 +35,7 @@ export default function Products() {
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
   const [isSearchTransferOpen, setIsSearchTransferOpen] = useState(false);
+  const [isQuantityTransferOpen, setIsQuantityTransferOpen] = useState(false);
   const [selectedProductForTransfer, setSelectedProductForTransfer] = useState<TPOSProductFullDetails | null>(null);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
@@ -120,8 +122,7 @@ export default function Products() {
   const handleProductSelectedForTransfer = (productDetails: TPOSProductFullDetails) => {
     console.log("📦 [Products] Product selected for transfer:", productDetails);
     setSelectedProductForTransfer(productDetails);
-    // TODO: Open QuantityTransferDialog in Step 2
-    toast.success(`Đã chọn sản phẩm: ${productDetails.Name}. Bước 2 sẽ được hiện thực sau.`);
+    setIsQuantityTransferOpen(true);
   };
 
   return (
@@ -294,11 +295,22 @@ export default function Products() {
           onOpenChange={setIsFetchTPOSDialogOpen}
         />
 
-        <SearchProductForTransferDialog
-          open={isSearchTransferOpen}
-          onOpenChange={setIsSearchTransferOpen}
-          onProductSelected={handleProductSelectedForTransfer}
-        />
+      <SearchProductForTransferDialog
+        open={isSearchTransferOpen}
+        onOpenChange={setIsSearchTransferOpen}
+        onProductSelected={handleProductSelectedForTransfer}
+      />
+
+      <QuantityTransferDialog
+        open={isQuantityTransferOpen}
+        onOpenChange={setIsQuantityTransferOpen}
+        productDetails={selectedProductForTransfer}
+        onSuccess={() => {
+          refetch();
+          setIsQuantityTransferOpen(false);
+          setSelectedProductForTransfer(null);
+        }}
+      />
       </div>
     </div>
   );
