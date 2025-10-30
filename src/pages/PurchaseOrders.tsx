@@ -747,9 +747,29 @@ const PurchaseOrders = () => {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Xóa đã chọn
                       </Button>
+                      <Button onClick={handleExportPurchaseExcel} variant="outline" size="sm">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Xuất Excel Mua hàng
+                      </Button>
+                      <Button onClick={handleExportExcel} variant="outline" size="sm">
+                        <Download className="w-4 h-4 mr-2" />
+                        Xuất Excel Thêm SP
+                      </Button>
                     </div>
                   </div>
                 )}
+
+                {/* Regular export actions */}
+                <div className="flex gap-2">
+                  <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    Xuất Excel mua hàng
+                  </Button>
+                  <Button onClick={handleExportExcel} variant="outline" className="gap-2">
+                    <Download className="w-4 h-4" />
+                    Xuất Excel Thêm SP
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
