@@ -1156,6 +1156,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     if (!sourceItem.product_code) return;
 
     const fieldsToApply: (keyof PurchaseOrderItem)[] = [
+      'product_name',
       'purchase_price',
       'selling_price', 
       'product_images',
@@ -1167,6 +1168,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (item.product_code === sourceItem.product_code && idx !== sourceIndex) {
         const updated = { 
           ...item,
+          product_name: sourceItem.product_name,
           purchase_price: sourceItem.purchase_price,
           selling_price: sourceItem.selling_price,
           product_images: [...(sourceItem.product_images || [])],
@@ -1186,7 +1188,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     const variantCount = items.filter(i => i.product_code === sourceItem.product_code).length;
     toast({
       title: "✅ Đã áp dụng cho tất cả biến thể",
-      description: `Đã cập nhật ${variantCount} dòng: giá mua, giá bán, hình ảnh`,
+      description: `Đã cập nhật ${variantCount} dòng: tên, giá mua, giá bán, hình ảnh`,
     });
   };
 

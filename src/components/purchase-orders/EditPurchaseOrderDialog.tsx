@@ -614,6 +614,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     if (!sourceItem._tempProductCode) return;
 
     const fieldsToApply: (keyof PurchaseOrderItem)[] = [
+      '_tempProductName',
       '_tempUnitPrice',
       '_tempSellingPrice', 
       '_tempProductImages',
@@ -625,6 +626,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       if (item._tempProductCode === sourceItem._tempProductCode && idx !== sourceIndex) {
         const updated = { 
           ...item,
+          _tempProductName: sourceItem._tempProductName,
           _tempUnitPrice: sourceItem._tempUnitPrice,
           _tempSellingPrice: sourceItem._tempSellingPrice,
           _tempProductImages: [...(sourceItem._tempProductImages || [])],
@@ -644,7 +646,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     const variantCount = items.filter(i => i._tempProductCode === sourceItem._tempProductCode).length;
     toast({
       title: "✅ Đã áp dụng cho tất cả biến thể",
-      description: `Đã cập nhật ${variantCount} dòng: giá mua, giá bán, hình ảnh`,
+      description: `Đã cập nhật ${variantCount} dòng: tên, giá mua, giá bán, hình ảnh`,
     });
   };
 
