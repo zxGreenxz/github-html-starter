@@ -131,7 +131,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [isVariantGeneratorOpen, setIsVariantGeneratorOpen] = useState(false);
   const [variantGeneratorIndex, setVariantGeneratorIndex] = useState<number | null>(null);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [showDebugColumn, setShowDebugColumn] = useState(false);
@@ -1219,41 +1218,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
         <DialogHeader className="flex flex-row items-center justify-between pr-10 px-6 pt-6 shrink-0">
           <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
-          <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">
-                <RotateCcw className="w-4 h-4" />
-                Clear
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Xóa toàn bộ dữ liệu?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Bạn có chắc muốn xóa toàn bộ dữ liệu đã nhập? Hành động này không thể hoàn tác.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Hủy</AlertDialogCancel>
-                <AlertDialogAction onClick={async () => {
-                  // 🧹 Cleanup ALL reservations before clearing
-                  if (user?.id) {
-                    const codes = items.map(i => i.product_code).filter(Boolean);
-                    await cleanupReservations(codes, user.id);
-                    console.log(`🧹 Cleaned ${codes.length} reservations before clear`);
-                  }
-                  resetForm();
-                  setShowClearConfirm(false);
-                }}>
-                  Xóa
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </DialogHeader>
 
         {/* Fixed Header Section */}
-        <div className="shrink-0 px-6 pt-4 space-y-4">
+        <div className="shrink-0 px-6 pt-1 space-y-4">
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="supplier">Nhà cung cấp *</Label>
