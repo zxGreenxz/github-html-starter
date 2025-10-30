@@ -575,10 +575,120 @@ export async function updateTPOSProductDetails(
 }
 
 // =====================================================
-// STOCK CHANGE FUNCTIONS
+// STOCK CHANGE FUNCTIONS - OData Direct Update
 // =====================================================
 
 /**
+ * Lấy chi tiết một variant từ TPOS
+ * Endpoint: GET /odata/Product({Id})?$expand=...
+ * 
+ * @param variantId - ID của variant (Product ID, không phải ProductTemplate ID)
+ * @returns Chi tiết đầy đủ của variant
+ */
+export async function getVariantDetails(variantId: number): Promise<any> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found");
+    }
+    
+    await randomDelay(200, 600);
+    
+    const url = `https://tomato.tpos.vn/odata/Product(${variantId})?$expand=UOM,Categ,UOMPO,POSCateg,AttributeValues`;
+    
+    console.log(`📦 [Change Size] Fetching variant details: ${variantId}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: await getTPOSHeaders(token),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch variant ${variantId}:`, errorText);
+      throw new Error(`Failed to fetch variant: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Fetched variant ${variantId}:`, data.DefaultCode, `Qty: ${data.QtyAvailable}`);
+    
+    return data;
+  }, 'tpos');
+}
+
+/**
+ * Cập nhật stock của một variant
+ * Endpoint: POST /odata/Product/ODataService.UpdateV2
+ * 
+ * ⚠️ QUAN TRỌNG: Phải truyền FULL variant data, chỉ thay đổi QtyAvailable
+ * 
+ * @param variantId - ID của variant
+ * @param newQty - Số lượng mới
+ * @param fullVariantData - Dữ liệu đầy đủ của variant (từ getVariantDetails)
+ * @returns Response từ TPOS
+ */
+export async function updateVariantStock(
+  variantId: number, 
+  newQty: number,
+  fullVariantData: any
+): Promise<any> {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found");
+    }
+    
+    await randomDelay(200, 600);
+    
+    const url = 'https://tomato.tpos.vn/odata/Product/ODataService.UpdateV2';
+    
+    // ✅ Clone full data và chỉ update QtyAvailable
+    const payload = {
+      ...fullVariantData,
+      QtyAvailable: newQty,
+      VirtualAvailable: newQty  // Đồng bộ cả VirtualAvailable
+    };
+    
+    // Remove expanded fields (TPOS không cho phép gửi lại)
+    delete payload.UOM;
+    delete payload.Categ;
+    delete payload.UOMPO;
+    delete payload.POSCateg;
+    delete payload.AttributeValues;
+    
+    console.log(`📤 [Change Size] Updating variant ${variantId}: ${fullVariantData.DefaultCode}`);
+    console.log(`   Old Qty: ${fullVariantData.QtyAvailable} → New Qty: ${newQty}`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: await getTPOSHeaders(token),
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to update variant ${variantId}:`, errorText);
+      throw new Error(`Failed to update stock: ${response.status} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Successfully updated variant ${variantId} stock to ${newQty}`);
+    
+    return data;
+  }, 'tpos');
+}
+
+// =====================================================
+// DEPRECATED STOCK CHANGE FUNCTIONS (using /api/stock-change-*)
+// These functions are kept for reference but should not be used
+// =====================================================
+
+/**
+ * @deprecated Use getVariantDetails + updateVariantStock instead
  * Step 1: Lấy template để thay đổi số lượng tồn kho
  * POST https://tomato.tpos.vn/api/stock-change-get-template
  * 
@@ -640,6 +750,7 @@ export async function getStockChangeTemplate(
 }
 
 /**
+ * @deprecated Use getVariantDetails + updateVariantStock instead
  * Step 2: Gửi số lượng đã thay đổi lên TPOS
  * POST https://tomato.tpos.vn/api/stock-change-post-qty
  * 
@@ -694,6 +805,7 @@ export async function postStockChangeQuantity(
 }
 
 /**
+ * @deprecated Use getVariantDetails + updateVariantStock instead
  * Step 3: Thực thi việc thay đổi số lượng
  * POST https://tomato.tpos.vn/api/stock-change-execute
  * 

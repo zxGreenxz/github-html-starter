@@ -17,11 +17,9 @@ import { formatVND } from "@/lib/currency-utils";
 import {
   searchTPOSProductByCode,
   getTPOSProductFullDetails,
-  getStockChangeTemplate,
-  postStockChangeQuantity,
-  executeStockChange,
-  type TPOSProductFullDetails,
-  type StockChangeItem
+  getVariantDetails,
+  updateVariantStock,
+  type TPOSProductFullDetails
 } from "@/lib/tpos-api";
 
 interface ChangeSizeDialogProps {
@@ -215,7 +213,7 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
     setVariantANewQty(newQtyA);
   };
   
-  // === SUBMIT: Save stock change ===
+  // === SUBMIT: Save stock change via OData ===
   const handleSubmit = async () => {
     // ✅ Validation 1: Đã chọn sản phẩm
     if (!fetchedProduct) {
@@ -245,51 +243,29 @@ export function ChangeSizeDialog({ open, onOpenChange }: ChangeSizeDialogProps) 
     setIsSubmitting(true);
     
     try {
-      console.log(`📋 [Change Size] Step 1: Getting stock template for ProductTmplId: ${fetchedProduct.Id}`);
+      console.log(`🔄 [Change Size] Starting stock update via OData...`);
       
-      // ✅ Step 1: Lấy template TRƯỚC KHI post (giống file mẫu)
-      const template = await getStockChangeTemplate(fetchedProduct.Id);
+      // ✅ Step 1: Fetch full details của cả 2 variants
+      console.log(`📦 [Change Size] Step 1: Fetching variant details...`);
+      const [variantADetails, variantBDetails] = await Promise.all([
+        getVariantDetails(variantAId),
+        getVariantDetails(variantBId)
+      ]);
       
-      console.log(`📤 [Change Size] Step 2: Modifying template with new quantities`);
-      
-      // ✅ Step 2: Modify template
-      const modifiedItems = template.map(item => {
-        // Chỉ update LocationId = 12 (kho chính)
-        if (item.LocationId === 12) {
-          if (item.Product.Id === variantAId) {
-            return { ...item, NewQuantity: variantANewQty };
-          }
-          if (item.Product.Id === variantBId) {
-            return { ...item, NewQuantity: variantBNewQty };
-          }
-        }
-        return item;
+      console.log(`✅ Fetched details:`, {
+        variantA: `${variantADetails.DefaultCode} (Current: ${variantADetails.QtyAvailable})`,
+        variantB: `${variantBDetails.DefaultCode} (Current: ${variantBDetails.QtyAvailable})`
       });
       
-      console.log(`📤 [Change Size] Step 3: Posting quantity changes:`, {
-        variantA: {
-          id: variantAId,
-          code: variantA?.DefaultCode,
-          original: variantAOriginalQty,
-          new: variantANewQty,
-          diff: variantANewQty - variantAOriginalQty
-        },
-        variantB: {
-          id: variantBId,
-          code: variantB?.DefaultCode,
-          original: variantBOriginalQty,
-          new: variantBNewQty,
-          diff: variantBNewQty - variantBOriginalQty
-        }
-      });
+      // ✅ Step 2: Update cả 2 variants
+      console.log(`📤 [Change Size] Step 2: Updating stock quantities...`);
+      console.log(`   Variant A: ${variantADetails.QtyAvailable} → ${variantANewQty} (${variantANewQty - variantADetails.QtyAvailable > 0 ? '+' : ''}${variantANewQty - variantADetails.QtyAvailable})`);
+      console.log(`   Variant B: ${variantBDetails.QtyAvailable} → ${variantBNewQty} (${variantBNewQty - variantBDetails.QtyAvailable > 0 ? '+' : ''}${variantBNewQty - variantBDetails.QtyAvailable})`);
       
-      // ✅ Step 3: Post changes
-      const postResponse = await postStockChangeQuantity(modifiedItems);
-      
-      console.log(`✅ [Change Size] Step 4: Executing stock change`);
-      
-      // ✅ Step 4: Execute
-      await executeStockChange(postResponse);
+      await Promise.all([
+        updateVariantStock(variantAId, variantANewQty, variantADetails),
+        updateVariantStock(variantBId, variantBNewQty, variantBDetails)
+      ]);
       
       toast.success(`✅ Đã chuyển ${totalChange} sản phẩm thành công!`);
       
