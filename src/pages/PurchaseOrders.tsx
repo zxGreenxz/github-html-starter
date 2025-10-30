@@ -107,6 +107,12 @@ const PurchaseOrders = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string>("all");
 
+  // Filter states for drafts tab
+  const [searchTermDraft, setSearchTermDraft] = useState("");
+  const [dateFromDraft, setDateFromDraft] = useState<Date | undefined>(undefined);
+  const [dateToDraft, setDateToDraft] = useState<Date | undefined>(undefined);
+  const [quickFilterDraft, setQuickFilterDraft] = useState<string>("all");
+
   const applyQuickFilter = (filterType: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -151,6 +157,52 @@ const PurchaseOrders = () => {
         break;
     }
     setQuickFilter(filterType);
+  };
+
+  const applyQuickFilterDraft = (filterType: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    switch(filterType) {
+      case "today":
+        setDateFromDraft(today);
+        setDateToDraft(new Date());
+        break;
+      case "yesterday":
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        setDateFromDraft(yesterday);
+        setDateToDraft(yesterday);
+        break;
+      case "7days":
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        setDateFromDraft(sevenDaysAgo);
+        setDateToDraft(new Date());
+        break;
+      case "30days":
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        setDateFromDraft(thirtyDaysAgo);
+        setDateToDraft(new Date());
+        break;
+      case "thisMonth":
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        setDateFromDraft(firstDayOfMonth);
+        setDateToDraft(new Date());
+        break;
+      case "lastMonth":
+        const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+        setDateFromDraft(firstDayOfLastMonth);
+        setDateToDraft(lastDayOfLastMonth);
+        break;
+      case "all":
+        setDateFromDraft(undefined);
+        setDateToDraft(undefined);
+        break;
+    }
+    setQuickFilterDraft(filterType);
   };
 
   // Data fetching moved from PurchaseOrderList - OPTIMIZED to reduce queries
@@ -263,6 +315,40 @@ const PurchaseOrders = () => {
   const draftOrders = orders?.filter(order => order.status === 'draft') || [];
   // Always exclude draft orders from the main orders tab
   const activeOrders = filteredOrders.filter(order => order.status !== 'draft');
+
+  // Filtering logic for draft orders
+  const filteredDraftOrders = draftOrders.filter(order => {
+    // Date range filter
+    if (dateFromDraft || dateToDraft) {
+      const orderDate = new Date(order.created_at);
+      orderDate.setHours(0, 0, 0, 0);
+      
+      if (dateFromDraft) {
+        const fromDate = new Date(dateFromDraft);
+        fromDate.setHours(0, 0, 0, 0);
+        if (orderDate < fromDate) return false;
+      }
+      
+      if (dateToDraft) {
+        const toDate = new Date(dateToDraft);
+        toDate.setHours(23, 59, 59, 999);
+        if (orderDate > toDate) return false;
+      }
+    }
+    
+    // Search filter
+    const matchesSearch = searchTermDraft === "" || 
+      order.supplier_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+      order.invoice_number?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+      format(new Date(order.created_at), "dd/MM").includes(searchTermDraft) ||
+      format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTermDraft) ||
+      order.items?.some(item => 
+        item.product_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+        item.product_code?.toLowerCase().includes(searchTermDraft.toLowerCase())
+      );
+    
+    return matchesSearch;
+  });
 
   const handleEditDraft = (order: PurchaseOrder) => {
     setDraftToEdit(order);
@@ -690,18 +776,18 @@ const PurchaseOrders = () => {
             </CardHeader>
             <CardContent>
               <PurchaseOrderList
-                filteredOrders={draftOrders}
+                filteredOrders={filteredDraftOrders}
                 isLoading={isLoading}
-                searchTerm=""
-                setSearchTerm={() => {}}
+                searchTerm={searchTermDraft}
+                setSearchTerm={setSearchTermDraft}
                 statusFilter="all"
                 setStatusFilter={() => {}}
-                dateFrom={undefined}
-                setDateFrom={() => {}}
-                dateTo={undefined}
-                setDateTo={() => {}}
-                quickFilter="all"
-                applyQuickFilter={() => {}}
+                dateFrom={dateFromDraft}
+                setDateFrom={setDateFromDraft}
+                dateTo={dateToDraft}
+                setDateTo={setDateToDraft}
+                quickFilter={quickFilterDraft}
+                applyQuickFilter={applyQuickFilterDraft}
                 selectedOrders={[]}
                 onToggleSelect={() => {}}
                 onToggleSelectAll={() => {}}
