@@ -100,21 +100,13 @@ export function cleanBase64(base64String: string | null | undefined): string | n
 export function getTPOSHeaders(bearerToken: string) {
   return {
     accept: "application/json, text/plain, */*",
-    "accept-encoding": "gzip, deflate, br",
-    "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+    "accept-language": navigator.language || "vi-VN,vi;q=0.9",
     "content-type": "application/json;charset=UTF-8",
     authorization: `Bearer ${bearerToken}`,
     "x-tpos-lang": "vi",
     origin: "https://tomato.tpos.vn",
     referer: "https://tomato.tpos.vn/",
-    "sec-ch-ua": '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    tposappversion: "5.9.10.1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "user-agent": navigator.userAgent,
     "x-request-id": generateRandomId(),
   };
 }
