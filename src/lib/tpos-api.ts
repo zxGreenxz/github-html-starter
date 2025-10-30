@@ -598,7 +598,7 @@ export async function getStockChangeTemplate(
     
     await randomDelay(200, 600);
     
-    const url = 'https://tomato.tpos.vn/api/stock-change-get-template';
+    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-get-template`;
     
     console.log(`📋 [Stock Change] Step 1: Getting template for ProductTmplId: ${productTmplId}`);
     
@@ -658,7 +658,7 @@ export async function postStockChangeQuantity(
     
     await randomDelay(200, 600);
     
-    const url = 'https://tomato.tpos.vn/api/stock-change-post-qty';
+    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-post-qty`;
     
     console.log(`📤 [Stock Change] Step 2: Posting quantity changes...`);
     console.log(`📋 [Stock Change] Modified items:`, items.map(item => ({
@@ -709,7 +709,7 @@ export async function executeStockChange(
     
     await randomDelay(200, 600);
     
-    const url = 'https://tomato.tpos.vn/api/stock-change-execute';
+    const url = `${TPOS_CONFIG.API_BASE_ROOT}/api/stock-change-execute`;
     
     console.log(`✅ [Stock Change] Step 3: Executing stock change for ProductTmplId: ${productTmplId}`);
     
