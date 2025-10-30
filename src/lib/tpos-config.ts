@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const TPOS_CONFIG = {
   API_BASE: "https://tomato.tpos.vn/odata/ProductTemplate",
+  API_BASE_ROOT: "https://tomato.tpos.vn",
   
   // Upload settings
   CONCURRENT_UPLOADS: 3,
