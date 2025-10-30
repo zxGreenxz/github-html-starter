@@ -201,14 +201,12 @@ export interface TPOSProductFullDetails {
  */
 export interface TPOSProductVariantDetail {
   Id: number;
-  ProductIdBienThe: number;
   Name: string;
   NameGet: string; // ✅ Thêm field NameGet để hiển thị tên biến thể
   DefaultCode: string;
   Barcode: string | null;
   QtyAvailable: number;
-  VirtualAvailable?: number; // ✅ Thêm field này theo file mẫu
-  QtyForecast: number;
+  VirtualAvailable?: number;
   ListPrice: number;
   PurchasePrice: number;
   StandardPrice: number;
@@ -452,7 +450,7 @@ export async function getTPOSProductFullDetails(
     
     await randomDelay(200, 600);
     
-    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues;$select=Id,Name,NameGet,DefaultCode,Barcode,ListPrice,StandardPrice,PurchasePrice,QtyAvailable,VirtualAvailable,QtyForecast,Active,ProductIdBienThe,UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
+    const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues;$select=Id,Name,NameGet,DefaultCode,Barcode,ListPrice,StandardPrice,PurchasePrice,QtyAvailable,VirtualAvailable,Active,UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
     
     console.log(`📦 [Fetch & Edit] Fetching full details for product ID: ${productId}`);
     
