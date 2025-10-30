@@ -792,6 +792,7 @@ const PurchaseOrders = () => {
                 onToggleSelect={() => {}}
                 onToggleSelectAll={() => {}}
                 onEditDraft={handleEditDraft}
+                hideStatusFilter={true}
               />
             </CardContent>
           </Card>

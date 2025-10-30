@@ -77,6 +77,7 @@ interface PurchaseOrderListProps {
   onToggleSelect: (orderId: string) => void;
   onToggleSelectAll: () => void;
   onEditDraft?: (order: PurchaseOrder) => void;
+  hideStatusFilter?: boolean;
 }
 
 export function PurchaseOrderList({
@@ -96,6 +97,7 @@ export function PurchaseOrderList({
   onToggleSelect,
   onToggleSelectAll,
   onEditDraft,
+  hideStatusFilter = false,
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -530,17 +532,19 @@ export function PurchaseOrderList({
               className="pl-10"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Lọc theo trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              <SelectItem value="pending">Chờ Hàng</SelectItem>
-              <SelectItem value="received">Đã Nhận Hàng</SelectItem>
-            </SelectContent>
-          </Select>
+          {!hideStatusFilter && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Lọc theo trạng thái" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="pending">Chờ Hàng</SelectItem>
+                <SelectItem value="received">Đã Nhận Hàng</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
