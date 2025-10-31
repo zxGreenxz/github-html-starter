@@ -227,6 +227,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (!item.selling_price || Number(item.selling_price) <= 0) {
         invalidFields.push(`Dòng ${i + 1}: Giá bán phải > 0`);
       }
+      // Check selling price > purchase price
+      if (Number(item.selling_price) <= Number(item.purchase_price)) {
+        invalidFields.push(`Dòng ${i + 1}: Giá bán (${formatVND(Number(item.selling_price) * 1000)}) phải lớn hơn giá mua (${formatVND(Number(item.purchase_price) * 1000)})`);
+      }
       if (!item.product_images || item.product_images.length === 0) {
         invalidFields.push(`Dòng ${i + 1}: Thiếu hình ảnh sản phẩm`);
       }
@@ -414,6 +418,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         // Kiểm tra Giá bán
         if (!item.selling_price || Number(item.selling_price) <= 0) {
           validationErrors.push(`Dòng ${itemNumber}: Thiếu hoặc không hợp lệ Giá bán`);
+        }
+        
+        // Kiểm tra Giá bán > Giá mua
+        if (Number(item.selling_price) <= Number(item.purchase_price)) {
+          validationErrors.push(`Dòng ${itemNumber}: Giá bán (${formatVND(Number(item.selling_price) * 1000)}) phải lớn hơn giá mua (${formatVND(Number(item.purchase_price) * 1000)})`);
         }
       });
 
@@ -1484,7 +1493,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           value={item.selling_price === 0 || item.selling_price === "" ? "" : item.selling_price}
                           onChange={(e) => updateItem(index, "selling_price", parseNumberInput(e.target.value))}
                           className={`border-0 shadow-none focus-visible:ring-0 p-2 text-right w-[90px] text-sm ${
-                            (item.selling_price === 0 || item.selling_price === "") 
+                            (item.selling_price === 0 || item.selling_price === "") ||
+                            (Number(item.selling_price) <= Number(item.purchase_price))
                               ? 'ring-2 ring-red-500 ring-inset' 
                               : ''
                           }`}
