@@ -48,15 +48,27 @@ function parsePriceAndMultiply(price: string | number): number {
   return Math.round(parsedPrice * 1000);
 }
 
-// Convert image URL to base64
+/**
+ * Load image from URL and convert to base64
+ */
 async function imageUrlToBase64(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    return base64;
+    const blob = await response.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        // Remove data:image/...;base64, prefix
+        const base64Data = base64.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   } catch (error) {
     console.error('Error converting image to base64:', error);
     return null;
