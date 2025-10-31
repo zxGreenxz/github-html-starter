@@ -414,6 +414,27 @@ serve(async (req) => {
       if (!tposResponse.ok) {
         const errorText = await tposResponse.text();
         console.error('TPOS API Error:', errorText);
+        
+        // Check if error is due to duplicate product (already exists)
+        const isDuplicateError = errorText.includes('đã tồn tại') || 
+                                 errorText.includes('already exists') ||
+                                 errorText.includes('Đã có sản phẩm với mã vạch');
+        
+        if (isDuplicateError && tposResponse.status === 400) {
+          console.warn(`⚠️ Product ${baseProductCode} already exists on TPOS, treating as success`);
+          
+          // Return success response (product already exists = success)
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: `✅ Sản phẩm ${baseProductCode} đã tồn tại trên TPOS`,
+              product_code: baseProductCode,
+              already_exists: true
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
+        
         throw new Error(`TPOS API error: ${tposResponse.status} - ${errorText}`);
       }
 
@@ -874,6 +895,28 @@ serve(async (req) => {
     if (!tposResponse.ok) {
       const errorText = await tposResponse.text();
       console.error('TPOS API Error:', errorText);
+      
+      // Check if error is due to duplicate product (already exists)
+      const isDuplicateError = errorText.includes('đã tồn tại') || 
+                               errorText.includes('already exists') ||
+                               errorText.includes('Đã có sản phẩm với mã vạch');
+      
+      if (isDuplicateError && tposResponse.status === 400) {
+        console.warn(`⚠️ Product ${baseProductCode} already exists on TPOS, treating as success`);
+        
+        // Return success response (product already exists = success)
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: `✅ Sản phẩm ${baseProductCode} đã tồn tại trên TPOS`,
+            product_code: baseProductCode,
+            variant_count: productVariants.length,
+            already_exists: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+      
       throw new Error(`TPOS API error: ${tposResponse.status} - ${errorText}`);
     }
 
