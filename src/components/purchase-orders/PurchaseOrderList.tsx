@@ -234,7 +234,7 @@ export function PurchaseOrderList({
 
   // Query sync status for all orders
   const { data: syncStatusMap } = useQuery({
-    queryKey: ['order-sync-status'], // ✅ STEP 4: Simplified key for selective invalidation
+    queryKey: ['order-sync-status', filteredOrders.map(o => o.id)],
     queryFn: async () => {
       const orderIds = filteredOrders.map(o => o.id);
       if (orderIds.length === 0) return {};
@@ -257,8 +257,8 @@ export function PurchaseOrderList({
 
       return statusMap;
     },
-    enabled: filteredOrders.length > 0
-    // ✅ Uses realtime subscription instead of polling (see RealtimeProvider.tsx)
+    enabled: filteredOrders.length > 0,
+    refetchInterval: 3000 // Auto-refetch every 3 seconds to update processing status
   });
 
   // Helper function to check if order is currently being processed

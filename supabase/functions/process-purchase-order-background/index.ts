@@ -44,37 +44,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 🔒 STEP 1: LOCK ROW IMMEDIATELY when function starts
-    console.log(`🔒 Locking order ${purchase_order_id} by setting items to 'processing'...`);
-
-    const { error: lockError } = await supabase
-      .from('purchase_order_items')
-      .update({ 
-        tpos_sync_status: 'processing',
-        tpos_sync_started_at: new Date().toISOString()
-      })
-      .eq('purchase_order_id', purchase_order_id)
-      .in('tpos_sync_status', ['pending', 'failed']); // Only lock items not yet processed
-
-    if (lockError) {
-      console.error('❌ Failed to lock order:', lockError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Failed to lock order: ${lockError.message}` 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
-    }
-
-    console.log(`✅ Order locked, UI should disable row now`);
-
-    // Fetch items that were just locked to 'processing'
+    // Fetch items with status filter (pending or failed only)
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')
       .select('*')
       .eq('purchase_order_id', purchase_order_id)
-      .eq('tpos_sync_status', 'processing') // Query items that were just locked above
+      .in('tpos_sync_status', ['pending', 'failed'])
       .order('position');
 
     if (itemsError) {
@@ -122,7 +97,27 @@ Deno.serve(async (req) => {
       const primaryItem = groupItems[0]; // Use first item as representative
       console.log(`\n🔄 Processing group: ${groupKey} (${groupItems.length} items)`);
 
-      // Items already locked globally at line 50-57, proceed with processing
+      // 🔒 LOCK CHECK: Skip if already processing (check primary item)
+      if (primaryItem.tpos_sync_status === 'processing') {
+        console.log(`⚠️ Group ${groupKey} is already being processed, skipping...`);
+        continue;
+      }
+
+      // Mark ALL items in group as 'processing' (atomic operation with race condition protection)
+      const { error: updateError } = await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'processing',
+          tpos_sync_started_at: new Date().toISOString()
+        })
+        .in('id', groupItems.map(i => i.id))
+        .neq('tpos_sync_status', 'processing'); // ✅ Prevent race condition
+
+      if (updateError) {
+        console.error(`❌ Failed to lock group ${groupKey}:`, updateError);
+        continue; // Skip this group if can't lock
+      }
+
       try {
         // Call TPOS creation ONCE for this group
         const { data: tposResult, error: tposError } = await supabase.functions.invoke(
@@ -150,21 +145,18 @@ Deno.serve(async (req) => {
           throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
         }
 
-        // ✅ TPOS sync success, but keep status = 'processing' until matching completes
-        successCount += groupItems.length;
-        console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items) - Status still 'processing'`);
-        
-        // 🔥 STEP 2: HEARTBEAT - Touch the row to keep UI lock active
+        // ✅ Success: Update ALL items in group
         await supabase
           .from('purchase_order_items')
           .update({ 
-            tpos_sync_started_at: new Date().toISOString() // Update timestamp
+            tpos_sync_status: 'success',
+            tpos_sync_completed_at: new Date().toISOString(),
+            tpos_sync_error: null
           })
-          .in('id', groupItems.map(i => i.id))
-          .eq('tpos_sync_status', 'processing');
+          .in('id', groupItems.map(i => i.id));
 
-        console.log(`📡 Heartbeat sent for ${groupItems.length} items (UI lock remains active)`);
-        // Will update to 'success' AFTER matching completes
+        successCount += groupItems.length;
+        console.log(`✅ Group success: ${groupKey} (${groupItems.length} items)`);
 
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
@@ -249,70 +241,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ✅ FINAL STATUS UPDATE: Only after matching completes
-    console.log(`\n📝 Updating final status after matching completes...`);
-
-    // Get all items that are still 'processing'
-    const { data: processingItems } = await supabase
-      .from('purchase_order_items')
-      .select('id')
-      .eq('purchase_order_id', purchase_order_id)
-      .eq('tpos_sync_status', 'processing');
-
-    if (processingItems && processingItems.length > 0) {
-      // Check if matching was successful
-      if (matchResult?.success) {
-        // ✅ Matching success -> Set all processing items to 'success'
-        const successItemIds = processingItems
-          .filter(item => !failedItems.find(f => f.id === item.id))
-          .map(item => item.id);
-        
-        if (successItemIds.length > 0) {
-          await supabase
-            .from('purchase_order_items')
-            .update({ 
-              tpos_sync_status: 'success',
-              tpos_sync_completed_at: new Date().toISOString(),
-              tpos_sync_error: null
-            })
-            .in('id', successItemIds)
-            .eq('tpos_sync_status', 'processing');
-          
-          console.log(`✅ Matching complete! Set ${successItemIds.length} items to 'success'`);
-        }
-        
-        // Set failed items (if any from TPOS sync)
-        if (failedItems.length > 0) {
-          const failedItemIds = failedItems.map(f => f.id);
-          
-          await supabase
-            .from('purchase_order_items')
-            .update({ 
-              tpos_sync_status: 'failed',
-              tpos_sync_completed_at: new Date().toISOString(),
-              tpos_sync_error: failedItems[0].error
-            })
-            .in('id', failedItemIds)
-            .eq('tpos_sync_status', 'processing');
-          
-          console.log(`❌ Set ${failedItemIds.length} items to 'failed'`);
-        }
-      } else {
-        // ❌ Matching failed after retries -> Set all to 'failed'
-        await supabase
-          .from('purchase_order_items')
-          .update({ 
-            tpos_sync_status: 'failed',
-            tpos_sync_completed_at: new Date().toISOString(),
-            tpos_sync_error: `Matching failed: ${matchResult?.error || 'Unknown error'}`
-          })
-          .in('id', processingItems.map(i => i.id))
-          .eq('tpos_sync_status', 'processing');
-        
-        console.error(`❌ Matching failed, set ${processingItems.length} items to 'failed'`);
-      }
+    // ✅ FINAL STATUS UPDATE: Update status for items that are still 'processing'
+    console.log(`\n📝 Updating final status for items...`);
+    
+    if (failedItems.length > 0) {
+      const failedItemIds = failedItems.map(f => f.id);
+      
+      // Set failed status for items that had TPOS sync errors
+      await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'failed',
+          tpos_sync_completed_at: new Date().toISOString(),
+          tpos_sync_error: failedItems[0].error
+        })
+        .in('id', failedItemIds)
+        .eq('tpos_sync_status', 'processing');
+      
+      console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
     }
-
+    
+    if (!matchResult?.success) {
+      console.warn(`⚠️ Matching failed after retries, but items will remain in current status`);
+    }
+    
     console.log(`✅ Final status update complete`);
 
     // ✅ Return BOTH tpos sync summary AND matching result
