@@ -69,12 +69,12 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Order locked, UI should disable row now`);
 
-    // Fetch items with status filter (pending or failed only)
+    // Fetch items that were just locked to 'processing'
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')
       .select('*')
       .eq('purchase_order_id', purchase_order_id)
-      .in('tpos_sync_status', ['pending', 'failed'])
+      .eq('tpos_sync_status', 'processing') // Query items that were just locked above
       .order('position');
 
     if (itemsError) {
@@ -122,27 +122,7 @@ Deno.serve(async (req) => {
       const primaryItem = groupItems[0]; // Use first item as representative
       console.log(`\n🔄 Processing group: ${groupKey} (${groupItems.length} items)`);
 
-      // 🔒 LOCK CHECK: Skip if already processing (check primary item)
-      if (primaryItem.tpos_sync_status === 'processing') {
-        console.log(`⚠️ Group ${groupKey} is already being processed, skipping...`);
-        continue;
-      }
-
-      // Mark ALL items in group as 'processing' (atomic operation with race condition protection)
-      const { error: updateError } = await supabase
-        .from('purchase_order_items')
-        .update({ 
-          tpos_sync_status: 'processing',
-          tpos_sync_started_at: new Date().toISOString()
-        })
-        .in('id', groupItems.map(i => i.id))
-        .neq('tpos_sync_status', 'processing'); // ✅ Prevent race condition
-
-      if (updateError) {
-        console.error(`❌ Failed to lock group ${groupKey}:`, updateError);
-        continue; // Skip this group if can't lock
-      }
-
+      // Items already locked globally at line 50-57, proceed with processing
       try {
         // Call TPOS creation ONCE for this group
         const { data: tposResult, error: tposError } = await supabase.functions.invoke(
