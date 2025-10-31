@@ -61,15 +61,16 @@ export function UnifiedImageUpload({
     setUploadProgress(0);
 
     try {
-      // ✅ LUÔN NÉN TẤT CẢ ẢNH → Normalize DPI về 72
-      console.log(`🔄 Compressing ${file.name} to 72 DPI...`);
-      console.log(`📦 Original size: ${(file.size / 1024).toFixed(2)} KB`);
+      let fileToUpload = file;
       
-      setUploadProgress(25);
-      const fileToUpload = await compressImage(file, maxSizeMB, 1920, 1920);
-      setUploadProgress(50);
-      
-      console.log(`✅ Compressed: ${(file.size / 1024).toFixed(2)} KB → ${(fileToUpload.size / 1024).toFixed(2)} KB`);
+      // Auto compress if file > threshold
+      if (file.size > compressThreshold * 1024 * 1024) {
+        setUploadProgress(25);
+        fileToUpload = await compressImage(file, maxSizeMB, 1920, 1920);
+        setUploadProgress(50);
+      } else {
+        setUploadProgress(30);
+      }
 
       const fileExt = fileToUpload.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -172,10 +173,7 @@ export function UnifiedImageUpload({
       const item = items[i];
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) {
-          console.log(`📋 Pasted image: ${file.name}, size: ${(file.size / 1024).toFixed(2)} KB`);
-          imageFiles.push(file);
-        }
+        if (file) imageFiles.push(file);
       }
     }
 
