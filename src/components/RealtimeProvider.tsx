@@ -40,8 +40,28 @@ export function RealtimeProvider() {
         event: "UPDATE", 
         schema: "public", 
         table: "purchase_order_items"
-      }, () => {
-        queryClient.invalidateQueries({ queryKey: ["order-sync-status"] });
+      }, (payload) => {
+        // ✅ STEP 3: Extract purchase_order_id for selective refetch
+        const purchaseOrderId = payload.new?.purchase_order_id;
+        
+        if (purchaseOrderId) {
+          console.log(`📡 Realtime: purchase_order_item updated for order ${purchaseOrderId}`);
+          
+          // 🎯 ONLY invalidate queries for THIS specific order
+          queryClient.invalidateQueries({ 
+            queryKey: ["order-sync-status"], 
+            exact: false // Allow partial match
+          });
+          
+          // ✅ Refetch ONLY the affected order's items (not the whole table)
+          queryClient.invalidateQueries({ 
+            queryKey: ["purchase-order-items", purchaseOrderId],
+            exact: true 
+          });
+        } else {
+          // Fallback: If no purchaseOrderId, invalidate all (shouldn't happen)
+          queryClient.invalidateQueries({ queryKey: ["order-sync-status"] });
+        }
       })
       // Customers & activity logs
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => {

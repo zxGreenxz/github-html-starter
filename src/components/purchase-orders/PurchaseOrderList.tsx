@@ -234,7 +234,7 @@ export function PurchaseOrderList({
 
   // Query sync status for all orders
   const { data: syncStatusMap } = useQuery({
-    queryKey: ['order-sync-status', filteredOrders.map(o => o.id)],
+    queryKey: ['order-sync-status'], // ✅ STEP 4: Simplified key for selective invalidation
     queryFn: async () => {
       const orderIds = filteredOrders.map(o => o.id);
       if (orderIds.length === 0) return {};

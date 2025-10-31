@@ -44,6 +44,31 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 🔒 STEP 1: LOCK ROW IMMEDIATELY when function starts
+    console.log(`🔒 Locking order ${purchase_order_id} by setting items to 'processing'...`);
+
+    const { error: lockError } = await supabase
+      .from('purchase_order_items')
+      .update({ 
+        tpos_sync_status: 'processing',
+        tpos_sync_started_at: new Date().toISOString()
+      })
+      .eq('purchase_order_id', purchase_order_id)
+      .in('tpos_sync_status', ['pending', 'failed']); // Only lock items not yet processed
+
+    if (lockError) {
+      console.error('❌ Failed to lock order:', lockError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to lock order: ${lockError.message}` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
+    console.log(`✅ Order locked, UI should disable row now`);
+
     // Fetch items with status filter (pending or failed only)
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')
@@ -148,6 +173,17 @@ Deno.serve(async (req) => {
         // ✅ TPOS sync success, but keep status = 'processing' until matching completes
         successCount += groupItems.length;
         console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items) - Status still 'processing'`);
+        
+        // 🔥 STEP 2: HEARTBEAT - Touch the row to keep UI lock active
+        await supabase
+          .from('purchase_order_items')
+          .update({ 
+            tpos_sync_started_at: new Date().toISOString() // Update timestamp
+          })
+          .in('id', groupItems.map(i => i.id))
+          .eq('tpos_sync_status', 'processing');
+
+        console.log(`📡 Heartbeat sent for ${groupItems.length} items (UI lock remains active)`);
         // Will update to 'success' AFTER matching completes
 
       } catch (error: any) {
