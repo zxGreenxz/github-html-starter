@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
 
     let matchedCount = 0;
     let unmatchedCount = 0;
-    const unmatchedItems: Array<{ product_code: string; variant: string; error: string }> = [];
+    const unmatchedItems: Array<{ product_code: string; variant: string; error: string; available_variants?: string }> = [];
 
     for (const item of items) {
       console.log(`\n🔍 Matching item: ${item.product_code} - variant: "${item.variant}"`);

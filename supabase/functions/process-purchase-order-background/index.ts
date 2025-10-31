@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     let matchResult = null;
     let matchAttempts = 0;
     const MAX_MATCH_ATTEMPTS = 3;
-    const RETRY_DELAY_MS = 2000;
+    const RETRY_DELAY_MS = 1000;
 
     while (matchAttempts < MAX_MATCH_ATTEMPTS && !matchResult) {
       matchAttempts++;
