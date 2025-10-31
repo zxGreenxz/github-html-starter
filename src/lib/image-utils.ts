@@ -12,11 +12,7 @@ export async function compressImage(
   maxWidth: number = 1920,
   maxHeight: number = 1920
 ): Promise<File> {
-  // Nếu file đã nhỏ hơn giới hạn, return luôn
-  if (file.size <= maxSizeMB * 1024 * 1024) {
-    return file;
-  }
-
+  // ✅ LUÔN NÉN để normalize DPI về 72 (Canvas API tự động làm)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
