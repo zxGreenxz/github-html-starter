@@ -145,18 +145,9 @@ Deno.serve(async (req) => {
           throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
         }
 
-        // ✅ Success: Update ALL items in group
-        await supabase
-          .from('purchase_order_items')
-          .update({ 
-            tpos_sync_status: 'success',
-            tpos_sync_completed_at: new Date().toISOString(),
-            tpos_sync_error: null
-          })
-          .in('id', groupItems.map(i => i.id));
-
+        // ✅ TPOS sync success, but keep status = 'processing' until matching completes
         successCount += groupItems.length;
-        console.log(`✅ Group success: ${groupKey} (${groupItems.length} items)`);
+        console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items) - Status still 'processing'`);
 
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
@@ -241,8 +232,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ✅ FINAL STATUS UPDATE: Update status for items that are still 'processing'
-    console.log(`\n📝 Updating final status for items...`);
+    // ✅ FINAL STATUS UPDATE: Set status = 'success' ONLY after matching completes
+    console.log(`\n📝 Updating final status after matching completes...`);
     
     if (failedItems.length > 0) {
       const failedItemIds = failedItems.map(f => f.id);
@@ -261,8 +252,27 @@ Deno.serve(async (req) => {
       console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
     }
     
+    // 🎯 KEY CHANGE: Set 'success' for items that completed TPOS sync successfully
+    if (successCount > 0) {
+      const successItemIds = items
+        .filter(item => !failedItems.some(f => f.id === item.id))
+        .map(i => i.id);
+      
+      await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'success',
+          tpos_sync_completed_at: new Date().toISOString(),
+          tpos_sync_error: null
+        })
+        .in('id', successItemIds)
+        .eq('tpos_sync_status', 'processing');
+      
+      console.log(`✅ Matching complete! Set ${successItemIds.length} items to 'success'`);
+    }
+    
     if (!matchResult?.success) {
-      console.warn(`⚠️ Matching failed after retries, but items will remain in current status`);
+      console.warn(`⚠️ Matching had issues, but status updated to 'success' for successful TPOS items`);
     }
     
     console.log(`✅ Final status update complete`);
