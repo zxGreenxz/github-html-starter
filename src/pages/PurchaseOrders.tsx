@@ -214,7 +214,7 @@ const PurchaseOrders = () => {
   // Tab-specific queries for better performance
   
   // Query 1: Draft orders (only basic data)
-  const { data: draftOrders, isLoading: isDraftLoading, isFetching: isDraftFetching } = useQuery({
+  const { data: draftOrders, isLoading: isDraftLoading } = useQuery({
     queryKey: ["purchase-orders", "draft"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -246,7 +246,7 @@ const PurchaseOrders = () => {
   });
 
   // Query 2: Awaiting purchase orders
-  const { data: awaitingPurchaseOrders, isLoading: isAwaitingPurchaseLoading, isFetching: isAwaitingPurchaseFetching } = useQuery({
+  const { data: awaitingPurchaseOrders, isLoading: isAwaitingPurchaseLoading } = useQuery({
     queryKey: ["purchase-orders", "awaiting_purchase"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -278,7 +278,7 @@ const PurchaseOrders = () => {
   });
 
   // Query 3: Awaiting delivery orders (includes goods_receiving)
-  const { data: awaitingDeliveryOrders, isLoading: isAwaitingDeliveryLoading, isFetching: isAwaitingDeliveryFetching } = useQuery({
+  const { data: awaitingDeliveryOrders, isLoading: isAwaitingDeliveryLoading } = useQuery({
     queryKey: ["purchase-orders", "awaiting_delivery"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -895,7 +895,6 @@ const PurchaseOrders = () => {
               <PurchaseOrderList
                 filteredOrders={filteredAwaitingPurchaseOrders}
                 isLoading={false}
-                isFetching={isAwaitingPurchaseFetching}
                 searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               statusFilter="awaiting_export"
@@ -991,7 +990,6 @@ const PurchaseOrders = () => {
               <PurchaseOrderList
                 filteredOrders={filteredAwaitingDeliveryOrders}
                 isLoading={false}
-                isFetching={isAwaitingDeliveryFetching}
                 searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               statusFilter="pending"
@@ -1031,7 +1029,6 @@ const PurchaseOrders = () => {
               <PurchaseOrderList
                 filteredOrders={filteredDraftOrders}
                 isLoading={false}
-                isFetching={isDraftFetching}
                 searchTerm={searchTermDraft}
                 setSearchTerm={setSearchTermDraft}
                 statusFilter="all"

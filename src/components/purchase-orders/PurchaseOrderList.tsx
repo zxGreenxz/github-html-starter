@@ -63,7 +63,6 @@ interface PurchaseOrder {
 interface PurchaseOrderListProps {
   filteredOrders: PurchaseOrder[];
   isLoading: boolean;
-  isFetching?: boolean;
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   statusFilter: string;
@@ -84,7 +83,6 @@ interface PurchaseOrderListProps {
 export function PurchaseOrderList({
   filteredOrders,
   isLoading,
-  isFetching = false,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -265,10 +263,7 @@ export function PurchaseOrderList({
 
   // Helper function to check if order is currently being processed
   const isOrderProcessing = (orderId: string): boolean => {
-    return (
-      (syncStatusMap?.[orderId]?.processing ?? 0) > 0 ||
-      isFetching
-    );
+    return syncStatusMap?.[orderId]?.processing > 0;
   };
 
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
