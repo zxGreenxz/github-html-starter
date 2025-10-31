@@ -765,7 +765,7 @@ const PurchaseOrders = () => {
   return (
     <div className={cn(
       "mx-auto space-y-6 w-full",
-      isMobile ? "p-4" : "p-6 max-w-[70%]"
+      isMobile ? "p-4" : "p-6 max-w-[98%]"
     )}>
       <div className={cn(
         "flex items-center",
