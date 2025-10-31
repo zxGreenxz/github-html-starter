@@ -260,6 +260,11 @@ export function PurchaseOrderList({
     enabled: filteredOrders.length > 0
   });
 
+  // Helper function to check if order is currently being processed
+  const isOrderProcessing = (orderId: string): boolean => {
+    return syncStatusMap?.[orderId]?.processing > 0;
+  };
+
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
     // Prioritize showing "Giao thiếu hàng" if received with shortage
     if (status === "received" && hasShortage) {
@@ -620,7 +625,8 @@ export function PurchaseOrderList({
                     className={cn(
                       "border-b", 
                       isSelected && "bg-muted/50",
-                      flatItem.hasDeletedProduct && "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                      flatItem.hasDeletedProduct && "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+                      isOrderProcessing(flatItem.id) && "opacity-50 pointer-events-none"
                     )}
                   >
                     {/* Order-level columns with rowSpan - only show on first item */}
@@ -819,6 +825,7 @@ export function PurchaseOrderList({
                             size="sm"
                             onClick={() => onEditDraft?.(flatItem)}
                             title="Chỉnh sửa nháp"
+                            disabled={isOrderProcessing(flatItem.id)}
                           >
                             <Pencil className="w-4 h-4 text-amber-600" />
                           </Button>
@@ -828,6 +835,7 @@ export function PurchaseOrderList({
                             size="sm"
                             onClick={() => handleEditOrder(flatItem)}
                             title="Chỉnh sửa đơn hàng"
+                            disabled={isOrderProcessing(flatItem.id)}
                           >
                             <Pencil className="w-4 h-4 text-blue-600" />
                           </Button>
@@ -839,6 +847,7 @@ export function PurchaseOrderList({
                           size="sm"
                           onClick={() => handleExportSingleOrderExcel(flatItem)}
                           title="Xuất Excel mua hàng"
+                          disabled={isOrderProcessing(flatItem.id)}
                         >
                           <FileDown className="w-4 h-4 text-green-600" />
                         </Button>
@@ -850,6 +859,7 @@ export function PurchaseOrderList({
                           onClick={() => handleDeleteOrder(flatItem)}
                           className="text-destructive hover:text-destructive"
                           title="Xóa toàn bộ đơn hàng"
+                          disabled={isOrderProcessing(flatItem.id)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -863,6 +873,7 @@ export function PurchaseOrderList({
                             checked={isSelected}
                             onCheckedChange={() => onToggleSelect(flatItem.id)}
                             aria-label={`Chọn đơn hàng ${flatItem.supplier_name}`}
+                            disabled={isOrderProcessing(flatItem.id)}
                           />
                         </Label>
                       </div>
