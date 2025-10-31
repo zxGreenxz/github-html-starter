@@ -12,7 +12,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -106,6 +106,9 @@ export function PurchaseOrderList({
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Track whether we need one final refetch after processing completes
+  const finalRefetchNeeded = useRef<Record<string, boolean>>({});
 
   const deletePurchaseOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -258,7 +261,39 @@ export function PurchaseOrderList({
       return statusMap;
     },
     enabled: filteredOrders.length > 0,
-    refetchInterval: 3000 // Auto-refetch every 3 seconds to update processing status
+    refetchInterval: (data) => {
+      if (!data) return 3000; // Continue if no data yet
+      
+      const hasProcessing = Object.values(data).some(
+        (status) => status.processing > 0
+      );
+      
+      if (hasProcessing) {
+        // Reset final refetch flag when processing
+        Object.keys(data).forEach(orderId => {
+          finalRefetchNeeded.current[orderId] = false;
+        });
+        return 3000; // Continue polling
+      }
+      
+      // Processing = 0 detected
+      const needsFinalRefetch = Object.keys(data).some(
+        orderId => !finalRefetchNeeded.current[orderId]
+      );
+      
+      if (needsFinalRefetch) {
+        // Mark that final refetch is in progress
+        Object.keys(data).forEach(orderId => {
+          finalRefetchNeeded.current[orderId] = true;
+        });
+        console.log('✅ Processing = 0 detected, scheduling final refetch...');
+        return 3000; // Refetch 1 lần cuối
+      }
+      
+      // Final refetch completed, stop polling
+      console.log('🛑 Final refetch completed, stopping polling');
+      return false; // DỪNG
+    }
   });
 
   // Helper function to check if order is currently being processed
