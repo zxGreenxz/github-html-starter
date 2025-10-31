@@ -12,7 +12,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,6 @@ interface PurchaseOrder {
 interface PurchaseOrderListProps {
   filteredOrders: PurchaseOrder[];
   isLoading: boolean;
-  isFetching?: boolean;
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   statusFilter: string;
@@ -84,7 +83,6 @@ interface PurchaseOrderListProps {
 export function PurchaseOrderList({
   filteredOrders,
   isLoading,
-  isFetching = false,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -105,8 +103,6 @@ export function PurchaseOrderList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
-  // Track which orders should remain locked for one extra render cycle
-  const [ordersToUnlock, setOrdersToUnlock] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -237,7 +233,7 @@ export function PurchaseOrderList({
   });
 
   // Query sync status for all orders
-  const { data: syncStatusMap, isFetching: isSyncStatusFetching } = useQuery({
+  const { data: syncStatusMap } = useQuery({
     queryKey: ['order-sync-status', filteredOrders.map(o => o.id)],
     queryFn: async () => {
       const orderIds = filteredOrders.map(o => o.id);
@@ -265,55 +261,9 @@ export function PurchaseOrderList({
     refetchInterval: 3000 // Auto-refetch every 3 seconds to update processing status
   });
 
-  // Delay unlock to ensure UI has fully re-rendered
-  useEffect(() => {
-    if (!syncStatusMap) return;
-    
-    const processingOrders = new Set(
-      Object.entries(syncStatusMap)
-        .filter(([_, status]) => status.processing > 0)
-        .map(([orderId]) => orderId)
-    );
-    
-    // Find orders that just finished processing
-    const newlyCompleted = Array.from(ordersToUnlock).filter(
-      orderId => !processingOrders.has(orderId)
-    );
-    
-    if (newlyCompleted.length > 0) {
-      // Remove from unlock set after 1 render cycle
-      requestAnimationFrame(() => {
-        setOrdersToUnlock(prev => {
-          const updated = new Set(prev);
-          newlyCompleted.forEach(id => updated.delete(id));
-          return updated;
-        });
-      });
-    }
-    
-    // Add orders that are still processing
-    const needsTracking = Array.from(processingOrders).filter(
-      id => !ordersToUnlock.has(id)
-    );
-    
-    if (needsTracking.length > 0) {
-      setOrdersToUnlock(prev => new Set([...prev, ...needsTracking]));
-    }
-  }, [syncStatusMap, ordersToUnlock]);
-
   // Helper function to check if order is currently being processed
   const isOrderProcessing = (orderId: string): boolean => {
-    // Keep locked if:
-    // 1. Still processing in DB, OR
-    // 2. In ordersToUnlock set (waiting for UI to update), OR
-    // 3. syncStatusMap query is fetching, OR
-    // 4. purchase_order_items query is fetching (via parent query)
-    return (
-      (syncStatusMap?.[orderId]?.processing ?? 0) > 0 ||
-      ordersToUnlock.has(orderId) ||
-      isSyncStatusFetching ||
-      isFetching
-    );
+    return syncStatusMap?.[orderId]?.processing > 0;
   };
 
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
