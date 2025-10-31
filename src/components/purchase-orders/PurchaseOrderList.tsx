@@ -63,6 +63,7 @@ interface PurchaseOrder {
 interface PurchaseOrderListProps {
   filteredOrders: PurchaseOrder[];
   isLoading: boolean;
+  isFetching?: boolean;
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   statusFilter: string;
@@ -83,6 +84,7 @@ interface PurchaseOrderListProps {
 export function PurchaseOrderList({
   filteredOrders,
   isLoading,
+  isFetching = false,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -235,7 +237,7 @@ export function PurchaseOrderList({
   });
 
   // Query sync status for all orders
-  const { data: syncStatusMap } = useQuery({
+  const { data: syncStatusMap, isFetching: isSyncStatusFetching } = useQuery({
     queryKey: ['order-sync-status', filteredOrders.map(o => o.id)],
     queryFn: async () => {
       const orderIds = filteredOrders.map(o => o.id);
@@ -303,10 +305,14 @@ export function PurchaseOrderList({
   const isOrderProcessing = (orderId: string): boolean => {
     // Keep locked if:
     // 1. Still processing in DB, OR
-    // 2. In ordersToUnlock set (waiting for UI to update)
+    // 2. In ordersToUnlock set (waiting for UI to update), OR
+    // 3. syncStatusMap query is fetching, OR
+    // 4. purchase_order_items query is fetching (via parent query)
     return (
       (syncStatusMap?.[orderId]?.processing ?? 0) > 0 ||
-      ordersToUnlock.has(orderId)
+      ordersToUnlock.has(orderId) ||
+      isSyncStatusFetching ||
+      isFetching
     );
   };
 
