@@ -257,8 +257,8 @@ export function PurchaseOrderList({
 
       return statusMap;
     },
-    enabled: filteredOrders.length > 0,
-    refetchInterval: 3000 // Auto-refetch every 3 seconds to update processing status
+    enabled: filteredOrders.length > 0
+    // ✅ Uses realtime subscription instead of polling (see RealtimeProvider.tsx)
   });
 
   // Helper function to check if order is currently being processed

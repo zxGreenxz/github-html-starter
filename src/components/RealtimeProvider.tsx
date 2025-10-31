@@ -35,6 +35,14 @@ export function RealtimeProvider() {
       })
       // ❌ REMOVED: live_* tables now use LOCAL filtered subscriptions in LiveProducts.tsx
       // This prevents unnecessary refetches for all sessions when only one is active
+      // Purchase order items sync status (realtime instead of polling)
+      .on("postgres_changes", { 
+        event: "UPDATE", 
+        schema: "public", 
+        table: "purchase_order_items"
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ["order-sync-status"] });
+      })
       // Customers & activity logs
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
