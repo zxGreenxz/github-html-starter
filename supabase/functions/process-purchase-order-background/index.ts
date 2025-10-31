@@ -161,22 +161,14 @@ Deno.serve(async (req) => {
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
         
-        // ❌ Failed: Update ALL items in group
-        await supabase
-          .from('purchase_order_items')
-          .update({ 
-            tpos_sync_status: 'failed',
-            tpos_sync_completed_at: new Date().toISOString(),
-            tpos_sync_error: errorMessage
-          })
-          .in('id', groupItems.map(i => i.id));
-
+        // ⚠️ Record error but DON'T update status yet - will update after retry matching completes
         failedCount += groupItems.length;
         groupItems.forEach(item => {
           failedItems.push({ id: item.id, error: errorMessage });
         });
         
         console.error(`❌ Group failed: ${groupKey}`, errorMessage);
+        // Status remains 'processing', will be updated after retry matching
       }
     }
 
@@ -248,6 +240,32 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // ✅ FINAL STATUS UPDATE: Update status for items that are still 'processing'
+    console.log(`\n📝 Updating final status for items...`);
+    
+    if (failedItems.length > 0) {
+      const failedItemIds = failedItems.map(f => f.id);
+      
+      // Set failed status for items that had TPOS sync errors
+      await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'failed',
+          tpos_sync_completed_at: new Date().toISOString(),
+          tpos_sync_error: failedItems[0].error
+        })
+        .in('id', failedItemIds)
+        .eq('tpos_sync_status', 'processing');
+      
+      console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
+    }
+    
+    if (!matchResult?.success) {
+      console.warn(`⚠️ Matching failed after retries, but items will remain in current status`);
+    }
+    
+    console.log(`✅ Final status update complete`);
 
     // ✅ Return BOTH tpos sync summary AND matching result
     return new Response(
