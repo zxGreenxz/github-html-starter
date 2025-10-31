@@ -1218,41 +1218,35 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       else onOpenChange(isOpen);
     }}>
       <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
-        {/* DialogTitle removed - maximizing vertical space */}
+        <DialogHeader className="flex flex-row items-center justify-between pr-10 px-6 pt-6 shrink-0">
+          <DialogTitle>Tạo đơn đặt hàng mới</DialogTitle>
+        </DialogHeader>
 
-        {/* Fixed Header Section - Compact Layout */}
-        <div className="shrink-0 px-6 pt-4 space-y-3">
-          {/* Row 1: Nhà cung cấp (Label + Input cùng dòng) */}
-          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <Label htmlFor="supplier" className="whitespace-nowrap font-medium text-sm w-28">
-              Nhà cung cấp *
-            </Label>
-            <Input
-              id="supplier"
-              placeholder="Nhập tên nhà cung cấp"
-              value={formData.supplier_name}
-              onChange={(e) => setFormData({...formData, supplier_name: e.target.value})}
-              className="flex-1"
-            />
-          </div>
+        {/* Fixed Header Section */}
+        <div className="shrink-0 px-6 pt-1 space-y-4">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="supplier">Nhà cung cấp *</Label>
+              <Input
+                id="supplier"
+                placeholder="Nhập tên nhà cung cấp"
+                value={formData.supplier_name}
+                onChange={(e) => setFormData({...formData, supplier_name: e.target.value})}
+              />
+            </div>
 
-          {/* Row 2: Ngày đặt hàng + Số tiền hóa đơn + Ảnh hóa đơn (1 dòng ngang) */}
-          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <div className="flex items-center gap-2 flex-1">
-              <Label htmlFor="order_date" className="whitespace-nowrap text-sm font-medium">
-                Ngày đặt hàng
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="order_date">Ngày đặt hàng</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant={"outline"}
-                    size="sm"
                     className={cn(
-                      "justify-start text-left font-normal h-9",
+                      "w-full justify-start text-left font-normal",
                       !formData.order_date && "text-muted-foreground"
                     )}
                   >
-                    <Calendar className="mr-2 h-3 w-3" />
+                    <Calendar className="mr-2 h-4 w-4" />
                     {formData.order_date ? format(new Date(formData.order_date), "dd/MM/yyyy") : <span>Chọn ngày</span>}
                   </Button>
                 </PopoverTrigger>
@@ -1268,10 +1262,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               </Popover>
             </div>
 
-            <div className="flex items-center gap-2 flex-1">
-              <Label htmlFor="invoice_amount" className="whitespace-nowrap text-sm font-medium">
-                Số tiền hóa đơn (VND)
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="invoice_amount">Số tiền hóa đơn (VND)</Label>
               <Input
                 id="invoice_amount"
                 type="text"
@@ -1279,15 +1271,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 placeholder="Nhập số tiền VND"
                 value={formData.invoice_amount || ""}
                 onChange={(e) => setFormData({...formData, invoice_amount: parseNumberInput(e.target.value)})}
-                className="h-9"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label htmlFor="invoice_images" className="whitespace-nowrap text-sm font-medium">
-                Ảnh hóa đơn
-              </Label>
-              <div className="flex items-center">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_images">Ảnh hóa đơn</Label>
+              <div className="border rounded-md p-2 min-h-[42px] bg-background">
                 <ImageUploadCell
                   images={formData.invoice_images}
                   onImagesChange={(images) => setFormData({...formData, invoice_images: images})}
@@ -1297,30 +1286,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
           </div>
 
-          {/* Row 3: Danh sách sản phẩm + Tìm kiếm + Ghi chú + Buttons */}
-          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <Label className="text-base font-semibold whitespace-nowrap">Danh sách sản phẩm</Label>
-            
-            <div className="relative flex-1 max-w-xs">
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-lg font-medium whitespace-nowrap">Danh sách sản phẩm</Label>
+            <div className="relative w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
               <Input
                 placeholder="Tìm kiếm sản phẩm theo tên..."
                 value={productSearchQuery}
                 onChange={(e) => setProductSearchQuery(e.target.value)}
-                className="pl-10 h-9"
+                className="pl-10"
               />
             </div>
-
-            <Textarea
-              id="notes"
-              placeholder="Ghi chú thêm cho đơn hàng..."
-              value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-              rows={1}
-              className="flex-1 max-w-sm min-h-[36px] resize-none h-9 py-2"
-            />
-
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2">
               <Button onClick={addItem} size="sm" variant="secondary">
                 <Plus className="w-4 h-4 mr-2" />
                 Thêm sản phẩm
@@ -1461,7 +1438,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center font-bold"
+                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center"
                         />
                       </TableCell>
                       <TableCell>
@@ -1492,7 +1469,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           }`}
                         />
                       </TableCell>
-                      <TableCell className="text-right font-bold text-black">
+                      <TableCell className="text-right font-medium">
                         {formatVND(item._tempTotalPrice * 1000)}
                       </TableCell>
                       <TableCell>
@@ -1574,90 +1551,102 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
         </div>
 
-        {/* Fixed Footer Section - Horizontal Layout */}
-        <div className="shrink-0 px-6 pb-6 space-y-3 border-t pt-4">
-          {/* Row 1: Tổng số lượng + Tổng tiền + Giảm giá + Tiền ship (HÀNG NGANG) */}
-          <div className="flex items-center justify-between gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-            {/* Tổng số lượng */}
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">Tổng số lượng:</span>
-              <span className="font-bold text-base">
-                {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-              </span>
-            </div>
+        {/* Fixed Total Quantity Row - Outside scroll area */}
+        <div className="shrink-0 px-6 py-3 border-t-2 border-primary/30 bg-muted/90 backdrop-blur-sm">
+          <div className="flex items-center justify-center gap-3">
+            <span className="font-normal text-sm">Tổng số lượng:</span>
+            <span className="font-normal text-sm">
+              {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+            </span>
+          </div>
+        </div>
 
-            {/* Tổng tiền */}
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">Tổng tiền:</span>
-              <span className="font-bold text-base">{formatVND(totalAmount * 1000)}</span>
-            </div>
+        {/* Fixed Footer Section */}
+        <div className="shrink-0 px-6 pb-6 space-y-4 border-t pt-4">
+          <div>
+            <Textarea
+              id="notes"
+              placeholder="Ghi chú thêm cho đơn hàng..."
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={1}
+              className="min-h-[40px] resize-none"
+            />
+          </div>
 
-            {/* Giảm giá */}
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">Giảm giá:</span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                className="w-32 text-right h-9 font-bold"
-                placeholder="0"
-                value={formData.discount_amount || ""}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  discount_amount: parseNumberInput(e.target.value)
-                })}
-              />
-            </div>
-
-            {/* Tiền ship (conditional) */}
-            {!showShippingFee ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowShippingFee(true)}
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <Truck className="w-4 h-4" />
-                Thêm tiền ship
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-muted-foreground" />
-                <span className="font-medium text-sm whitespace-nowrap">Tiền ship:</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+                <span className="font-medium">Tổng tiền:</span>
+                <span>{formatVND(totalAmount * 1000)}</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="font-medium">Giảm giá:</span>
                 <Input
                   type="text"
                   inputMode="numeric"
-                  className="w-32 text-right h-9 font-bold"
+                  className="w-40 text-right"
                   placeholder="0"
-                  value={formData.shipping_fee || ""}
+                  value={formData.discount_amount || ""}
                   onChange={(e) => setFormData({
                     ...formData,
-                    shipping_fee: parseNumberInput(e.target.value)
+                    discount_amount: parseNumberInput(e.target.value)
                   })}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setShowShippingFee(false);
-                    setFormData({ ...formData, shipping_fee: 0 });
-                  }}
-                  className="h-7 w-7"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
               </div>
-            )}
+              
+              {!showShippingFee ? (
+                <div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowShippingFee(true)}
+                    className="gap-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <Truck className="w-4 h-4" />
+                    Thêm tiền ship
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">Tiền ship:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      className="w-40 text-right"
+                      placeholder="0"
+                      value={formData.shipping_fee || ""}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shipping_fee: parseNumberInput(e.target.value)
+                      })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setShowShippingFee(false);
+                        setFormData({ ...formData, shipping_fee: 0 });
+                      }}
+                      className="h-8 w-8"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center text-lg font-bold">
+                <span>Thành tiền:</span>
+                <span>{formatVND(finalAmount * 1000)}</span>
+              </div>
           </div>
 
-          {/* Row 2: Thành tiền (Large, Bold) */}
-          <div className="flex justify-center items-center bg-primary/5 p-4 rounded-lg border-2 border-primary/30">
-            <span className="text-lg font-bold mr-3">THÀNH TIỀN:</span>
-            <span className="text-2xl font-bold text-primary">{formatVND(finalAmount * 1000)}</span>
-          </div>
-
-          {/* Row 3: Action Buttons */}
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={handleClose}>
               Hủy
@@ -1671,6 +1660,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </Button>
             <Button 
               onClick={() => {
+                // Show validation errors if any
                 if (!isItemsValid) {
                   toast({
                     title: "Không thể tạo đơn hàng",
