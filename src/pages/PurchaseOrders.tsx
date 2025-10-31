@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ import { PurchaseOrderStats } from "@/components/purchase-orders/PurchaseOrderSt
 import { format } from "date-fns";
 import { convertVietnameseToUpperCase, cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -59,6 +60,7 @@ const PurchaseOrders = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [draftToEdit, setDraftToEdit] = useState<PurchaseOrder | null>(null);
   const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState<string>("drafts");
   
   const queryClient = useQueryClient();
 
@@ -89,10 +91,14 @@ const PurchaseOrders = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedOrders.length === filteredOrders.length) {
+    const currentOrders = activeTab === "awaiting_purchase" 
+      ? filteredAwaitingPurchaseOrders 
+      : filteredAwaitingDeliveryOrders;
+    
+    if (selectedOrders.length === currentOrders.length) {
       setSelectedOrders([]);
     } else {
-      setSelectedOrders(filteredOrders.map(order => order.id));
+      setSelectedOrders(currentOrders.map(order => order.id));
     }
   };
 
@@ -205,152 +211,240 @@ const PurchaseOrders = () => {
     setQuickFilterDraft(filterType);
   };
 
-  // Data fetching moved from PurchaseOrderList - OPTIMIZED to reduce queries
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["purchase-orders"],
+  // Tab-specific queries for better performance
+  
+  // Query 1: Draft orders (only basic data)
+  const { data: draftOrders, isLoading: isDraftLoading } = useQuery({
+    queryKey: ["purchase-orders", "draft"],
     queryFn: async () => {
-      // Single optimized query to fetch orders, items, and receiving data
-      const { data: ordersData, error: ordersError } = await supabase
+      const { data, error } = await supabase
         .from("purchase_orders")
         .select(`
           *,
           items:purchase_order_items(
-            id,
-            quantity,
-            position,
-            notes,
-            product_code,
-            product_name,
-            variant,
-            purchase_price,
-            selling_price,
-            product_images,
-            price_images,
-            tpos_product_id,
-            selected_attribute_value_ids
-          ),
-          receiving:goods_receiving(
-            id,
-            has_discrepancy,
-            items:goods_receiving_items(
-              discrepancy_type,
-              discrepancy_quantity
-            )
+            id, quantity, position, notes,
+            product_code, product_name, variant,
+            purchase_price, selling_price,
+            product_images, price_images,
+            tpos_product_id, selected_attribute_value_ids
           )
         `)
+        .eq("status", "draft")
         .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      return (data || []).map((order: any) => ({
+        ...order,
+        items: (order.items || []).sort((a: any, b: any) => (a.position || 0) - (b.position || 0)),
+        hasShortage: false,
+        hasDeletedProduct: false
+      })) as PurchaseOrder[];
+    },
+    enabled: activeTab === "drafts",
+    staleTime: 30000,
+  });
 
-      if (ordersError) throw ordersError;
+  // Query 2: Awaiting purchase orders
+  const { data: awaitingPurchaseOrders, isLoading: isAwaitingPurchaseLoading } = useQuery({
+    queryKey: ["purchase-orders", "awaiting_purchase"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(`
+          *,
+          items:purchase_order_items(
+            id, quantity, position, notes,
+            product_code, product_name, variant,
+            purchase_price, selling_price,
+            product_images, price_images,
+            tpos_product_id, selected_attribute_value_ids
+          )
+        `)
+        .eq("status", "awaiting_export")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      return (data || []).map((order: any) => ({
+        ...order,
+        items: (order.items || []).sort((a: any, b: any) => (a.position || 0) - (b.position || 0)),
+        hasShortage: false,
+        hasDeletedProduct: false
+      })) as PurchaseOrder[];
+    },
+    enabled: activeTab === "awaiting_purchase",
+    staleTime: 30000,
+  });
 
-      // Process orders to add hasShortage flag
-      const ordersWithStatus = (ordersData || []).map((order: any) => {
+  // Query 3: Awaiting delivery orders (includes goods_receiving)
+  const { data: awaitingDeliveryOrders, isLoading: isAwaitingDeliveryLoading } = useQuery({
+    queryKey: ["purchase-orders", "awaiting_delivery"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(`
+          *,
+          items:purchase_order_items(
+            id, quantity, position, notes,
+            product_code, product_name, variant,
+            purchase_price, selling_price,
+            product_images, price_images,
+            tpos_product_id, selected_attribute_value_ids
+          ),
+          receiving:goods_receiving(
+            id, has_discrepancy,
+            items:goods_receiving_items(discrepancy_type, discrepancy_quantity)
+          )
+        `)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      return (data || []).map((order: any) => {
         let hasShortage = false;
-        
-        // Check if there's any shortage in goods_receiving_items
-        if (order.receiving && order.receiving.length > 0) {
-          const receivingRecord = order.receiving[0]; // Get first receiving record
-          if (receivingRecord.items && receivingRecord.items.length > 0) {
-            hasShortage = receivingRecord.items.some(
-              (item: any) => item.discrepancy_type === 'shortage'
-            );
-          }
+        if (order.receiving?.[0]?.items) {
+          hasShortage = order.receiving[0].items.some(
+            (item: any) => item.discrepancy_type === 'shortage'
+          );
         }
-
-        // Sort items by position
-        const sortedItems = (order.items || []).sort((a: any, b: any) => 
-          (a.position || 0) - (b.position || 0)
-        );
-
+        
         return {
           ...order,
-          items: sortedItems,
+          items: (order.items || []).sort((a: any, b: any) => (a.position || 0) - (b.position || 0)),
           hasShortage,
-          hasDeletedProduct: false // No longer checking product relationship
+          hasDeletedProduct: false
         };
-      });
-
-      return ordersWithStatus as PurchaseOrder[];
-    }
+      }) as PurchaseOrder[];
+    },
+    enabled: activeTab === "awaiting_delivery",
+    staleTime: 30000,
   });
 
-  // Filtering logic moved from PurchaseOrderList
-  const filteredOrders = orders?.filter(order => {
-    // Date range filter
-    if (dateFrom || dateTo) {
-      const orderDate = new Date(order.created_at);
-      orderDate.setHours(0, 0, 0, 0);
+  // Lightweight stats query
+  const { data: allOrdersForStats, isLoading: isStatsLoading } = useQuery({
+    queryKey: ["purchase-orders-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(`
+          id, status, total_amount, final_amount, created_at,
+          order_date, discount_amount, shipping_fee,
+          invoice_number, supplier_name, supplier_id,
+          notes, invoice_date, invoice_images, updated_at
+        `)
+        .neq("status", "draft")
+        .order("created_at", { ascending: false });
       
-      if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        if (orderDate < fromDate) return false;
-      }
-      
-      if (dateTo) {
-        const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        if (orderDate > toDate) return false;
-      }
-    }
-    
-    // Enhanced search - bao gồm search theo định dạng ngày dd/mm
-    const matchesSearch = searchTerm === "" || 
-      order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
-      format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
-      order.items?.some(item => 
-        item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    
-    // Status filter - draft orders are excluded from regular filtering
-    const matchesStatus = 
-      statusFilter === "all" || 
-      order.status === statusFilter ||
-      (statusFilter === "pending" && (order.status === "pending" || order.status === "awaiting_export"));
-    
-    return matchesSearch && matchesStatus;
-  }) || [];
-
-  // Separate draft orders from active orders
-  const draftOrders = orders?.filter(order => order.status === 'draft') || [];
-  // Always exclude draft orders from the main orders tab
-  const activeOrders = filteredOrders.filter(order => order.status !== 'draft');
-
-  // Filtering logic for draft orders
-  const filteredDraftOrders = draftOrders.filter(order => {
-    // Date range filter
-    if (dateFromDraft || dateToDraft) {
-      const orderDate = new Date(order.created_at);
-      orderDate.setHours(0, 0, 0, 0);
-      
-      if (dateFromDraft) {
-        const fromDate = new Date(dateFromDraft);
-        fromDate.setHours(0, 0, 0, 0);
-        if (orderDate < fromDate) return false;
-      }
-      
-      if (dateToDraft) {
-        const toDate = new Date(dateToDraft);
-        toDate.setHours(23, 59, 59, 999);
-        if (orderDate > toDate) return false;
-      }
-    }
-    
-    // Search filter
-    const matchesSearch = searchTermDraft === "" || 
-      order.supplier_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
-      order.invoice_number?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
-      format(new Date(order.created_at), "dd/MM").includes(searchTermDraft) ||
-      format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTermDraft) ||
-      order.items?.some(item => 
-        item.product_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
-        item.product_code?.toLowerCase().includes(searchTermDraft.toLowerCase())
-      );
-    
-    return matchesSearch;
+      if (error) throw error;
+      return (data || []).map(order => ({
+        ...order,
+        items: []
+      })) as PurchaseOrder[];
+    },
+    staleTime: 60000,
   });
+
+  // Memoized filtered data for each tab
+  const filteredAwaitingPurchaseOrders = useMemo(() => {
+    return (awaitingPurchaseOrders || []).filter(order => {
+      if (dateFrom || dateTo) {
+        const orderDate = new Date(order.created_at);
+        orderDate.setHours(0, 0, 0, 0);
+        
+        if (dateFrom) {
+          const fromDate = new Date(dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (orderDate < fromDate) return false;
+        }
+        
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (orderDate > toDate) return false;
+        }
+      }
+      
+      const matchesSearch = searchTerm === "" || 
+        order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
+        format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
+        order.items?.some(item => 
+          item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      
+      return matchesSearch;
+    });
+  }, [awaitingPurchaseOrders, dateFrom, dateTo, searchTerm]);
+
+  const filteredAwaitingDeliveryOrders = useMemo(() => {
+    return (awaitingDeliveryOrders || []).filter(order => {
+      if (dateFrom || dateTo) {
+        const orderDate = new Date(order.created_at);
+        orderDate.setHours(0, 0, 0, 0);
+        
+        if (dateFrom) {
+          const fromDate = new Date(dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (orderDate < fromDate) return false;
+        }
+        
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (orderDate > toDate) return false;
+        }
+      }
+      
+      const matchesSearch = searchTerm === "" || 
+        order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
+        format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
+        order.items?.some(item => 
+          item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.product_code?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      
+      return matchesSearch;
+    });
+  }, [awaitingDeliveryOrders, dateFrom, dateTo, searchTerm]);
+
+  const filteredDraftOrders = useMemo(() => {
+    return (draftOrders || []).filter(order => {
+      if (dateFromDraft || dateToDraft) {
+        const orderDate = new Date(order.created_at);
+        orderDate.setHours(0, 0, 0, 0);
+        
+        if (dateFromDraft) {
+          const fromDate = new Date(dateFromDraft);
+          fromDate.setHours(0, 0, 0, 0);
+          if (orderDate < fromDate) return false;
+        }
+        
+        if (dateToDraft) {
+          const toDate = new Date(dateToDraft);
+          toDate.setHours(23, 59, 59, 999);
+          if (orderDate > toDate) return false;
+        }
+      }
+      
+      const matchesSearch = searchTermDraft === "" || 
+        order.supplier_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+        order.invoice_number?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+        format(new Date(order.created_at), "dd/MM").includes(searchTermDraft) ||
+        format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTermDraft) ||
+        order.items?.some(item => 
+          item.product_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
+          item.product_code?.toLowerCase().includes(searchTermDraft.toLowerCase())
+        );
+      
+      return matchesSearch;
+    });
+  }, [draftOrders, dateFromDraft, dateToDraft, searchTermDraft]);
 
   const handleEditDraft = (order: PurchaseOrder) => {
     setDraftToEdit(order);
@@ -365,10 +459,13 @@ const PurchaseOrders = () => {
   };
 
   const handleExportExcel = () => {
-    // Use selected orders if any, otherwise use filtered orders
+    const currentOrders = activeTab === "awaiting_purchase" 
+      ? filteredAwaitingPurchaseOrders 
+      : filteredAwaitingDeliveryOrders;
+    
     const ordersToExport = selectedOrders.length > 0 
-      ? orders?.filter(order => selectedOrders.includes(order.id)) || []
-      : filteredOrders;
+      ? currentOrders.filter(order => selectedOrders.includes(order.id))
+      : currentOrders;
 
     // Flatten all items from orders to export
     const products = ordersToExport.flatMap(order => 
@@ -435,10 +532,13 @@ const PurchaseOrders = () => {
   };
 
   const handleExportPurchaseExcel = async () => {
-    // Use selected orders if any, otherwise use filtered orders
+    const currentOrders = activeTab === "awaiting_purchase" 
+      ? filteredAwaitingPurchaseOrders 
+      : filteredAwaitingDeliveryOrders;
+    
     const ordersToExport = selectedOrders.length > 0 
-      ? orders?.filter(order => selectedOrders.includes(order.id)) || []
-      : filteredOrders;
+      ? currentOrders.filter(order => selectedOrders.includes(order.id))
+      : currentOrders;
 
     if (ordersToExport.length === 0) {
       toast({
@@ -563,6 +663,7 @@ const PurchaseOrders = () => {
           });
         } else {
           queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] });
           toast({
             title: "Đã cập nhật trạng thái",
             description: `${ordersToUpdate.length} đơn hàng chuyển sang trạng thái Chờ Hàng`,
@@ -641,6 +742,7 @@ const PurchaseOrders = () => {
       
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders-stats"] });
     },
     onError: (error) => {
       toast({
@@ -692,17 +794,21 @@ const PurchaseOrders = () => {
       </div>
 
       <PurchaseOrderStats 
-        filteredOrders={filteredOrders}
-        allOrders={orders || []}
-        isLoading={isLoading}
+        filteredOrders={
+          activeTab === "drafts" ? filteredDraftOrders :
+          activeTab === "awaiting_purchase" ? filteredAwaitingPurchaseOrders :
+          filteredAwaitingDeliveryOrders
+        }
+        allOrders={allOrdersForStats || []}
+        isLoading={isStatsLoading}
         isMobile={isMobile}
       />
 
-      <Tabs defaultValue="drafts" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="drafts" className="gap-2">
             <FileText className="w-4 h-4" />
-            Nháp ({draftOrders.length})
+            Nháp ({draftOrders?.length || 0})
           </TabsTrigger>
           <TabsTrigger value="awaiting_purchase" className="gap-2">
             <ShoppingCart className="w-4 h-4" />
@@ -779,10 +885,17 @@ const PurchaseOrders = () => {
               </div>
             </CardHeader>
             <CardContent>
-            <PurchaseOrderList
-              filteredOrders={activeOrders}
-              isLoading={isLoading}
-              searchTerm={searchTerm}
+            {isAwaitingPurchaseLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : (
+              <PurchaseOrderList
+                filteredOrders={filteredAwaitingPurchaseOrders}
+                isLoading={false}
+                searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               statusFilter="awaiting_export"
               setStatusFilter={setStatusFilter}
@@ -796,7 +909,8 @@ const PurchaseOrders = () => {
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
-            />
+              />
+            )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -866,10 +980,17 @@ const PurchaseOrders = () => {
               </div>
             </CardHeader>
             <CardContent>
-            <PurchaseOrderList
-              filteredOrders={activeOrders}
-              isLoading={isLoading}
-              searchTerm={searchTerm}
+            {isAwaitingDeliveryLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : (
+              <PurchaseOrderList
+                filteredOrders={filteredAwaitingDeliveryOrders}
+                isLoading={false}
+                searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               statusFilter="pending"
               setStatusFilter={setStatusFilter}
@@ -883,7 +1004,8 @@ const PurchaseOrders = () => {
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
-            />
+              />
+            )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -897,9 +1019,16 @@ const PurchaseOrders = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+            {isDraftLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : (
               <PurchaseOrderList
                 filteredOrders={filteredDraftOrders}
-                isLoading={isLoading}
+                isLoading={false}
                 searchTerm={searchTermDraft}
                 setSearchTerm={setSearchTermDraft}
                 statusFilter="all"
@@ -916,6 +1045,7 @@ const PurchaseOrders = () => {
                 onEditDraft={handleEditDraft}
                 hideStatusFilter={true}
               />
+            )}
             </CardContent>
           </Card>
         </TabsContent>
