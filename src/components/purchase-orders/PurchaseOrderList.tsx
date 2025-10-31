@@ -12,7 +12,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -103,6 +103,9 @@ export function PurchaseOrderList({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
+  
+  // Track orders that just finished processing (need 3s delay before unlock)
+  const [ordersToUnlock, setOrdersToUnlock] = useState<Map<string, number>>(new Map());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -261,9 +264,69 @@ export function PurchaseOrderList({
     refetchInterval: 3000 // Auto-refetch every 3 seconds to update processing status
   });
 
+  // Monitor processing status and schedule delayed unlock
+  useEffect(() => {
+    if (!syncStatusMap) return;
+
+    const now = Date.now();
+    const newOrdersToUnlock = new Map(ordersToUnlock);
+    let hasChanges = false;
+
+    // Check each order
+    filteredOrders.forEach(order => {
+      const processing = syncStatusMap[order.id]?.processing ?? 0;
+      const isInUnlockQueue = newOrdersToUnlock.has(order.id);
+
+      if (processing === 0 && !isInUnlockQueue) {
+        // Just finished processing → Add to unlock queue with 3s delay
+        newOrdersToUnlock.set(order.id, now + 3000);
+        hasChanges = true;
+      } else if (processing > 0 && isInUnlockQueue) {
+        // Started processing again → Remove from unlock queue
+        newOrdersToUnlock.delete(order.id);
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      setOrdersToUnlock(newOrdersToUnlock);
+    }
+  }, [syncStatusMap, filteredOrders]);
+
+  // Cleanup expired delays and trigger re-render
+  useEffect(() => {
+    if (ordersToUnlock.size === 0) return;
+
+    const checkInterval = setInterval(() => {
+      const now = Date.now();
+      const newOrdersToUnlock = new Map(ordersToUnlock);
+      let hasExpired = false;
+
+      // Remove orders that have passed the 3s delay
+      newOrdersToUnlock.forEach((unlockTime, orderId) => {
+        if (now >= unlockTime) {
+          newOrdersToUnlock.delete(orderId);
+          hasExpired = true;
+        }
+      });
+
+      if (hasExpired) {
+        setOrdersToUnlock(newOrdersToUnlock);
+      }
+    }, 500); // Check every 500ms
+
+    return () => clearInterval(checkInterval);
+  }, [ordersToUnlock]);
+
   // Helper function to check if order is currently being processed
   const isOrderProcessing = (orderId: string): boolean => {
-    return syncStatusMap?.[orderId]?.processing > 0;
+    const now = Date.now();
+    const unlockTime = ordersToUnlock.get(orderId);
+    
+    return (
+      (syncStatusMap?.[orderId]?.processing ?? 0) > 0 || // Still processing
+      (unlockTime !== undefined && now < unlockTime) // In 3s delay period
+    );
   };
 
   const getStatusBadge = (status: string, hasShortage?: boolean) => {
