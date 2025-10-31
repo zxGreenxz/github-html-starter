@@ -48,14 +48,25 @@ function parsePriceAndMultiply(price: string | number): number {
   return Math.round(parsedPrice * 1000);
 }
 
-// Convert image URL to base64
+// Convert image URL to base64 with DPI normalization to 72
 async function imageUrlToBase64(url: string): Promise<string | null> {
   try {
+    console.log('🔄 Fetching and normalizing image DPI to 72:', url);
+    
     const response = await fetch(url);
     if (!response.ok) return null;
     
     const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    // ✅ Use imagescript to normalize DPI to 72
+    const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
+    const image = await Image.decode(new Uint8Array(arrayBuffer));
+    
+    // Encode as JPEG with 95% quality → automatically normalizes DPI to 72 (web standard)
+    const encoded = await image.encodeJPEG(95);
+    const base64 = btoa(String.fromCharCode(...encoded));
+    
+    console.log('✅ Image normalized to 72 DPI');
     return base64;
   } catch (error) {
     console.error('Error converting image to base64:', error);
@@ -63,16 +74,16 @@ async function imageUrlToBase64(url: string): Promise<string | null> {
   }
 }
 
-// Convert image URL to base64 with retry
+// Convert image URL to base64 with retry and DPI normalization
 async function imageUrlToBase64WithRetry(url: string | null, maxRetries = 2): Promise<string | null> {
   if (!url) return null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempting to convert image (attempt ${attempt}/${maxRetries}):`, url);
-      const base64 = await imageUrlToBase64(url);
+      const base64 = await imageUrlToBase64(url); // ✅ Now includes DPI normalization
       if (base64) {
-        console.log('Image conversion successful');
+        console.log('Image conversion successful (DPI normalized to 72)');
         return base64;
       }
     } catch (error) {

@@ -11,6 +11,7 @@ import { Loader2, X, Package } from "lucide-react";
 import { toast } from "sonner";
 import { updateTPOSProductDetails, type TPOSProductFullDetails, type TPOSUpdateProductPayload } from "@/lib/tpos-api";
 import { useImagePaste } from "@/hooks/use-image-paste";
+import { compressImage } from "@/lib/image-utils";
 import { VariantSelectorDialog } from "./VariantSelectorDialog";
 import { convertVariantsToAttributeLines, generateProductVariants } from "@/lib/tpos-variant-converter";
 import { upsertProductFromTPOS } from "@/lib/tpos-product-sync";
@@ -105,11 +106,36 @@ export function EditTPOSProductDialog({
       payload.PurchasePrice = data.purchasePrice;
       payload.StandardPrice = data.purchasePrice;
       
-      // ✅ Handle Image correctly
+      // ✅ Handle Image correctly with DPI normalization
       let imageData: string | undefined = undefined;
       if (imageBase64) {
-        // imageBase64 có dạng "data:image/png;base64,..." → lấy phần sau dấu ,
-        imageData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        console.log('🔄 Normalizing pasted image DPI to 72 for TPOS...');
+        
+        // Convert base64 → blob → File
+        const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+        const file = new File([blob], 'pasted-image.jpg', { type: 'image/jpeg' });
+        
+        // ✅ Compress to normalize DPI to 72
+        const compressedFile = await compressImage(file, 1, 1920, 1920);
+        
+        // Convert back to base64 (now with DPI = 72)
+        const reader = new FileReader();
+        imageData = await new Promise<string>((resolve) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.includes(',') ? result.split(',')[1] : result);
+          };
+          reader.readAsDataURL(compressedFile);
+        });
+        
+        console.log('✅ Image normalized to 72 DPI');
       }
       
       if (imageData) {
