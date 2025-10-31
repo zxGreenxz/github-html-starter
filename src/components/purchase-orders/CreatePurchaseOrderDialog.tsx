@@ -631,26 +631,55 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Invoke background TPOS processing (non-blocking)
+      // Step 3: Invoke background TPOS processing and matching
       console.log('🚀 Starting background TPOS product creation...');
       
       const totalItems = items.filter(i => i.product_name.trim()).length;
       
-      // Invoke background function without awaiting (fire-and-forget)
-      supabase.functions.invoke(
-        'process-purchase-order-background',
-        { body: { purchase_order_id: order.id } }
-      ).catch(error => {
-        console.error('Failed to invoke background process:', error);
-        sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
-      });
-
       // Show loading toast immediately (will be updated via polling)
       const toastId = `tpos-processing-${order.id}`;
       sonnerToast.loading(
         `Đang xử lý 0/${totalItems} sản phẩm...`,
         { id: toastId, duration: Infinity }
       );
+
+      // Invoke background function and handle matching results
+      supabase.functions.invoke(
+        'process-purchase-order-background',
+        { body: { purchase_order_id: order.id } }
+      ).then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to invoke background process:', error);
+          sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+          return;
+        }
+
+        // Handle matching results when available
+        if (data?.matching) {
+          const { matched, unmatched, unmatched_items } = data.matching;
+          
+          if (unmatched > 0) {
+            sonnerToast.warning(
+              `⚠️ Một số variant chưa đồng bộ được`,
+              {
+                description: `${matched} matched, ${unmatched} không tìm thấy trong kho. Xem chi tiết trong đơn hàng.`,
+                duration: 8000
+              }
+            );
+          } else if (matched > 0) {
+            sonnerToast.success(
+              `✅ Đồng bộ hoàn tất`,
+              {
+                description: `Đã match ${matched} sản phẩm từ kho thành công!`,
+                duration: 5000
+              }
+            );
+          }
+        }
+      }).catch(error => {
+        console.error('Failed to invoke background process:', error);
+        sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+      });
 
       // Start polling for progress updates
       pollTPOSProcessingProgress(order.id, totalItems, toastId);

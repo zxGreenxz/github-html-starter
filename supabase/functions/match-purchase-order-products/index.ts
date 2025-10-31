@@ -134,8 +134,16 @@ Deno.serve(async (req) => {
         console.log(`   ✅ Updated to: ${matchedProduct.product_code} - ${matchedProduct.product_name}`);
 
       } else {
-        // No match found - append error to tpos_sync_error
-        const errorMsg = `Không tìm thấy variant "${item.variant}" trong kho`;
+        // No match found - detailed error with available variants
+        const candidateVariants = candidates
+          ?.map(c => c.variant || 'No variant')
+          .filter(v => v !== 'No variant')
+          .join(', ') || 'None';
+        
+        const errorMsg = candidateVariants === 'None'
+          ? `❌ Không tìm thấy variant "${item.variant}" - Không có sản phẩm nào với base_product_code "${item.product_code}" trong kho`
+          : `❌ Không tìm thấy variant "${item.variant}" - Variants có sẵn: [${candidateVariants}]`;
+        
         const existingError = item.tpos_sync_error || '';
         const newError = existingError 
           ? `${existingError}\n${errorMsg}`
@@ -156,9 +164,10 @@ Deno.serve(async (req) => {
         unmatchedItems.push({ 
           product_code: item.product_code, 
           variant: item.variant,
-          error: errorMsg 
+          error: errorMsg,
+          available_variants: candidateVariants
         });
-        console.log(`   ❌ No match found for variant "${item.variant}"`);
+        console.log(`   ❌ No match: ${errorMsg}`);
       }
     }
 
