@@ -91,10 +91,33 @@ export function randomDelay(min = 500, max = 2000): Promise<void> {
 
 export function cleanBase64(base64String: string | null | undefined): string | null {
   if (!base64String) return null;
-  if (base64String.includes(",")) {
-    base64String = base64String.split(",")[1];
+  
+  // Remove common image data URL prefixes
+  const prefixes = [
+    'data:image/jpeg;base64,',
+    'data:image/jpg;base64,',
+    'data:image/png;base64,',
+    'data:image/gif;base64,',
+    'data:image/webp;base64,',
+    'data:image/bmp;base64,',
+    'data:image/svg+xml;base64,',
+  ];
+  
+  let cleaned = base64String;
+  for (const prefix of prefixes) {
+    if (cleaned.startsWith(prefix)) {
+      cleaned = cleaned.substring(prefix.length);
+      break;
+    }
   }
-  return base64String.replace(/\s/g, "");
+  
+  // Remove any remaining commas (legacy check)
+  if (cleaned.includes(',')) {
+    cleaned = cleaned.split(',')[1];
+  }
+  
+  // Remove all whitespace
+  return cleaned.replace(/\s/g, '');
 }
 
 export function getTPOSHeaders(bearerToken: string) {

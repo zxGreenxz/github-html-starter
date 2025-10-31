@@ -148,6 +148,35 @@ function generateCombinations(arrays: AttributeValue[][]): AttributeValue[][] {
   return result;
 }
 
+// Clean base64 string by removing data URL prefix
+function cleanBase64(base64String: string | null | undefined): string | null {
+  if (!base64String) return null;
+  
+  const prefixes = [
+    'data:image/jpeg;base64,',
+    'data:image/jpg;base64,',
+    'data:image/png;base64,',
+    'data:image/gif;base64,',
+    'data:image/webp;base64,',
+    'data:image/bmp;base64,',
+    'data:image/svg+xml;base64,',
+  ];
+  
+  let cleaned = base64String;
+  for (const prefix of prefixes) {
+    if (cleaned.startsWith(prefix)) {
+      cleaned = cleaned.substring(prefix.length);
+      break;
+    }
+  }
+  
+  if (cleaned.includes(',')) {
+    cleaned = cleaned.split(',')[1];
+  }
+  
+  return cleaned.replace(/\s/g, '');
+}
+
 // Get TPOS headers with bearer token
 function getTPOSHeaders(bearerToken: string) {
   return {
@@ -266,7 +295,7 @@ serve(async (req) => {
         POSCategId: null,
         CostMethod: null,
         Barcode: baseProductCode,
-        Image: imageBase64,
+        Image: cleanBase64(imageBase64),
         ImageUrl: null,
         Thumbnails: [],
         ProductVariantCount: 0,
@@ -722,7 +751,7 @@ serve(async (req) => {
       POSCategId: null,
       CostMethod: null,
       Barcode: baseProductCode,
-      Image: imageBase64,
+      Image: cleanBase64(imageBase64),
       ImageUrl: null,
       Thumbnails: [],
       ProductVariantCount: productVariants.length,
