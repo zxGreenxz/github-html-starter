@@ -63,12 +63,15 @@ export function UnifiedImageUpload({
     try {
       let fileToUpload = file;
       
-      // Auto compress if file > threshold
-      if (file.size > compressThreshold * 1024 * 1024) {
+      // Always compress to normalize DPI to 72
+      try {
         setUploadProgress(25);
-        fileToUpload = await compressImage(file, maxSizeMB, 1920, 1920);
+        console.log(`🔄 Compressing ${file.name} to 72 DPI...`);
+        fileToUpload = await compressImage(file, 1, 1920, 1920);
+        console.log(`✅ Compressed: ${file.size} → ${fileToUpload.size} bytes`);
         setUploadProgress(50);
-      } else {
+      } catch (compressError) {
+        console.error('Compression failed, using original:', compressError);
         setUploadProgress(30);
       }
 
@@ -173,7 +176,18 @@ export function UnifiedImageUpload({
       const item = items[i];
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) imageFiles.push(file);
+        if (file) {
+          try {
+            // Compress pasted image to normalize DPI to 72
+            console.log(`🔄 Compressing pasted image: ${file.name}`);
+            const compressedFile = await compressImage(file, 1, 1920, 1920);
+            console.log(`✅ Compressed: ${file.size} → ${compressedFile.size} bytes`);
+            imageFiles.push(compressedFile);
+          } catch (error) {
+            console.error('Compression failed, using original:', error);
+            imageFiles.push(file);
+          }
+        }
       }
     }
 
