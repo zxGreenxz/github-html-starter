@@ -531,154 +531,6 @@ const PurchaseOrders = () => {
     }
   };
 
-  const handleExportPurchaseExcel = async () => {
-    const currentOrders = activeTab === "awaiting_purchase" 
-      ? filteredAwaitingPurchaseOrders 
-      : filteredAwaitingDeliveryOrders;
-    
-    const ordersToExport = selectedOrders.length > 0 
-      ? currentOrders.filter(order => selectedOrders.includes(order.id))
-      : currentOrders;
-
-    if (ordersToExport.length === 0) {
-      toast({
-        title: "Không có đơn hàng",
-        description: "Vui lòng chọn ít nhất một đơn hàng",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check number of unique suppliers
-    const uniqueSuppliers = new Set(ordersToExport.map(order => order.supplier_name));
-
-    if (uniqueSuppliers.size > 1) {
-      toast({
-        title: "Không thể xuất Excel",
-        description: `Đang chọn ${uniqueSuppliers.size} nhà cung cấp khác nhau. Vui lòng chỉ chọn đơn hàng từ 1 nhà cung cấp để xuất.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Flatten all items from ordersToExport
-    const products = ordersToExport.flatMap(order =>
-      (order.items || []).map(item => ({
-        ...item,
-        order_id: order.id,
-        order_date: order.created_at,
-        supplier_name: order.supplier_name,
-        order_notes: order.notes,
-        discount_amount: order.discount_amount || 0,
-        total_amount: order.total_amount || 0
-      }))
-    );
-
-    if (products.length === 0) {
-      toast({
-        title: "Không có dữ liệu",
-        description: "Không có sản phẩm nào để xuất",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Get all unique product codes
-      const allProductCodes = [...new Set(products.map(p => p.product_code))];
-
-      // Query all children in one go for efficiency
-      const { data: allChildren } = await supabase
-        .from('products')
-        .select('product_code, base_product_code')
-        .in('base_product_code', allProductCodes);
-
-      // Group children by base_product_code (exclude self-reference)
-      const childrenMap: Record<string, any[]> = {};
-      allChildren?.forEach(child => {
-        // Only add if product_code is different from base_product_code (exclude parent itself)
-        if (child.product_code !== child.base_product_code) {
-          if (!childrenMap[child.base_product_code]) {
-            childrenMap[child.base_product_code] = [];
-          }
-          childrenMap[child.base_product_code].push(child);
-        }
-      });
-
-      // Expand parent products into child variants
-      const expandedProducts = products.flatMap(item => {
-        const children = childrenMap[item.product_code] || [];
-        if (children.length > 0) {
-          // Parent has children → Replace with children, each with quantity = 1
-          return children.map(child => ({
-            ...item,
-            product_code: child.product_code,
-            quantity: 1
-          }));
-        }
-        // No children → Keep original item
-        return [item];
-      });
-
-      // Calculate discount percentage for each item
-      const excelData = expandedProducts.map(item => {
-        return {
-          "Mã sản phẩm (*)": item.product_code?.toString() || "",
-          "Số lượng (*)": item.quantity || 0,
-          "Đơn giá": item.purchase_price || 0,
-          "Chiết khấu (%)": 0,
-        };
-      });
-
-      // Create Excel file
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Mua Hàng");
-      
-      const fileName = `MuaHang_${getSupplierList(ordersToExport)}_${formatDateDDMM()}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-
-      toast({
-        title: "Xuất Excel thành công!",
-        description: `Đã tạo file ${fileName}`,
-      });
-
-      // Update status from awaiting_export to pending for exported orders
-      const ordersToUpdate = ordersToExport
-        .filter(order => order.status === 'awaiting_export')
-        .map(order => order.id);
-
-      if (ordersToUpdate.length > 0) {
-        const { error: updateError } = await supabase
-          .from('purchase_orders')
-          .update({ status: 'pending' })
-          .in('id', ordersToUpdate);
-
-        if (updateError) {
-          console.error('Error updating order status:', updateError);
-          toast({
-            title: "Cảnh báo",
-            description: "Xuất file thành công nhưng không thể cập nhật trạng thái đơn hàng",
-            variant: "destructive",
-          });
-        } else {
-          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-          queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] });
-          toast({
-            title: "Đã cập nhật trạng thái",
-            description: `${ordersToUpdate.length} đơn hàng chuyển sang trạng thái Chờ Hàng`,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error exporting Excel:", error);
-      toast({
-        title: "Lỗi khi xuất Excel!",
-        description: "Vui lòng thử lại",
-        variant: "destructive",
-      });
-    }
-  };
 
 
   // Bulk delete mutation
@@ -857,10 +709,6 @@ const PurchaseOrders = () => {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Xóa đã chọn
                       </Button>
-                      <Button onClick={handleExportPurchaseExcel} variant="outline" size="sm">
-                        <ShoppingCart className="w-4 h-4 mr-2" />
-                        Xuất Excel Mua hàng
-                      </Button>
                       <Button onClick={handleExportExcel} variant="outline" size="sm">
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
@@ -872,10 +720,6 @@ const PurchaseOrders = () => {
                 {/* Regular export actions */}
                 {selectedOrders.length > 0 && (
                   <div className="flex gap-2">
-                    <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
-                      <ShoppingCart className="w-4 h-4" />
-                      Xuất Excel mua hàng
-                    </Button>
                     <Button onClick={handleExportExcel} variant="outline" className="gap-2">
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
@@ -952,10 +796,6 @@ const PurchaseOrders = () => {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Xóa đã chọn
                       </Button>
-                      <Button onClick={handleExportPurchaseExcel} variant="outline" size="sm">
-                        <ShoppingCart className="w-4 h-4 mr-2" />
-                        Xuất Excel Mua hàng
-                      </Button>
                       <Button onClick={handleExportExcel} variant="outline" size="sm">
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
@@ -967,10 +807,6 @@ const PurchaseOrders = () => {
                 {/* Regular export actions */}
                 {selectedOrders.length > 0 && (
                   <div className="flex gap-2">
-                    <Button onClick={handleExportPurchaseExcel} variant="outline" className="gap-2">
-                      <ShoppingCart className="w-4 h-4" />
-                      Xuất Excel mua hàng
-                    </Button>
                     <Button onClick={handleExportExcel} variant="outline" className="gap-2">
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
