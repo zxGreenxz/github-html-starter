@@ -145,9 +145,28 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // Auto-scroll table to top when dialog opens
   useEffect(() => {
     if (open && tableContainerRef.current) {
+      // Delay nhỏ để đảm bảo DOM đã render
+      setTimeout(() => {
+        if (tableContainerRef.current) {
+          tableContainerRef.current.scrollTop = 0;
+        }
+      }, 0);
+    } else if (!open && tableContainerRef.current) {
+      // Reset về 0 khi đóng modal
       tableContainerRef.current.scrollTop = 0;
     }
   }, [open]);
+
+  // Scroll to top when items change
+  useEffect(() => {
+    if (open && items.length > 0 && tableContainerRef.current) {
+      setTimeout(() => {
+        if (tableContainerRef.current) {
+          tableContainerRef.current.scrollTop = 0;
+        }
+      }, 100);
+    }
+  }, [open, items.length]);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
