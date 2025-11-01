@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { searchTPOSProduct } from "@/lib/tpos-api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -622,7 +623,7 @@ const PurchaseOrders = () => {
           continue;
         }
 
-        // CASE 3: Chưa upload + Có biến thể → Matching
+        // CASE 3: Chưa upload + Có biến thể → Matching với 3-step fallback
         const { data: candidates, error: candidatesError } = await supabase
           .from('products')
           .select('product_code, product_name, variant')
@@ -637,26 +638,80 @@ const PurchaseOrders = () => {
           continue;
         }
 
+        // Try to match variant
         const matchedProduct = candidates?.find(p => 
           variantsMatch(p.variant, item.variant)
         );
 
         if (matchedProduct) {
+          // ✅ SUCCESS: Found variant match
           excelRows.push({
             "Mã sản phẩm (*)": matchedProduct.product_code,
             "Số lượng (*)": item.quantity,
             "Đơn giá": item.purchase_price,
             "Chiết khấu (%)": 0
           });
-        } else {
-          skippedCount++;
-          const availableVariants = candidates
-            ?.map(c => c.variant)
-            .join(', ') || 'Không có';
-          skippedItems.push(
-            `${item.product_code} (${item.variant}) - Variants có: [${availableVariants}]`
-          );
+          continue;
         }
+
+        // ❌ No variant match → FALLBACK STEP 1: Tìm exact product_code trong kho
+        console.log(`⚠️ No variant match for ${item.product_code} (${item.variant}), trying exact match...`);
+
+        const { data: exactMatch, error: exactError } = await supabase
+          .from('products')
+          .select('product_code')
+          .eq('product_code', item.product_code)
+          .maybeSingle();
+
+        if (exactError) {
+          console.error(`Error checking exact match for ${item.product_code}:`, exactError);
+          skippedCount++;
+          skippedItems.push(`${item.product_code} (${item.variant}) - Lỗi query exact match`);
+          continue;
+        }
+
+        if (exactMatch) {
+          // ✅ SUCCESS: Found exact product_code in warehouse
+          console.log(`✅ Found exact match in warehouse: ${item.product_code}`);
+          excelRows.push({
+            "Mã sản phẩm (*)": item.product_code,
+            "Số lượng (*)": item.quantity,
+            "Đơn giá": item.purchase_price,
+            "Chiết khấu (%)": 0
+          });
+          continue;
+        }
+
+        // ❌ Not in warehouse → FALLBACK STEP 2: Tìm trên TPOS
+        console.log(`⚠️ Not found in warehouse, checking TPOS for ${item.product_code}...`);
+
+        try {
+          const tposProduct = await searchTPOSProduct(item.product_code);
+          
+          if (tposProduct) {
+            // ✅ SUCCESS: Found on TPOS
+            console.log(`✅ Found on TPOS: ${item.product_code} (ID: ${tposProduct.Id})`);
+            excelRows.push({
+              "Mã sản phẩm (*)": item.product_code,
+              "Số lượng (*)": item.quantity,
+              "Đơn giá": item.purchase_price,
+              "Chiết khấu (%)": 0
+            });
+            continue;
+          }
+        } catch (tposError) {
+          console.error(`Error searching TPOS for ${item.product_code}:`, tposError);
+          // Fallthrough to final error
+        }
+
+        // ❌ FINAL FALLBACK: Not found anywhere → SKIP với error đỏ
+        skippedCount++;
+        const availableVariants = candidates
+          ?.map(c => c.variant)
+          .join(', ') || 'Không có';
+        skippedItems.push(
+          `❌ Upload TPOS Lỗi: ${item.product_code} - ${item.product_name} (Variant: ${item.variant}, Có trong kho: [${availableVariants}])`
+        );
       }
 
       // STEP 5: Validate có items để xuất
@@ -680,13 +735,18 @@ const PurchaseOrders = () => {
       // STEP 7: Show success toast
       let description = `Đã xuất ${excelRows.length} sản phẩm`;
       if (skippedCount > 0) {
-        description += `\n⚠️ Bỏ qua ${skippedCount} sản phẩm không match được variant`;
-        console.warn('Skipped items:', skippedItems);
+        description += `\n\n❌ Bỏ qua ${skippedCount} sản phẩm:\n`;
+        description += skippedItems.slice(0, 3).join('\n'); // Show first 3 errors
+        if (skippedCount > 3) {
+          description += `\n... và ${skippedCount - 3} sản phẩm khác`;
+        }
+        console.error('❌ UPLOAD TPOS LỖI - Chi tiết:', skippedItems);
       }
 
       toast({
-        title: "Xuất Excel thành công!",
+        title: skippedCount > 0 ? "⚠️ Xuất Excel với lỗi!" : "Xuất Excel thành công!",
         description: description,
+        variant: skippedCount > 0 ? "destructive" : "default",
       });
 
     } catch (error) {
