@@ -1218,6 +1218,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       else onOpenChange(isOpen);
     }}>
       <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0 relative">
+        <DialogTitle className="sr-only">
+          {initialData ? 'Chỉnh sửa đơn hàng' : 'Tạo đơn đặt hàng mới'}
+        </DialogTitle>
+        
         {isProcessing && (
           <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center rounded-lg">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl flex flex-col items-center gap-4">
