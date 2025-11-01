@@ -82,14 +82,6 @@ const PurchaseOrders = () => {
   };
 
   /**
-   * Extract base product code by removing trailing variant suffix
-   * Examples: LAO192T → LAO192, N1547D → N1547
-   */
-  const extractBaseCode = (productCode: string): string => {
-    return productCode.replace(/[A-Z0-9]{1,3}$/, '');
-  };
-
-  /**
    * Simple variant matching (case-insensitive, remove accents)
    * Returns true if variants are similar enough
    */
@@ -631,12 +623,10 @@ const PurchaseOrders = () => {
         }
 
         // CASE 3: Chưa upload + Có biến thể → Matching
-        const baseCode = extractBaseCode(item.product_code);
-        
         const { data: candidates, error: candidatesError } = await supabase
           .from('products')
           .select('product_code, product_name, variant')
-          .eq('base_product_code', baseCode)
+          .eq('base_product_code', item.product_code)
           .not('variant', 'is', null)
           .neq('variant', '');
 
