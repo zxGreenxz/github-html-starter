@@ -20,6 +20,7 @@ import { EditPurchaseOrderDialog } from "./EditPurchaseOrderDialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatVND } from "@/lib/currency-utils";
 import { formatVariantForDisplay } from "@/lib/variant-display-utils";
+import * as XLSX from "xlsx";
 
 interface PurchaseOrderItem {
   id?: string;
@@ -76,7 +77,6 @@ interface PurchaseOrderListProps {
   onToggleSelect: (orderId: string) => void;
   onToggleSelectAll: () => void;
   onEditDraft?: (order: PurchaseOrder) => void;
-  onExportOrder?: (order: PurchaseOrder) => void;
   hideStatusFilter?: boolean;
 }
 
@@ -97,7 +97,6 @@ export function PurchaseOrderList({
   onToggleSelect,
   onToggleSelectAll,
   onEditDraft,
-  onExportOrder,
   hideStatusFilter = false,
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
@@ -408,6 +407,119 @@ export function PurchaseOrderList({
     }
   };
 
+  // Helper function to format date as DD-MM
+  const formatDateDDMM = () => {
+    const date = new Date();
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${day}-${month}`;
+  };
+
+  // Export single order to Excel
+  const handleExportSingleOrderExcel = async (order: PurchaseOrder) => {
+    if (!order.items || order.items.length === 0) {
+      toast({
+        title: "Không có dữ liệu",
+        description: "Đơn hàng không có sản phẩm nào để xuất",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const products = order.items.map(item => ({
+      ...item,
+      order_id: order.id,
+      order_date: order.created_at,
+      supplier_name: order.supplier_name,
+      order_notes: order.notes,
+      discount_amount: order.discount_amount || 0,
+      total_amount: order.total_amount || 0
+    }));
+
+    try {
+      // Get all unique product codes
+      const allProductCodes = [...new Set(products.map(p => p.product_code))];
+
+      // Query all children in one go for efficiency
+      const { data: allChildren } = await supabase
+        .from('products')
+        .select('product_code, base_product_code')
+        .in('base_product_code', allProductCodes);
+
+      // Group children by base_product_code (exclude self-reference)
+      const childrenMap: Record<string, any[]> = {};
+      allChildren?.forEach(child => {
+        // Only add if product_code is different from base_product_code (exclude parent itself)
+        if (child.product_code !== child.base_product_code) {
+          if (!childrenMap[child.base_product_code]) {
+            childrenMap[child.base_product_code] = [];
+          }
+          childrenMap[child.base_product_code].push(child);
+        }
+      });
+
+      // Expand parent products into child variants
+      const expandedProducts = products.flatMap(item => {
+        const children = childrenMap[item.product_code] || [];
+        if (children.length > 0) {
+          // Parent has children → Replace with children, each with quantity = 1
+          return children.map(child => ({
+            ...item,
+            product_code: child.product_code,
+            quantity: 1
+          }));
+        }
+        // No children → Keep original item
+        return [item];
+      });
+
+      // Calculate discount percentage for each item
+      const excelData = expandedProducts.map(item => {
+        return {
+          "Mã sản phẩm (*)": item.product_code?.toString() || "",
+          "Số lượng (*)": item.quantity || 0,
+          "Đơn giá": item.purchase_price || 0,
+          "Chiết khấu (%)": 0,
+        };
+      });
+
+      // Create Excel file
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mua Hàng");
+      
+      const fileName = `MuaHang_${order.supplier_name || 'NoSupplier'}_${formatDateDDMM()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      toast({
+        title: "Xuất Excel thành công!",
+        description: `Đã tạo file ${fileName}`,
+      });
+
+      // Update status if order is awaiting_export
+      if (order.status === 'awaiting_export') {
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ status: 'pending' })
+          .eq('id', order.id);
+
+        if (!updateError) {
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+          toast({
+            title: "Đã cập nhật trạng thái",
+            description: "Đơn hàng chuyển sang trạng thái Chờ Hàng",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      toast({
+        title: "Lỗi khi xuất Excel!",
+        description: "Vui lòng thử lại",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading) {
     return <div className="text-center py-8">Đang tải...</div>;
@@ -808,17 +920,15 @@ export function PurchaseOrderList({
                         )}
                         
                         {/* Export Excel button */}
-                        {onExportOrder && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onExportOrder(flatItem)}
-                            title="Xuất Excel mua hàng"
-                            disabled={isOrderProcessing(flatItem.id)}
-                          >
-                            <FileDown className="w-4 h-4 text-green-600" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleExportSingleOrderExcel(flatItem)}
+                          title="Xuất Excel mua hàng"
+                          disabled={isOrderProcessing(flatItem.id)}
+                        >
+                          <FileDown className="w-4 h-4 text-green-600" />
+                        </Button>
                         
                         {/* Delete order button */}
                         <Button

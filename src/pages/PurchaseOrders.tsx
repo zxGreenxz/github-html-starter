@@ -549,38 +549,31 @@ const PurchaseOrders = () => {
     }
   };
 
-  // Excel Mua Hàng Export (supports both single order and selected orders)
-  const handleExportPurchaseExcel = async (singleOrder?: any) => {
-    let orderToExport;
+  // Excel Mua Hàng Export
+  const handleExportPurchaseExcel = async () => {
+    // STEP 1: Validate chỉ 1 đơn hàng được chọn
+    if (selectedOrders.length !== 1) {
+      toast({
+        title: "Vui lòng chọn 1 đơn hàng",
+        description: "Chỉ được xuất Excel Mua Hàng từ 1 đơn hàng tại 1 thời điểm",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // If single order is provided (from action button), use it directly
-    if (singleOrder) {
-      orderToExport = singleOrder;
-    } else {
-      // STEP 1: Validate chỉ 1 đơn hàng được chọn
-      if (selectedOrders.length !== 1) {
-        toast({
-          title: "Vui lòng chọn 1 đơn hàng",
-          description: "Chỉ được xuất Excel Mua Hàng từ 1 đơn hàng tại 1 thời điểm",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // STEP 2: Lấy đơn hàng đã chọn
-      const currentOrders = activeTab === "awaiting_purchase" 
-        ? filteredAwaitingPurchaseOrders 
-        : filteredAwaitingDeliveryOrders;
-      
-      orderToExport = currentOrders.find(order => order.id === selectedOrders[0]);
-      
-      if (!orderToExport) {
-        toast({
-          title: "Không tìm thấy đơn hàng",
-          variant: "destructive",
-        });
-        return;
-      }
+    // STEP 2: Lấy đơn hàng đã chọn
+    const currentOrders = activeTab === "awaiting_purchase" 
+      ? filteredAwaitingPurchaseOrders 
+      : filteredAwaitingDeliveryOrders;
+    
+    const orderToExport = currentOrders.find(order => order.id === selectedOrders[0]);
+    
+    if (!orderToExport) {
+      toast({
+        title: "Không tìm thấy đơn hàng",
+        variant: "destructive",
+      });
+      return;
     }
 
     // STEP 3: Lấy items từ đơn hàng
@@ -736,7 +729,7 @@ const PurchaseOrders = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Mua Hàng");
       
-      const fileName = `MuaHang_${orderToExport.supplier_name || 'NoSupplier'}_${formatDateDDMM()}.xlsx`;
+      const fileName = `MuaHang_${orderToExport.supplier_name}_${formatDateDDMM()}.xlsx`;
       XLSX.writeFile(wb, fileName);
 
       // STEP 7: Show success toast
@@ -755,23 +748,6 @@ const PurchaseOrders = () => {
         description: description,
         variant: skippedCount > 0 ? "destructive" : "default",
       });
-
-      // STEP 8: Update status if order is awaiting_export
-      if (orderToExport.status === 'awaiting_export') {
-        const { error: updateError } = await supabase
-          .from('purchase_orders')
-          .update({ status: 'pending' })
-          .eq('id', orderToExport.id);
-
-        if (!updateError) {
-          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-          toast({
-            title: "Đã cập nhật trạng thái",
-            description: "Đơn hàng chuyển sang trạng thái Chờ Hàng",
-          });
-        }
-      }
-
 
     } catch (error) {
       console.error("Error exporting purchase Excel:", error);
