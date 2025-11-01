@@ -1231,7 +1231,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (!isOpen) handleClose();
       else onOpenChange(isOpen);
     }}>
-      <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0 relative">
+      <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 relative">
         <DialogTitle className="sr-only">
           {initialData ? 'Chỉnh sửa đơn đặt hàng' : 'Tạo đơn đặt hàng mới'}
         </DialogTitle>
@@ -1248,7 +1248,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         )}
 
         {/* Fixed Header Section - Compact horizontal layout */}
-        <div className="shrink-0 px-6 pt-6 space-y-3">
+        <div className="shrink-0 px-6 pt-4 space-y-2 border-b pb-3">{/* Giảm padding */}
           {/* Row 1: Inline labels and inputs */}
           <div className="grid grid-cols-4 gap-4">
             <div className="flex items-center gap-2">
@@ -1607,12 +1607,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           </div>
         </div>
 
-        {/* Fixed Footer Section - Horizontal layout */}
-        <div className="shrink-0 px-6 pb-6 space-y-3 border-t pt-4">
+        {/* Fixed Footer Section - Always visible */}
+        <div className="shrink-0 px-6 py-3 border-t bg-background">
           {/* Single horizontal row with all summary info */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 mb-2">{/* Giảm gap và margin */}
             {/* Left group: Tổng số lượng, Tổng tiền, Giảm giá, Tiền ship */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">{/* Giảm gap */}
               <div className="flex items-center gap-2">
                 <span className="text-sm whitespace-nowrap">Tổng số lượng:</span>
                 <span className="text-sm font-semibold">
@@ -1685,9 +1685,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             </div>
 
             {/* Right side: THÀNH TIỀN */}
-            <div className="flex items-center gap-3 ml-auto">
-              <span className="text-lg font-bold whitespace-nowrap">THÀNH TIỀN:</span>
-              <span className="text-lg font-bold">{formatVND(finalAmount * 1000)}</span>
+            <div className="flex items-center gap-2 ml-auto">{/* Giảm gap */}
+              <span className="text-base font-bold whitespace-nowrap">THÀNH TIỀN:</span>{/* Giảm size */}
+              <span className="text-base font-bold">{formatVND(finalAmount * 1000)}</span>
             </div>
           </div>
 
