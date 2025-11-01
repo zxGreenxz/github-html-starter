@@ -78,6 +78,9 @@ interface PurchaseOrderItem {
   selectedAttributeValueIds?: string[]; // UUIDs for TPOS API call
   hasVariants?: boolean; // Flag to know if this item has variants
   
+  // TPOS metadata
+  tpos_product_id?: number | null;
+  
   // UI only
   _tempTotalPrice: number;
   _manualCodeEdit?: boolean;
@@ -620,7 +623,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             ? item.price_images 
             : (item.price_images ? [item.price_images] : []),
           // NEW: Save selected_attribute_value_ids
-          selected_attribute_value_ids: item.selectedAttributeValueIds || null
+          selected_attribute_value_ids: item.selectedAttributeValueIds || null,
+          // Save TPOS metadata
+          tpos_product_id: item.tpos_product_id || null,
+          tpos_sync_status: item.tpos_product_id ? 'success' : 'pending',
+          tpos_sync_completed_at: item.tpos_product_id ? new Date().toISOString() : null
         }));
 
       if (orderItems.length > 0) {
@@ -1066,7 +1073,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         selling_price: product.selling_price / 1000,
         product_images: productImages,
         price_images: product.price_images || [],
-        _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000)
+        _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000),
+        tpos_product_id: product.tpos_product_id || null
       };
       setItems(newItems);
       
@@ -1119,7 +1127,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       selling_price: firstProduct.selling_price / 1000,
       product_images: firstProductImages,
       price_images: firstProduct.price_images || [],
-      _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000)
+      _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000),
+      tpos_product_id: firstProduct.tpos_product_id || null
     };
 
     // Add remaining products as new lines WITH IMAGE FETCH
@@ -1138,6 +1147,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           product_images: productImages,
           price_images: product.price_images || [],
           _tempTotalPrice: product.purchase_price / 1000,
+          tpos_product_id: product.tpos_product_id || null
         };
       })
     );
@@ -1463,6 +1473,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 >
                   {item._manualCodeEdit ? <Check className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
                 </Button>
+                {item.tpos_product_id && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 whitespace-nowrap shrink-0">
+                    ✓ TPOS
+                  </Badge>
+                )}
               </div>
             </TableCell>
                       <TableCell>
