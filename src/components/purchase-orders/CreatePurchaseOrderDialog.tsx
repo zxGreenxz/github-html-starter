@@ -1074,7 +1074,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         product_images: productImages,
         price_images: product.price_images || [],
         _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000),
-        tpos_product_id: product.tpos_product_id || null
+        tpos_product_id: product.tpos_product_id || product.productid_bienthe || null
       };
       setItems(newItems);
       
@@ -1128,7 +1128,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       product_images: firstProductImages,
       price_images: firstProduct.price_images || [],
       _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000),
-      tpos_product_id: firstProduct.tpos_product_id || null
+      tpos_product_id: firstProduct.tpos_product_id || firstProduct.productid_bienthe || null
     };
 
     // Add remaining products as new lines WITH IMAGE FETCH
@@ -1147,7 +1147,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           product_images: productImages,
           price_images: product.price_images || [],
           _tempTotalPrice: product.purchase_price / 1000,
-          tpos_product_id: product.tpos_product_id || null
+          tpos_product_id: product.tpos_product_id || product.productid_bienthe || null
         };
       })
     );
