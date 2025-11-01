@@ -550,30 +550,38 @@ const PurchaseOrders = () => {
   };
 
   // Excel Mua Hàng Export
-  const handleExportPurchaseExcel = async () => {
-    // STEP 1: Validate chỉ 1 đơn hàng được chọn
-    if (selectedOrders.length !== 1) {
-      toast({
-        title: "Vui lòng chọn 1 đơn hàng",
-        description: "Chỉ được xuất Excel Mua Hàng từ 1 đơn hàng tại 1 thời điểm",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleExportPurchaseExcel = async (singleOrder?: PurchaseOrder) => {
+    // STEP 1: Xác định đơn hàng cần xuất
+    let orderToExport: PurchaseOrder | undefined;
+    
+    if (singleOrder) {
+      // Export từ nút action column
+      orderToExport = singleOrder;
+    } else {
+      // Export từ nút chính - validate chỉ 1 đơn hàng được chọn
+      if (selectedOrders.length !== 1) {
+        toast({
+          title: "Vui lòng chọn 1 đơn hàng",
+          description: "Chỉ được xuất Excel Mua Hàng từ 1 đơn hàng tại 1 thời điểm",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // STEP 2: Lấy đơn hàng đã chọn
-    const currentOrders = activeTab === "awaiting_purchase" 
-      ? filteredAwaitingPurchaseOrders 
-      : filteredAwaitingDeliveryOrders;
-    
-    const orderToExport = currentOrders.find(order => order.id === selectedOrders[0]);
-    
-    if (!orderToExport) {
-      toast({
-        title: "Không tìm thấy đơn hàng",
-        variant: "destructive",
-      });
-      return;
+      // STEP 2: Lấy đơn hàng đã chọn
+      const currentOrders = activeTab === "awaiting_purchase" 
+        ? filteredAwaitingPurchaseOrders 
+        : filteredAwaitingDeliveryOrders;
+      
+      orderToExport = currentOrders.find(order => order.id === selectedOrders[0]);
+      
+      if (!orderToExport) {
+        toast({
+          title: "Không tìm thấy đơn hàng",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // STEP 3: Lấy items từ đơn hàng
@@ -748,6 +756,22 @@ const PurchaseOrders = () => {
         description: description,
         variant: skippedCount > 0 ? "destructive" : "default",
       });
+
+      // STEP 8: Auto-update status nếu là single order export và status = 'awaiting_export'
+      if (singleOrder && orderToExport.status === 'awaiting_export') {
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ status: 'pending' })
+          .eq('id', orderToExport.id);
+
+        if (!updateError) {
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+          toast({
+            title: "Đã cập nhật trạng thái",
+            description: "Đơn hàng chuyển sang trạng thái Chờ Hàng",
+          });
+        }
+      }
 
     } catch (error) {
       console.error("Error exporting purchase Excel:", error);
@@ -939,7 +963,7 @@ const PurchaseOrders = () => {
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
                       </Button>
-                      <Button onClick={handleExportPurchaseExcel} variant="default" size="sm">
+                      <Button onClick={() => handleExportPurchaseExcel()} variant="default" size="sm">
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Xuất Excel Mua Hàng
                       </Button>
@@ -954,7 +978,7 @@ const PurchaseOrders = () => {
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
                     </Button>
-                    <Button onClick={handleExportPurchaseExcel} variant="default" className="gap-2">
+                    <Button onClick={() => handleExportPurchaseExcel()} variant="default" className="gap-2">
                       <ShoppingCart className="w-4 h-4" />
                       Xuất Excel Mua Hàng
                     </Button>
@@ -987,6 +1011,7 @@ const PurchaseOrders = () => {
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
+              onExportOrder={handleExportPurchaseExcel}
               />
             )}
             </CardContent>
@@ -1034,7 +1059,7 @@ const PurchaseOrders = () => {
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
                       </Button>
-                      <Button onClick={handleExportPurchaseExcel} variant="default" size="sm">
+                      <Button onClick={() => handleExportPurchaseExcel()} variant="default" size="sm">
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Xuất Excel Mua Hàng
                       </Button>
@@ -1049,7 +1074,7 @@ const PurchaseOrders = () => {
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
                     </Button>
-                    <Button onClick={handleExportPurchaseExcel} variant="default" className="gap-2">
+                    <Button onClick={() => handleExportPurchaseExcel()} variant="default" className="gap-2">
                       <ShoppingCart className="w-4 h-4" />
                       Xuất Excel Mua Hàng
                     </Button>
@@ -1082,6 +1107,7 @@ const PurchaseOrders = () => {
               onToggleSelect={toggleSelectOrder}
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
+              onExportOrder={handleExportPurchaseExcel}
               />
             )}
             </CardContent>

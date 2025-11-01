@@ -77,6 +77,7 @@ interface PurchaseOrderListProps {
   onToggleSelect: (orderId: string) => void;
   onToggleSelectAll: () => void;
   onEditDraft?: (order: PurchaseOrder) => void;
+  onExportOrder?: (order: PurchaseOrder) => void;
   hideStatusFilter?: boolean;
 }
 
@@ -97,6 +98,7 @@ export function PurchaseOrderList({
   onToggleSelect,
   onToggleSelectAll,
   onEditDraft,
+  onExportOrder,
   hideStatusFilter = false,
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
@@ -810,6 +812,7 @@ export function PurchaseOrderList({
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => onExportOrder?.(flatItem)}
                           title="Xuất Excel mua hàng"
                           disabled={isOrderProcessing(flatItem.id)}
                         >
