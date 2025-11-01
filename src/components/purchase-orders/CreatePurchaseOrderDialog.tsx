@@ -1232,6 +1232,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       else onOpenChange(isOpen);
     }}>
       <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0 relative">
+        <DialogTitle className="sr-only">
+          {initialData ? 'Chỉnh sửa đơn đặt hàng' : 'Tạo đơn đặt hàng mới'}
+        </DialogTitle>
+        
         {/* Loading Overlay */}
         {isProcessing && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
