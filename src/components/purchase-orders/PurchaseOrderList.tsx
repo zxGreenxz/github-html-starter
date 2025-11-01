@@ -12,7 +12,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -106,6 +106,9 @@ export function PurchaseOrderList({
   
   // Track orders that just finished processing (need 3s delay before unlock)
   const [ordersToUnlock, setOrdersToUnlock] = useState<Map<string, number>>(new Map());
+  
+  // Track previous processing status to detect transitions
+  const previousProcessingRef = useRef<Map<string, number>>(new Map());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -270,28 +273,39 @@ export function PurchaseOrderList({
 
     const now = Date.now();
     const newOrdersToUnlock = new Map(ordersToUnlock);
+    const newPreviousProcessing = new Map<string, number>();
     let hasChanges = false;
 
     // Check each order
     filteredOrders.forEach(order => {
-      const processing = syncStatusMap[order.id]?.processing ?? 0;
+      const currentProcessing = syncStatusMap[order.id]?.processing ?? 0;
+      const previousProcessing = previousProcessingRef.current.get(order.id) ?? 0;
       const isInUnlockQueue = newOrdersToUnlock.has(order.id);
 
-      if (processing === 0 && !isInUnlockQueue) {
+      // Update previous processing map
+      newPreviousProcessing.set(order.id, currentProcessing);
+
+      // Detect transition: processing > 0 → processing = 0
+      const justFinished = previousProcessing > 0 && currentProcessing === 0;
+
+      if (justFinished && !isInUnlockQueue) {
         // Just finished processing → Add to unlock queue with 3s delay
         newOrdersToUnlock.set(order.id, now + 3000);
         hasChanges = true;
-      } else if (processing > 0 && isInUnlockQueue) {
+      } else if (currentProcessing > 0 && isInUnlockQueue) {
         // Started processing again → Remove from unlock queue
         newOrdersToUnlock.delete(order.id);
         hasChanges = true;
       }
     });
 
+    // Update ref
+    previousProcessingRef.current = newPreviousProcessing;
+
     if (hasChanges) {
       setOrdersToUnlock(newOrdersToUnlock);
     }
-  }, [syncStatusMap, filteredOrders]);
+  }, [syncStatusMap, filteredOrders, ordersToUnlock]);
 
   // Cleanup expired delays and trigger re-render
   useEffect(() => {
