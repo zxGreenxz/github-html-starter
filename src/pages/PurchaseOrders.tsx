@@ -757,21 +757,7 @@ const PurchaseOrders = () => {
         variant: skippedCount > 0 ? "destructive" : "default",
       });
 
-      // STEP 8: Auto-update status nếu là single order export và status = 'awaiting_export'
-      if (singleOrder && orderToExport.status === 'awaiting_export') {
-        const { error: updateError } = await supabase
-          .from('purchase_orders')
-          .update({ status: 'pending' })
-          .eq('id', orderToExport.id);
-
-        if (!updateError) {
-          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-          toast({
-            title: "Đã cập nhật trạng thái",
-            description: "Đơn hàng chuyển sang trạng thái Chờ Hàng",
-          });
-        }
-      }
+      // Status will be updated automatically after export in create flow
 
     } catch (error) {
       console.error("Error exporting purchase Excel:", error);
