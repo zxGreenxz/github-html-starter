@@ -176,10 +176,94 @@ Deno.serve(async (req) => {
 
     console.log(`\n✅ Processing complete:`, summary);
 
-    // ✅ FINAL STATUS UPDATE: Set status = 'success' for successful items
-    console.log(`\n📝 Updating final status...`);
+    // 🎯 Step 1.5: Mark Type 3 items (pending_no_match) as success immediately
+    const { data: type3Items } = await supabase
+      .from('purchase_order_items')
+      .select('id')
+      .eq('purchase_order_id', purchase_order_id)
+      .eq('tpos_sync_status', 'pending_no_match');
+
+    if (type3Items && type3Items.length > 0) {
+      const { error: type3UpdateError } = await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'success',
+          tpos_sync_completed_at: new Date().toISOString()
+        })
+        .in('id', type3Items.map(i => i.id));
+      
+      if (type3UpdateError) {
+        console.error('⚠️ Error updating Type 3 items:', type3UpdateError);
+      } else {
+        console.log(`✅ Marked ${type3Items.length} simple products (no matching needed) as 'success'`);
+      }
+    }
+
+    // 🎯 Step 2: Match purchase order items with warehouse products (Type 2 only)
+    console.log(`\n🔍 Starting product matching for Type 2 items...`);
+    
+    let matchResult = null;
+    let matchAttempts = 0;
+    const MAX_MATCH_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 1000;
+
+    while (matchAttempts < MAX_MATCH_ATTEMPTS && !matchResult) {
+      matchAttempts++;
+      console.log(`🔄 Match attempt ${matchAttempts}/${MAX_MATCH_ATTEMPTS}`);
+      
+      try {
+        const { data, error: matchError } = await supabase.functions.invoke(
+          'match-purchase-order-products',
+          { body: { purchase_order_id } }
+        );
+
+        if (matchError) {
+          console.error(`❌ Match attempt ${matchAttempts} failed:`, matchError);
+          
+          // Retry if not last attempt
+          if (matchAttempts < MAX_MATCH_ATTEMPTS) {
+            console.log(`⏳ Retrying in ${RETRY_DELAY_MS}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          } else {
+            console.error('❌ All match attempts exhausted');
+            matchResult = {
+              success: false,
+              error: `Matching failed after ${MAX_MATCH_ATTEMPTS} attempts: ${matchError.message}`,
+              matched: 0,
+              unmatched: 0
+            };
+          }
+        } else {
+          // Success!
+          matchResult = data;
+          console.log(`✅ Matching succeeded on attempt ${matchAttempts}:`, matchResult);
+          break;
+        }
+      } catch (matchErr: any) {
+        console.error(`❌ Match attempt ${matchAttempts} threw exception:`, matchErr);
+        
+        if (matchAttempts < MAX_MATCH_ATTEMPTS) {
+          console.log(`⏳ Retrying in ${RETRY_DELAY_MS}ms...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        } else {
+          matchResult = {
+            success: false,
+            error: `Matching failed after ${MAX_MATCH_ATTEMPTS} attempts: ${matchErr.message}`,
+            matched: 0,
+            unmatched: 0
+          };
+        }
+      }
+    }
+
+    // ✅ FINAL STATUS UPDATE: Set status = 'success' ONLY after matching completes
+    console.log(`\n📝 Updating final status after matching completes...`);
     
     if (failedItems.length > 0) {
+      const failedItemIds = failedItems.map(f => f.id);
+      
+      // Set failed status for items that had TPOS sync errors
       await supabase
         .from('purchase_order_items')
         .update({ 
@@ -187,12 +271,13 @@ Deno.serve(async (req) => {
           tpos_sync_completed_at: new Date().toISOString(),
           tpos_sync_error: failedItems[0].error
         })
-        .in('id', failedItems.map(f => f.id))
+        .in('id', failedItemIds)
         .eq('tpos_sync_status', 'processing');
       
-      console.log(`❌ Set ${failedItems.length} items to 'failed' status`);
+      console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
     }
     
+    // 🎯 KEY CHANGE: Set 'success' for items that completed TPOS sync successfully
     if (successCount > 0) {
       const successItemIds = items
         .filter(item => !failedItems.some(f => f.id === item.id))
@@ -208,32 +293,21 @@ Deno.serve(async (req) => {
         .in('id', successItemIds)
         .eq('tpos_sync_status', 'processing');
       
-      console.log(`✅ Set ${successItemIds.length} items to 'success'`);
-    }
-
-    // Mark Type 3 items (pending_no_match) as success
-    const { data: type3Items } = await supabase
-      .from('purchase_order_items')
-      .select('id')
-      .eq('purchase_order_id', purchase_order_id)
-      .eq('tpos_sync_status', 'pending_no_match');
-
-    if (type3Items && type3Items.length > 0) {
-      await supabase
-        .from('purchase_order_items')
-        .update({ 
-          tpos_sync_status: 'success',
-          tpos_sync_completed_at: new Date().toISOString()
-        })
-        .in('id', type3Items.map(i => i.id));
-      
-      console.log(`✅ Marked ${type3Items.length} simple products as 'success'`);
+      console.log(`✅ Matching complete! Set ${successItemIds.length} items to 'success'`);
     }
     
-    console.log(`✅ TPOS sync complete!`);
+    if (!matchResult?.success) {
+      console.warn(`⚠️ Matching had issues, but status updated to 'success' for successful TPOS items`);
+    }
+    
+    console.log(`✅ Final status update complete`);
 
+    // ✅ Return BOTH tpos sync summary AND matching result
     return new Response(
-      JSON.stringify(summary),
+      JSON.stringify({
+        tpos_sync: summary,
+        matching: matchResult
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
