@@ -44,12 +44,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch items with status filter (pending or failed only)
+    // Fetch items with status filter (pending, pending_no_match, or failed only)
+    // Skip Type 1 items (already have tpos_product_id)
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')
       .select('*')
       .eq('purchase_order_id', purchase_order_id)
-      .in('tpos_sync_status', ['pending', 'failed'])
+      .in('tpos_sync_status', ['pending', 'pending_no_match', 'failed'])
+      .is('tpos_product_id', null)
       .order('position');
 
     if (itemsError) {
@@ -174,8 +176,31 @@ Deno.serve(async (req) => {
 
     console.log(`\n✅ Processing complete:`, summary);
 
-    // 🎯 Step 2: Match purchase order items with warehouse products (WITH RETRY)
-    console.log(`\n🔍 Starting product matching...`);
+    // 🎯 Step 1.5: Mark Type 3 items (pending_no_match) as success immediately
+    const { data: type3Items } = await supabase
+      .from('purchase_order_items')
+      .select('id')
+      .eq('purchase_order_id', purchase_order_id)
+      .eq('tpos_sync_status', 'pending_no_match');
+
+    if (type3Items && type3Items.length > 0) {
+      const { error: type3UpdateError } = await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'success',
+          tpos_sync_completed_at: new Date().toISOString()
+        })
+        .in('id', type3Items.map(i => i.id));
+      
+      if (type3UpdateError) {
+        console.error('⚠️ Error updating Type 3 items:', type3UpdateError);
+      } else {
+        console.log(`✅ Marked ${type3Items.length} simple products (no matching needed) as 'success'`);
+      }
+    }
+
+    // 🎯 Step 2: Match purchase order items with warehouse products (Type 2 only)
+    console.log(`\n🔍 Starting product matching for Type 2 items...`);
     
     let matchResult = null;
     let matchAttempts = 0;

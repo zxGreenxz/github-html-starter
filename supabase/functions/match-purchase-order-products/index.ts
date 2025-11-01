@@ -54,11 +54,12 @@ Deno.serve(async (req) => {
     
     console.log(`🔍 [Matching] Starting product matching for order: ${purchase_order_id}`);
 
-    // Fetch all items from purchase order that have variants
+    // Fetch ONLY Type 2 items (pending status with variants)
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')
-      .select('id, product_code, product_name, variant, tpos_sync_error')
+      .select('id, product_code, product_name, variant, tpos_sync_error, tpos_sync_status')
       .eq('purchase_order_id', purchase_order_id)
+      .eq('tpos_sync_status', 'pending')
       .not('variant', 'is', null)
       .neq('variant', '')
       .order('position');

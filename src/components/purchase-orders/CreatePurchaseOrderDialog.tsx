@@ -80,6 +80,7 @@ interface PurchaseOrderItem {
   
   // TPOS metadata
   tpos_product_id?: number | null;
+  tpos_sync_status?: string;
   
   // UI only
   _tempTotalPrice: number;
@@ -1041,6 +1042,33 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
+  /**
+   * Determine tpos_sync_status based on product metadata
+   * 
+   * Type 1 (Has TPOS ID): tpos_product_id !== null
+   *   → 'success' - Skip all processing (đã có trên TPOS)
+   * 
+   * Type 2 (New Variant): tpos_product_id === null && variant !== ''
+   *   → 'pending' - Needs upload to TPOS + matching với products table
+   * 
+   * Type 3 (Simple Product): tpos_product_id === null && variant === ''
+   *   → 'pending_no_match' - Needs upload to TPOS only, không cần matching
+   */
+  const determineSyncStatus = (
+    tposProductId: number | null, 
+    variant: string
+  ): string => {
+    if (tposProductId !== null) {
+      return 'success'; // ✅ Type 1: Already on TPOS
+    }
+    
+    if (variant && variant.trim() !== '') {
+      return 'pending'; // ⚠️ Type 2: Needs matching after upload
+    }
+    
+    return 'pending_no_match'; // ⚠️ Type 3: Upload only, no matching
+  };
+
   const handleSelectProduct = async (product: any) => {
     if (currentItemIndex !== null) {
       const newItems = [...items];
@@ -1063,18 +1091,21 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       
       // Fetch images with priority logic
       const productImages = await getProductImages(product);
+      const tposProductId = product.tpos_product_id || product.productid_bienthe || null;
+      const variant = product.variant || "";
       
       newItems[currentItemIndex] = {
         ...newItems[currentItemIndex],
         product_name: product.product_name,
         product_code: product.product_code,
-        variant: product.variant || "",
+        variant: variant,
         purchase_price: product.purchase_price / 1000,
         selling_price: product.selling_price / 1000,
         product_images: productImages,
         price_images: product.price_images || [],
         _tempTotalPrice: newItems[currentItemIndex].quantity * (product.purchase_price / 1000),
-        tpos_product_id: product.tpos_product_id || product.productid_bienthe || null
+        tpos_product_id: tposProductId,
+        tpos_sync_status: determineSyncStatus(tposProductId, variant)
       };
       setItems(newItems);
       
@@ -1117,37 +1148,43 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     // Fill first product into current line WITH IMAGE FETCH
     const firstProduct = products[0];
     const firstProductImages = await getProductImages(firstProduct);
+    const firstTposProductId = firstProduct.tpos_product_id || firstProduct.productid_bienthe || null;
+    const firstVariant = firstProduct.variant || "";
     
     newItems[currentItemIndex] = {
       ...currentItem,
       product_name: firstProduct.product_name,
       product_code: firstProduct.product_code,
-      variant: firstProduct.variant || "",
+      variant: firstVariant,
       purchase_price: firstProduct.purchase_price / 1000,
       selling_price: firstProduct.selling_price / 1000,
       product_images: firstProductImages,
       price_images: firstProduct.price_images || [],
       _tempTotalPrice: currentItem.quantity * (firstProduct.purchase_price / 1000),
-      tpos_product_id: firstProduct.tpos_product_id || firstProduct.productid_bienthe || null
+      tpos_product_id: firstTposProductId,
+      tpos_sync_status: determineSyncStatus(firstTposProductId, firstVariant)
     };
 
     // Add remaining products as new lines WITH IMAGE FETCH
     const additionalItems = await Promise.all(
       products.slice(1).map(async (product) => {
         const productImages = await getProductImages(product);
+        const tposProductId = product.tpos_product_id || product.productid_bienthe || null;
+        const variant = product.variant || "";
         
         return {
           quantity: 1,
           notes: "",
           product_name: product.product_name,
           product_code: product.product_code,
-          variant: product.variant || "",
+          variant: variant,
           purchase_price: product.purchase_price / 1000,
           selling_price: product.selling_price / 1000,
           product_images: productImages,
           price_images: product.price_images || [],
           _tempTotalPrice: product.purchase_price / 1000,
-          tpos_product_id: product.tpos_product_id || product.productid_bienthe || null
+          tpos_product_id: tposProductId,
+          tpos_sync_status: determineSyncStatus(tposProductId, variant)
         };
       })
     );
