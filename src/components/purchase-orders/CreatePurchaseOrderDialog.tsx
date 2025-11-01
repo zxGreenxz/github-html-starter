@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -140,6 +140,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [showDebugColumn, setShowDebugColumn] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll table to top when dialog opens
+  useEffect(() => {
+    if (open && tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
+    }
+  }, [open]);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -1366,7 +1374,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         </div>
 
         {/* Scrollable Middle Section - Product Table */}
-        <div className="flex-1 overflow-y-auto px-6">
+        <div ref={tableContainerRef} className="flex-1 overflow-y-auto px-6">
           <div className="space-y-4">
             <div className="border rounded-lg overflow-hidden">
               <Table>
