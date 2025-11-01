@@ -80,6 +80,31 @@ const PurchaseOrders = () => {
     const uniqueSuppliers = Array.from(new Set(suppliers));
     return uniqueSuppliers.join('-') || 'NoSupplier';
   };
+
+  /**
+   * Extract base product code by removing trailing variant suffix
+   * Examples: LAO192T → LAO192, N1547D → N1547
+   */
+  const extractBaseCode = (productCode: string): string => {
+    return productCode.replace(/[A-Z0-9]{1,3}$/, '');
+  };
+
+  /**
+   * Simple variant matching (case-insensitive, remove accents)
+   * Returns true if variants are similar enough
+   */
+  const variantsMatch = (variant1: string | null, variant2: string | null): boolean => {
+    if (!variant1 || !variant2) return false;
+    
+    const normalize = (str: string) => 
+      convertVietnameseToUpperCase(str.trim())
+        .replace(/\s+/g, ' '); // Normalize spaces
+    
+    const v1 = normalize(variant1);
+    const v2 = normalize(variant2);
+    
+    return v1 === v2;
+  };
   
   // Selection management functions
   const toggleSelectOrder = (orderId: string) => {
@@ -531,7 +556,158 @@ const PurchaseOrders = () => {
     }
   };
 
+  // Excel Mua Hàng Export
+  const handleExportPurchaseExcel = async () => {
+    // STEP 1: Validate chỉ 1 đơn hàng được chọn
+    if (selectedOrders.length !== 1) {
+      toast({
+        title: "Vui lòng chọn 1 đơn hàng",
+        description: "Chỉ được xuất Excel Mua Hàng từ 1 đơn hàng tại 1 thời điểm",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    // STEP 2: Lấy đơn hàng đã chọn
+    const currentOrders = activeTab === "awaiting_purchase" 
+      ? filteredAwaitingPurchaseOrders 
+      : filteredAwaitingDeliveryOrders;
+    
+    const orderToExport = currentOrders.find(order => order.id === selectedOrders[0]);
+    
+    if (!orderToExport) {
+      toast({
+        title: "Không tìm thấy đơn hàng",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // STEP 3: Lấy items từ đơn hàng
+    const allItems = orderToExport.items || [];
+    
+    if (allItems.length === 0) {
+      toast({
+        title: "Không có sản phẩm",
+        description: "Đơn hàng không có sản phẩm nào",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // STEP 4: Process items (3 cases)
+    try {
+      const excelRows: Array<{
+        "Mã sản phẩm (*)": string;
+        "Số lượng (*)": number;
+        "Đơn giá": number;
+        "Chiết khấu (%)": number;
+      }> = [];
+
+      let skippedCount = 0;
+      const skippedItems: string[] = [];
+
+      for (const item of allItems) {
+        // CASE 1: Đã upload TPOS
+        if (item.tpos_product_id != null) {
+          excelRows.push({
+            "Mã sản phẩm (*)": item.product_code,
+            "Số lượng (*)": item.quantity,
+            "Đơn giá": item.purchase_price,
+            "Chiết khấu (%)": 0
+          });
+          continue;
+        }
+
+        // CASE 2: Chưa upload + Không có biến thể
+        if (!item.variant || item.variant.trim() === '') {
+          excelRows.push({
+            "Mã sản phẩm (*)": item.product_code,
+            "Số lượng (*)": item.quantity,
+            "Đơn giá": item.purchase_price,
+            "Chiết khấu (%)": 0
+          });
+          continue;
+        }
+
+        // CASE 3: Chưa upload + Có biến thể → Matching
+        const baseCode = extractBaseCode(item.product_code);
+        
+        const { data: candidates, error: candidatesError } = await supabase
+          .from('products')
+          .select('product_code, product_name, variant')
+          .eq('base_product_code', baseCode)
+          .not('variant', 'is', null)
+          .neq('variant', '');
+
+        if (candidatesError) {
+          console.error(`Error fetching candidates for ${item.product_code}:`, candidatesError);
+          skippedCount++;
+          skippedItems.push(`${item.product_code} (${item.variant}) - Lỗi query`);
+          continue;
+        }
+
+        const matchedProduct = candidates?.find(p => 
+          variantsMatch(p.variant, item.variant)
+        );
+
+        if (matchedProduct) {
+          excelRows.push({
+            "Mã sản phẩm (*)": matchedProduct.product_code,
+            "Số lượng (*)": item.quantity,
+            "Đơn giá": item.purchase_price,
+            "Chiết khấu (%)": 0
+          });
+        } else {
+          skippedCount++;
+          const availableVariants = candidates
+            ?.map(c => c.variant)
+            .join(', ') || 'Không có';
+          skippedItems.push(
+            `${item.product_code} (${item.variant}) - Variants có: [${availableVariants}]`
+          );
+        }
+      }
+
+      // STEP 5: Validate có items để xuất
+      if (excelRows.length === 0) {
+        toast({
+          title: "Không thể xuất Excel",
+          description: "Không có sản phẩm nào phù hợp để xuất",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // STEP 6: Create Excel file
+      const ws = XLSX.utils.json_to_sheet(excelRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mua Hàng");
+      
+      const fileName = `MuaHang_${orderToExport.supplier_name}_${formatDateDDMM()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      // STEP 7: Show success toast
+      let description = `Đã xuất ${excelRows.length} sản phẩm`;
+      if (skippedCount > 0) {
+        description += `\n⚠️ Bỏ qua ${skippedCount} sản phẩm không match được variant`;
+        console.warn('Skipped items:', skippedItems);
+      }
+
+      toast({
+        title: "Xuất Excel thành công!",
+        description: description,
+      });
+
+    } catch (error) {
+      console.error("Error exporting purchase Excel:", error);
+      toast({
+        title: "Lỗi khi xuất Excel!",
+        description: "Vui lòng thử lại",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Bulk delete mutation
   const deleteBulkOrdersMutation = useMutation({
@@ -713,6 +889,10 @@ const PurchaseOrders = () => {
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
                       </Button>
+                      <Button onClick={handleExportPurchaseExcel} variant="default" size="sm">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Xuất Excel Mua Hàng
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -723,6 +903,10 @@ const PurchaseOrders = () => {
                     <Button onClick={handleExportExcel} variant="outline" className="gap-2">
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
+                    </Button>
+                    <Button onClick={handleExportPurchaseExcel} variant="default" className="gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Xuất Excel Mua Hàng
                     </Button>
                   </div>
                 )}
@@ -800,6 +984,10 @@ const PurchaseOrders = () => {
                         <Download className="w-4 h-4 mr-2" />
                         Xuất Excel Thêm SP
                       </Button>
+                      <Button onClick={handleExportPurchaseExcel} variant="default" size="sm">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Xuất Excel Mua Hàng
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -810,6 +998,10 @@ const PurchaseOrders = () => {
                     <Button onClick={handleExportExcel} variant="outline" className="gap-2">
                       <Download className="w-4 h-4" />
                       Xuất Excel Thêm SP
+                    </Button>
+                    <Button onClick={handleExportPurchaseExcel} variant="default" className="gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Xuất Excel Mua Hàng
                     </Button>
                   </div>
                 )}
