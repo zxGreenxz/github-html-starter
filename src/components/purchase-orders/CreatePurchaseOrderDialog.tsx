@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode, cleanupReservations } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
+import { exportPurchaseOrderToExcel } from "@/lib/purchase-order-excel-exporter";
+import { Loader2 } from "lucide-react";
 
 // Helper: Get product image with priority: product_images > tpos_image_url > parent image
 const getProductImages = async (product: any): Promise<string[]> => {
@@ -139,6 +141,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [manualProductCodes, setManualProductCodes] = useState<Set<number>>(new Set());
   const [showDebugColumn, setShowDebugColumn] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
@@ -381,6 +384,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
+      setIsProcessing(true);
+
       // ============= VALIDATION TRIỆT ĐỂ =============
       
       // 1. Validate Nhà cung cấp
@@ -495,31 +500,39 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         if (itemsError) throw itemsError;
 
-        // Step 3: Invoke background TPOS processing (same as create flow)
-        console.log('🚀 Starting background TPOS product creation (from draft)...');
-
-        const totalDraftItems = items.filter(i => i.product_name.trim()).length;
-
-        // Invoke background function without awaiting (fire-and-forget)
-        supabase.functions.invoke(
-          'process-purchase-order-background',
-          { body: { purchase_order_id: order.id } }
-        ).catch(error => {
-          console.error('Failed to invoke background process:', error);
-          sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+        // Step 3: AWAIT TPOS sync (SYNCHRONOUS)
+        const toastId = sonnerToast.loading('⏳ Đang upload lên TPOS...', {
+          duration: Infinity,
         });
 
-        // Show loading toast
-        const toastId = `tpos-processing-${order.id}`;
-        sonnerToast.loading(
-          `Đang xử lý 0/${totalDraftItems} sản phẩm...`,
-          { id: toastId, duration: Infinity }
-        );
+        try {
+          const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+            'process-purchase-order-background',
+            { body: { purchase_order_id: order.id } }
+          );
 
-        // Start polling
-        pollTPOSProcessingProgress(order.id, totalDraftItems, toastId);
+          if (tposError) {
+            throw new Error(`Upload TPOS thất bại: ${tposError.message}`);
+          }
 
-        console.log('✅ Background processing initiated (from draft)');
+          const { succeeded, failed } = tposResult;
+
+          if (failed > 0) {
+            throw new Error(`Upload TPOS thất bại: ${failed}/${items.filter(i => i.product_name.trim()).length} sản phẩm lỗi`);
+          }
+
+          sonnerToast.success('✅ Upload TPOS thành công!', {
+            id: toastId,
+            description: `Đã xử lý ${succeeded} sản phẩm`,
+          });
+        } catch (error: any) {
+          sonnerToast.error('❌ Upload TPOS thất bại', {
+            id: toastId,
+            description: error.message,
+            duration: 5000
+          });
+          throw error;
+        }
 
         // Create parent products (same logic as before)
         const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
@@ -639,60 +652,62 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Invoke background TPOS processing and matching
-      console.log('🚀 Starting background TPOS product creation...');
-      
-      const totalItems = items.filter(i => i.product_name.trim()).length;
-      
-      // Show loading toast immediately (will be updated via polling)
-      const toastId = `tpos-processing-${order.id}`;
-      sonnerToast.loading(
-        `Đang xử lý 0/${totalItems} sản phẩm...`,
-        { id: toastId, duration: Infinity }
-      );
-
-      // Invoke background function and handle matching results
-      supabase.functions.invoke(
-        'process-purchase-order-background',
-        { body: { purchase_order_id: order.id } }
-      ).then(({ data, error }) => {
-        if (error) {
-          console.error('Failed to invoke background process:', error);
-          sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
-          return;
-        }
-
-        // Handle matching results when available
-        if (data?.matching) {
-          const { matched, unmatched, unmatched_items } = data.matching;
-          
-          if (unmatched > 0) {
-            sonnerToast.warning(
-              `⚠️ Một số variant chưa đồng bộ được`,
-              {
-                description: `${matched} matched, ${unmatched} không tìm thấy trong kho. Xem chi tiết trong đơn hàng.`,
-                duration: 8000
-              }
-            );
-          } else if (matched > 0) {
-            sonnerToast.success(
-              `✅ Đồng bộ hoàn tất`,
-              {
-                description: `Đã match ${matched} sản phẩm từ kho thành công!`,
-                duration: 5000
-              }
-            );
-          }
-        }
-      }).catch(error => {
-        console.error('Failed to invoke background process:', error);
-        sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
+      // Step 3: AWAIT TPOS sync (SYNCHRONOUS)
+      const toastId = sonnerToast.loading('⏳ Đang upload lên TPOS...', {
+        duration: Infinity,
       });
 
-      // Start polling for progress updates
-      pollTPOSProcessingProgress(order.id, totalItems, toastId);
+      try {
+        const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+          'process-purchase-order-background',
+          { body: { purchase_order_id: order.id } }
+        );
 
-      console.log('✅ Background processing initiated');
+        if (tposError) {
+          throw new Error(`Upload TPOS thất bại: ${tposError.message}`);
+        }
+
+        const { succeeded, failed } = tposResult;
+
+        if (failed > 0) {
+          throw new Error(`Upload TPOS thất bại: ${failed}/${items.filter(i => i.product_name.trim()).length} sản phẩm lỗi`);
+        }
+
+        sonnerToast.loading('⏳ Đang xuất Excel...', { id: toastId });
+
+        // Step 3.5: Auto-export Excel
+        try {
+          await exportPurchaseOrderToExcel({ 
+            id: order.id, 
+            supplier_name: formData.supplier_name,
+            items: items.filter(i => i.product_name.trim()).map(item => ({
+              ...item,
+              purchase_price: Number(item.purchase_price || 0) * 1000,
+              selling_price: Number(item.selling_price || 0) * 1000,
+            }))
+          });
+
+          sonnerToast.success('✅ Hoàn thành!', {
+            id: toastId,
+            description: `Đã tạo đơn hàng, upload TPOS và xuất Excel`,
+            duration: 3000
+          });
+        } catch (exportError: any) {
+          console.error('Auto export failed:', exportError);
+          sonnerToast.warning('⚠️ Upload TPOS thành công nhưng xuất Excel thất bại', {
+            id: toastId,
+            description: exportError.message,
+            duration: 5000
+          });
+        }
+      } catch (error: any) {
+        sonnerToast.error('❌ Lỗi xử lý đơn hàng', {
+          id: toastId,
+          description: error.message,
+          duration: 5000
+        });
+        throw error;
+      }
 
       // Step 4: Create parent products in inventory
       const parentProductsMap = new Map<string, { variants: Set<string>, data: any }>();
@@ -764,13 +779,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: async () => {
+      setIsProcessing(false);
+
       // Cleanup reservations
       if (user?.id) {
         const codes = items.map(i => i.product_code).filter(Boolean);
         await cleanupReservations(codes, user.id);
       }
       
-      // Don't show success toast here - it's shown by polling function
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -779,6 +795,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       resetForm();
     },
     onError: (error: Error) => {
+      setIsProcessing(false);
+      
       toast({
         title: "Lỗi tạo đơn hàng",
         description: error.message,
@@ -786,109 +804,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       });
     }
   });
-
-  // Helper function to poll TPOS processing progress
-  const pollTPOSProcessingProgress = async (
-    orderId: string,
-    totalItems: number,
-    toastId: string
-  ) => {
-    const POLL_INTERVAL = 2000; // 2 seconds
-    const MAX_DURATION = 180000; // 3 minutes timeout
-    const startTime = Date.now();
-
-    const pollInterval = setInterval(async () => {
-      // Timeout check
-      if (Date.now() - startTime > MAX_DURATION) {
-        clearInterval(pollInterval);
-        sonnerToast.error(
-          "Quá trình xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
-          { id: toastId, duration: 5000 }
-        );
-        return;
-      }
-
-      // Query progress from database
-      const { data: items, error } = await supabase
-        .from('purchase_order_items')
-        .select('id, tpos_sync_status, product_code, tpos_sync_error')
-        .eq('purchase_order_id', orderId);
-
-      if (error || !items) {
-        console.error('Failed to fetch progress:', error);
-        return;
-      }
-
-      // Count statuses
-      const successCount = items.filter(i => i.tpos_sync_status === 'success').length;
-      const failedCount = items.filter(i => i.tpos_sync_status === 'failed').length;
-      const completedCount = successCount + failedCount;
-
-      // Update toast with progress
-      sonnerToast.loading(
-        `Đang xử lý ${completedCount}/${totalItems} sản phẩm... (${successCount} thành công, ${failedCount} lỗi)`,
-        { id: toastId, duration: Infinity }
-      );
-
-      // Check if processing is complete
-      if (completedCount === totalItems) {
-        clearInterval(pollInterval);
-
-        // Wait for matching function to complete (runs after TPOS processing)
-        setTimeout(async () => {
-          // Re-fetch items to check matching results
-          const { data: finalItems } = await supabase
-            .from('purchase_order_items')
-            .select('id, product_code, variant, tpos_sync_error')
-            .eq('purchase_order_id', orderId);
-
-          // Count items with matching errors
-          const matchingErrors = finalItems?.filter(item => 
-            item.tpos_sync_error?.includes('Không tìm thấy variant') ||
-            item.tpos_sync_error?.includes('không tìm thấy variant')
-          ) || [];
-
-          if (failedCount === 0) {
-            // ✅ All succeeded
-            if (matchingErrors.length === 0) {
-              sonnerToast.success(
-                `Đã tạo thành công ${successCount} sản phẩm trên TPOS và match với kho!`,
-                { id: toastId, duration: 5000 }
-              );
-            } else {
-              sonnerToast.warning(
-                `Đã tạo ${successCount} sản phẩm trên TPOS, nhưng ${matchingErrors.length} variant không match với kho. Kiểm tra chi tiết đơn hàng.`,
-                { id: toastId, duration: 7000 }
-              );
-            }
-          } else if (successCount === 0) {
-            // ❌ All failed
-            sonnerToast.error(
-              `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
-              { id: toastId, duration: 5000 }
-            );
-          } else {
-            // ⚠️ Partial success
-            if (matchingErrors.length > 0) {
-              sonnerToast.warning(
-                `${successCount} thành công, ${failedCount} lỗi TPOS, ${matchingErrors.length} lỗi matching. Kiểm tra chi tiết đơn hàng.`,
-                { id: toastId, duration: 8000 }
-              );
-            } else {
-              sonnerToast.warning(
-                `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
-                { id: toastId, duration: 7000 }
-              );
-            }
-          }
-
-          // Refresh queries after completion
-          queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-          queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
-        }, 3000); // Wait 3s for matching to complete
-      }
-    }, POLL_INTERVAL);
-  };
 
   const resetForm = () => {
     setFormData({
@@ -1302,7 +1217,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (!isOpen) handleClose();
       else onOpenChange(isOpen);
     }}>
-      <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0 relative">
+        {isProcessing && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center rounded-lg">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl flex flex-col items-center gap-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+              <p className="text-lg font-semibold">Đang xử lý đơn hàng...</p>
+            </div>
+          </div>
+        )}
+
         {/* Fixed Header Section - Compact horizontal layout */}
         <div className="shrink-0 px-6 pt-6 space-y-3">
           {/* Row 1: Inline labels and inputs */}

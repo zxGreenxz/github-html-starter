@@ -147,34 +147,22 @@ Deno.serve(async (req) => {
           throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
         }
 
-        // ✅ TPOS sync success, but keep status = 'processing' until matching completes
+        // ✅ TPOS sync success
         successCount += groupItems.length;
-        console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items) - Status still 'processing'`);
+        console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items)`);
 
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
         
-        // ⚠️ Record error but DON'T update status yet - will update after retry matching completes
+        // ⚠️ Record error
         failedCount += groupItems.length;
         groupItems.forEach(item => {
           failedItems.push({ id: item.id, error: errorMessage });
         });
         
         console.error(`❌ Group failed: ${groupKey}`, errorMessage);
-        // Status remains 'processing', will be updated after retry matching
       }
     }
-
-    // Return summary
-    const summary = {
-      success: true,
-      total: items.length,
-      succeeded: successCount,
-      failed: failedCount,
-      errors: failedItems
-    };
-
-    console.log(`\n✅ Processing complete:`, summary);
 
     // 🎯 Step 1.5: Mark Type 3 items (pending_no_match) as success immediately
     const { data: type3Items } = await supabase
@@ -199,71 +187,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 🎯 Step 2: Match purchase order items with warehouse products (Type 2 only)
-    console.log(`\n🔍 Starting product matching for Type 2 items...`);
-    
-    let matchResult = null;
-    let matchAttempts = 0;
-    const MAX_MATCH_ATTEMPTS = 3;
-    const RETRY_DELAY_MS = 1000;
+    // 🎯 Step 2: Update final status after TPOS sync
+    console.log(`\n📝 Updating final status after TPOS sync...`);
 
-    while (matchAttempts < MAX_MATCH_ATTEMPTS && !matchResult) {
-      matchAttempts++;
-      console.log(`🔄 Match attempt ${matchAttempts}/${MAX_MATCH_ATTEMPTS}`);
-      
-      try {
-        const { data, error: matchError } = await supabase.functions.invoke(
-          'match-purchase-order-products',
-          { body: { purchase_order_id } }
-        );
-
-        if (matchError) {
-          console.error(`❌ Match attempt ${matchAttempts} failed:`, matchError);
-          
-          // Retry if not last attempt
-          if (matchAttempts < MAX_MATCH_ATTEMPTS) {
-            console.log(`⏳ Retrying in ${RETRY_DELAY_MS}ms...`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-            continue;
-          } else {
-            console.error('❌ All match attempts exhausted');
-            matchResult = {
-              success: false,
-              error: `Matching failed after ${MAX_MATCH_ATTEMPTS} attempts: ${matchError.message}`,
-              matched: 0,
-              unmatched: 0
-            };
-          }
-        } else {
-          // Success!
-          matchResult = data;
-          console.log(`✅ Matching succeeded on attempt ${matchAttempts}:`, matchResult);
-          break;
-        }
-      } catch (matchErr: any) {
-        console.error(`❌ Match attempt ${matchAttempts} threw exception:`, matchErr);
-        
-        if (matchAttempts < MAX_MATCH_ATTEMPTS) {
-          console.log(`⏳ Retrying in ${RETRY_DELAY_MS}ms...`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-        } else {
-          matchResult = {
-            success: false,
-            error: `Matching failed after ${MAX_MATCH_ATTEMPTS} attempts: ${matchErr.message}`,
-            matched: 0,
-            unmatched: 0
-          };
-        }
-      }
-    }
-
-    // ✅ FINAL STATUS UPDATE: Set status = 'success' ONLY after matching completes
-    console.log(`\n📝 Updating final status after matching completes...`);
-    
+    // Set failed status for items that had TPOS sync errors
     if (failedItems.length > 0) {
-      const failedItemIds = failedItems.map(f => f.id);
-      
-      // Set failed status for items that had TPOS sync errors
       await supabase
         .from('purchase_order_items')
         .update({ 
@@ -271,13 +199,13 @@ Deno.serve(async (req) => {
           tpos_sync_completed_at: new Date().toISOString(),
           tpos_sync_error: failedItems[0].error
         })
-        .in('id', failedItemIds)
+        .in('id', failedItems.map(f => f.id))
         .eq('tpos_sync_status', 'processing');
       
-      console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
+      console.log(`❌ Set ${failedItems.length} items to 'failed' status`);
     }
-    
-    // 🎯 KEY CHANGE: Set 'success' for items that completed TPOS sync successfully
+
+    // Set success status for items that completed TPOS sync successfully
     if (successCount > 0) {
       const successItemIds = items
         .filter(item => !failedItems.some(f => f.id === item.id))
@@ -293,21 +221,24 @@ Deno.serve(async (req) => {
         .in('id', successItemIds)
         .eq('tpos_sync_status', 'processing');
       
-      console.log(`✅ Matching complete! Set ${successItemIds.length} items to 'success'`);
+      console.log(`✅ Set ${successItemIds.length} items to 'success' status`);
     }
-    
-    if (!matchResult?.success) {
-      console.warn(`⚠️ Matching had issues, but status updated to 'success' for successful TPOS items`);
-    }
-    
-    console.log(`✅ Final status update complete`);
 
-    // ✅ Return BOTH tpos sync summary AND matching result
+    console.log(`✅ TPOS sync complete!`);
+
+    // Return summary
+    const summary = {
+      success: true,
+      total: items.length,
+      succeeded: successCount,
+      failed: failedCount,
+      errors: failedItems
+    };
+
+    console.log(`\n✅ Processing complete:`, summary);
+
     return new Response(
-      JSON.stringify({
-        tpos_sync: summary,
-        matching: matchResult
-      }),
+      JSON.stringify(summary),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
