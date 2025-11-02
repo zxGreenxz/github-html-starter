@@ -87,6 +87,23 @@ interface PurchaseOrderItem {
   _manualCodeEdit?: boolean;
 }
 
+interface ValidationSettings {
+  minPurchasePrice: number;    // Giá mua tối thiểu (đơn vị: 1000 VNĐ)
+  maxPurchasePrice: number;    // Giá mua tối đa (đơn vị: 1000 VNĐ)
+  minSellingPrice: number;     // Giá bán tối thiểu (đơn vị: 1000 VNĐ)
+  maxSellingPrice: number;     // Giá bán tối đa (đơn vị: 1000 VNĐ)
+  minMargin: number;           // Chênh lệch tối thiểu (đơn vị: 1000 VNĐ)
+}
+
+// Default validation settings
+const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
+  minPurchasePrice: 0,      // 0đ - không giới hạn
+  maxPurchasePrice: 0,      // 0 = không giới hạn
+  minSellingPrice: 0,       // 0đ - không giới hạn
+  maxSellingPrice: 0,       // 0 = không giới hạn
+  minMargin: 0,             // 0đ - giá bán phải > giá mua
+};
+
 interface CreatePurchaseOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -104,10 +121,63 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // State for validation settings dialog
   const [showValidationSettings, setShowValidationSettings] = useState(false);
 
+  // Load validation settings from localStorage
+  const [validationSettings, setValidationSettings] = useState<ValidationSettings>(() => {
+    const saved = localStorage.getItem('purchaseOrder_validationSettings');
+    return saved ? JSON.parse(saved) : DEFAULT_VALIDATION_SETTINGS;
+  });
+
+  // Temporary state for editing (only saved when user clicks "Lưu")
+  const [tempValidationSettings, setTempValidationSettings] = useState<ValidationSettings>(validationSettings);
+
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
     const numericValue = value.replace(/[^\d]/g, '');
     return numericValue === '' ? 0 : parseInt(numericValue, 10);
+  };
+
+  // Helper: Validate prices based on validation settings
+  const validatePriceSettings = (purchasePrice: number, sellingPrice: number, itemNumber: number): string[] => {
+    const errors: string[] = [];
+    const settings = validationSettings;
+    
+    // Validate giá mua tối thiểu
+    if (settings.minPurchasePrice > 0 && purchasePrice < settings.minPurchasePrice) {
+      errors.push(
+        `Dòng ${itemNumber}: Giá mua (${formatVND(purchasePrice * 1000)}) thấp hơn giá mua tối thiểu (${formatVND(settings.minPurchasePrice * 1000)})`
+      );
+    }
+    
+    // Validate giá mua tối đa
+    if (settings.maxPurchasePrice > 0 && purchasePrice > settings.maxPurchasePrice) {
+      errors.push(
+        `Dòng ${itemNumber}: Giá mua (${formatVND(purchasePrice * 1000)}) vượt quá giá mua tối đa (${formatVND(settings.maxPurchasePrice * 1000)})`
+      );
+    }
+    
+    // Validate giá bán tối thiểu
+    if (settings.minSellingPrice > 0 && sellingPrice < settings.minSellingPrice) {
+      errors.push(
+        `Dòng ${itemNumber}: Giá bán (${formatVND(sellingPrice * 1000)}) thấp hơn giá bán tối thiểu (${formatVND(settings.minSellingPrice * 1000)})`
+      );
+    }
+    
+    // Validate giá bán tối đa
+    if (settings.maxSellingPrice > 0 && sellingPrice > settings.maxSellingPrice) {
+      errors.push(
+        `Dòng ${itemNumber}: Giá bán (${formatVND(sellingPrice * 1000)}) vượt quá giá bán tối đa (${formatVND(settings.maxSellingPrice * 1000)})`
+      );
+    }
+    
+    // Validate chênh lệch tối thiểu
+    const margin = sellingPrice - purchasePrice;
+    if (settings.minMargin > 0 && margin < settings.minMargin) {
+      errors.push(
+        `Dòng ${itemNumber}: Chênh lệch giá bán - giá mua (${formatVND(margin * 1000)}) thấp hơn mức tối thiểu (${formatVND(settings.minMargin * 1000)})`
+      );
+    }
+    
+    return errors;
   };
 
   const [formData, setFormData] = useState({
@@ -444,6 +514,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (Number(item.selling_price) <= Number(item.purchase_price)) {
           validationErrors.push(`Dòng ${itemNumber}: Giá bán (${formatVND(Number(item.selling_price) * 1000)}) phải lớn hơn giá mua (${formatVND(Number(item.purchase_price) * 1000)})`);
         }
+
+        // Validate theo settings
+        const priceErrors = validatePriceSettings(
+          Number(item.purchase_price),
+          Number(item.selling_price),
+          itemNumber
+        );
+        validationErrors.push(...priceErrors);
       });
 
       // Hiển thị tất cả lỗi nếu có
@@ -1386,13 +1464,32 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                     variant="outline"
                     size="sm"
                     onClick={() => setShowValidationSettings(true)}
-                    className="h-10 w-10 p-0 shrink-0 hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
+                    className={cn(
+                      "h-10 w-10 p-0 shrink-0 transition-all",
+                      // Highlight nếu có validation settings active
+                      (validationSettings.minPurchasePrice > 0 || 
+                       validationSettings.maxPurchasePrice > 0 ||
+                       validationSettings.minSellingPrice > 0 ||
+                       validationSettings.maxSellingPrice > 0 ||
+                       validationSettings.minMargin > 0)
+                        ? "bg-primary/10 text-primary border-primary hover:bg-primary/20"
+                        : "hover:bg-primary/10 hover:text-primary hover:border-primary"
+                    )}
                   >
                     <Settings className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">Cài đặt validation giá mua/bán</p>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-xs font-medium">Cài đặt validation giá mua/bán</p>
+                  {(validationSettings.minPurchasePrice > 0 || 
+                    validationSettings.maxPurchasePrice > 0 ||
+                    validationSettings.minSellingPrice > 0 ||
+                    validationSettings.maxSellingPrice > 0 ||
+                    validationSettings.minMargin > 0) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ✅ Validation đang hoạt động
+                    </p>
+                  )}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -1888,32 +1985,243 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Validation Settings Dialog - Placeholder */}
-      <AlertDialog open={showValidationSettings} onOpenChange={setShowValidationSettings}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+      {/* Validation Settings Dialog */}
+      <Dialog open={showValidationSettings} onOpenChange={(open) => {
+        if (!open) {
+          // Reset temp settings khi đóng dialog
+          setTempValidationSettings(validationSettings);
+        }
+        setShowValidationSettings(open);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
               Cài đặt validation giá mua/bán
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Tính năng này đang trong quá trình phát triển. Bạn sẽ có thể tùy chỉnh:
-              <ul className="list-disc list-inside mt-3 space-y-1.5 text-sm">
-                <li>Ngưỡng cảnh báo giá mua quá cao</li>
-                <li>Ngưỡng cảnh báo giá bán quá thấp</li>
-                <li>Tỷ lệ % lợi nhuận tối thiểu</li>
-                <li>Kiểm tra giá trùng với đơn hàng trước</li>
-                <li>Tự động tính giá bán từ giá mua</li>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* Giải thích */}
+            <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-2">
+              <p className="font-medium">📋 Cách hoạt động:</p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                <li>Đặt giá trị <strong>0</strong> để <strong>không giới hạn</strong></li>
+                <li>Hệ thống sẽ kiểm tra khi tạo/sửa đơn đặt hàng</li>
+                <li>Nếu vi phạm, sẽ hiển thị cảnh báo chi tiết</li>
               </ul>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowValidationSettings(false)}>
-              Đóng
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </div>
+
+            {/* Giá mua */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-base flex items-center gap-2">
+                💰 Giá mua
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Giá mua tối thiểu */}
+                <div className="space-y-2">
+                  <Label htmlFor="minPurchasePrice">
+                    Giá mua tối thiểu (1000đ)
+                  </Label>
+                  <Input
+                    id="minPurchasePrice"
+                    type="number"
+                    min="0"
+                    value={tempValidationSettings.minPurchasePrice}
+                    onChange={(e) => setTempValidationSettings({
+                      ...tempValidationSettings,
+                      minPurchasePrice: Math.max(0, parseInt(e.target.value) || 0)
+                    })}
+                    placeholder="0 = không giới hạn"
+                    className="text-right"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    = {formatVND(tempValidationSettings.minPurchasePrice * 1000)}
+                  </p>
+                </div>
+
+                {/* Giá mua tối đa */}
+                <div className="space-y-2">
+                  <Label htmlFor="maxPurchasePrice">
+                    Giá mua tối đa (1000đ)
+                  </Label>
+                  <Input
+                    id="maxPurchasePrice"
+                    type="number"
+                    min="0"
+                    value={tempValidationSettings.maxPurchasePrice}
+                    onChange={(e) => setTempValidationSettings({
+                      ...tempValidationSettings,
+                      maxPurchasePrice: Math.max(0, parseInt(e.target.value) || 0)
+                    })}
+                    placeholder="0 = không giới hạn"
+                    className="text-right"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    = {formatVND(tempValidationSettings.maxPurchasePrice * 1000)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Giá bán */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-base flex items-center gap-2">
+                💵 Giá bán
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Giá bán tối thiểu */}
+                <div className="space-y-2">
+                  <Label htmlFor="minSellingPrice">
+                    Giá bán tối thiểu (1000đ)
+                  </Label>
+                  <Input
+                    id="minSellingPrice"
+                    type="number"
+                    min="0"
+                    value={tempValidationSettings.minSellingPrice}
+                    onChange={(e) => setTempValidationSettings({
+                      ...tempValidationSettings,
+                      minSellingPrice: Math.max(0, parseInt(e.target.value) || 0)
+                    })}
+                    placeholder="0 = không giới hạn"
+                    className="text-right"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    = {formatVND(tempValidationSettings.minSellingPrice * 1000)}
+                  </p>
+                </div>
+
+                {/* Giá bán tối đa */}
+                <div className="space-y-2">
+                  <Label htmlFor="maxSellingPrice">
+                    Giá bán tối đa (1000đ)
+                  </Label>
+                  <Input
+                    id="maxSellingPrice"
+                    type="number"
+                    min="0"
+                    value={tempValidationSettings.maxSellingPrice}
+                    onChange={(e) => setTempValidationSettings({
+                      ...tempValidationSettings,
+                      maxSellingPrice: Math.max(0, parseInt(e.target.value) || 0)
+                    })}
+                    placeholder="0 = không giới hạn"
+                    className="text-right"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    = {formatVND(tempValidationSettings.maxSellingPrice * 1000)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chênh lệch */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-base flex items-center gap-2">
+                📊 Chênh lệch (Margin)
+              </h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="minMargin">
+                  Chênh lệch tối thiểu (Giá bán - Giá mua) (1000đ)
+                </Label>
+                <Input
+                  id="minMargin"
+                  type="number"
+                  min="0"
+                  value={tempValidationSettings.minMargin}
+                  onChange={(e) => setTempValidationSettings({
+                    ...tempValidationSettings,
+                    minMargin: Math.max(0, parseInt(e.target.value) || 0)
+                  })}
+                  placeholder="0 = chỉ yêu cầu giá bán > giá mua"
+                  className="text-right"
+                />
+                <p className="text-xs text-muted-foreground">
+                  = {formatVND(tempValidationSettings.minMargin * 1000)}
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  Ví dụ: Đặt 50 nghĩa là giá bán phải cao hơn giá mua ít nhất 50.000đ
+                </p>
+              </div>
+            </div>
+
+            {/* Preview/Example */}
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg space-y-2">
+              <p className="font-medium text-sm flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-600" />
+                Ví dụ validation
+              </p>
+              <div className="text-xs space-y-1 text-muted-foreground">
+                <p>• Giá mua = 100k → {
+                  tempValidationSettings.minPurchasePrice > 0 && 100 < tempValidationSettings.minPurchasePrice
+                    ? <span className="text-red-600">❌ Thấp hơn tối thiểu</span>
+                    : tempValidationSettings.maxPurchasePrice > 0 && 100 > tempValidationSettings.maxPurchasePrice
+                    ? <span className="text-red-600">❌ Cao hơn tối đa</span>
+                    : <span className="text-green-600">✅ Hợp lệ</span>
+                }</p>
+                <p>• Giá bán = 150k → {
+                  tempValidationSettings.minSellingPrice > 0 && 150 < tempValidationSettings.minSellingPrice
+                    ? <span className="text-red-600">❌ Thấp hơn tối thiểu</span>
+                    : tempValidationSettings.maxSellingPrice > 0 && 150 > tempValidationSettings.maxSellingPrice
+                    ? <span className="text-red-600">❌ Cao hơn tối đa</span>
+                    : tempValidationSettings.minMargin > 0 && (150 - 100) < tempValidationSettings.minMargin
+                    ? <span className="text-red-600">❌ Chênh lệch không đủ</span>
+                    : <span className="text-green-600">✅ Hợp lệ</span>
+                }</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setTempValidationSettings(DEFAULT_VALIDATION_SETTINGS);
+              }}
+            >
+              Đặt lại mặc định
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setTempValidationSettings(validationSettings);
+                  setShowValidationSettings(false);
+                }}
+              >
+                Hủy
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  // Save to state and localStorage
+                  setValidationSettings(tempValidationSettings);
+                  localStorage.setItem(
+                    'purchaseOrder_validationSettings',
+                    JSON.stringify(tempValidationSettings)
+                  );
+                  setShowValidationSettings(false);
+                  toast({
+                    title: "✅ Đã lưu cài đặt",
+                    description: "Validation settings đã được cập nhật",
+                  });
+                }}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Lưu cài đặt
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
