@@ -83,20 +83,30 @@ const PurchaseOrders = () => {
   };
 
   /**
-   * Simple variant matching (case-insensitive, remove accents)
-   * Returns true if variants are similar enough
+   * Intelligent variant matching (case-insensitive, order-insensitive)
+   * Splits variants by comma, normalizes each part, and compares as sets
+   * 
+   * Examples that should match:
+   * - "CÀ PHÊ, 2, M" ↔ "2, Cà Phê, M"
+   * - "Đỏ,S,1" ↔ "1, S, Đỏ"
    */
   const variantsMatch = (variant1: string | null, variant2: string | null): boolean => {
     if (!variant1 || !variant2) return false;
     
+    // Normalize each part: uppercase, remove accents, trim
     const normalize = (str: string) => 
       convertVietnameseToUpperCase(str.trim())
-        .replace(/\s+/g, ' '); // Normalize spaces
+        .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
     
-    const v1 = normalize(variant1);
-    const v2 = normalize(variant2);
+    // Split by comma and normalize each part
+    const parts1 = variant1.split(',').map(p => normalize(p)).filter(p => p.length > 0).sort();
+    const parts2 = variant2.split(',').map(p => normalize(p)).filter(p => p.length > 0).sort();
     
-    return v1 === v2;
+    // Must have same number of parts
+    if (parts1.length !== parts2.length) return false;
+    
+    // Compare sorted arrays (order-insensitive)
+    return parts1.every((part, idx) => part === parts2[idx]);
   };
   
   // Selection management functions
