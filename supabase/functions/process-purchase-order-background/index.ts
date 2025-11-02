@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch items with status filter (pending, pending_no_match, or failed only)
+    // Fetch items with status filter (pending or failed only)
     // Skip Type 1 items (already have tpos_product_id)
     const { data: items, error: itemsError } = await supabase
       .from('purchase_order_items')

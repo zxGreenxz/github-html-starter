@@ -769,16 +769,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     totalItems: number,
     toastId: string
   ) => {
-    const POLL_INTERVAL = 2000; // 2 seconds
-    const MAX_DURATION = 180000; // 3 minutes timeout
-    const startTime = Date.now();
+    let pollInterval = 1000; // Start with 1s (adaptive)
+    let pollCount = 0;
+    const MAX_POLLS = 60; // 2 phút timeout (60 polls * ~2s average)
+    let timeoutId: NodeJS.Timeout;
 
-    const pollInterval = setInterval(async () => {
+    const poll = async () => {
       // Timeout check
-      if (Date.now() - startTime > MAX_DURATION) {
-        clearInterval(pollInterval);
+      if (pollCount++ >= MAX_POLLS) {
         sonnerToast.error(
-          "Quá trình xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
+          "⏱️ Timeout: Xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
           { id: toastId, duration: 5000 }
         );
         return;
@@ -792,6 +792,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       if (error || !items) {
         console.error('Failed to fetch progress:', error);
+        timeoutId = setTimeout(poll, pollInterval);
         return;
       }
 
@@ -802,31 +803,26 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Update toast with progress
       sonnerToast.loading(
-        `Đang xử lý ${completedCount}/${totalItems} sản phẩm... (${successCount} thành công, ${failedCount} lỗi)`,
+        `Đang xử lý ${completedCount}/${totalItems} sản phẩm... (${successCount} ✅, ${failedCount} ❌)`,
         { id: toastId, duration: Infinity }
       );
 
-      // Check if processing is complete
-      if (completedCount === totalItems) {
-        clearInterval(pollInterval);
-
+      // Check if processing is complete (use >= to handle edge cases)
+      if (completedCount >= totalItems) {
         // Show final result
         if (failedCount === 0) {
-          // ✅ All succeeded
           sonnerToast.success(
-            `Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
+            `✅ Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
             { id: toastId, duration: 5000 }
           );
         } else if (successCount === 0) {
-          // ❌ All failed
           sonnerToast.error(
-            `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
+            `❌ Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
             { id: toastId, duration: 5000 }
           );
         } else {
-          // ⚠️ Partial success
           sonnerToast.warning(
-            `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
+            `⚠️ ${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry trong chi tiết đơn hàng.`,
             { id: toastId, duration: 7000 }
           );
         }
@@ -834,8 +830,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         // Refresh queries after completion
         queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
         queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
+        return;
       }
-    }, POLL_INTERVAL);
+
+      // Adaptive polling: Increase interval gradually (exponential backoff)
+      pollInterval = Math.min(pollInterval * 1.2, 3000); // Max 3s
+      timeoutId = setTimeout(poll, pollInterval);
+    };
+
+    // Start polling
+    poll();
   };
 
   const resetForm = () => {
