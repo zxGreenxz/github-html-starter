@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -121,14 +121,94 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   // State for validation settings dialog
   const [showValidationSettings, setShowValidationSettings] = useState(false);
 
-  // Load validation settings from localStorage
-  const [validationSettings, setValidationSettings] = useState<ValidationSettings>(() => {
-    const saved = localStorage.getItem('purchaseOrder_validationSettings');
-    return saved ? JSON.parse(saved) : DEFAULT_VALIDATION_SETTINGS;
+  // Load validation settings from database
+  const { data: dbValidationSettings } = useQuery({
+    queryKey: ['purchase-order-validation-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('purchase_order_validation_settings')
+        .select('*')
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
   });
+
+  const [validationSettings, setValidationSettings] = useState<ValidationSettings>(DEFAULT_VALIDATION_SETTINGS);
+  
+  // Update validationSettings when data is loaded
+  useEffect(() => {
+    if (dbValidationSettings) {
+      setValidationSettings({
+        minPurchasePrice: dbValidationSettings.min_purchase_price,
+        maxPurchasePrice: dbValidationSettings.max_purchase_price,
+        minSellingPrice: dbValidationSettings.min_selling_price,
+        maxSellingPrice: dbValidationSettings.max_selling_price,
+        minMargin: dbValidationSettings.min_margin,
+      });
+    }
+  }, [dbValidationSettings]);
 
   // Temporary state for editing (only saved when user clicks "Lưu")
   const [tempValidationSettings, setTempValidationSettings] = useState<ValidationSettings>(validationSettings);
+
+  // Sync tempValidationSettings when validationSettings changes
+  useEffect(() => {
+    setTempValidationSettings(validationSettings);
+  }, [validationSettings]);
+
+  // Mutation to save validation settings to database
+  const saveValidationSettingsMutation = useMutation({
+    mutationFn: async (settings: ValidationSettings) => {
+      if (!user?.id) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('purchase_order_validation_settings')
+        .upsert({
+          user_id: user.id,
+          min_purchase_price: settings.minPurchasePrice,
+          max_purchase_price: settings.maxPurchasePrice,
+          min_selling_price: settings.minSellingPrice,
+          max_selling_price: settings.maxSellingPrice,
+          min_margin: settings.minMargin,
+        }, {
+          onConflict: 'user_id'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      // Update local state
+      setValidationSettings({
+        minPurchasePrice: data.min_purchase_price,
+        maxPurchasePrice: data.max_purchase_price,
+        minSellingPrice: data.min_selling_price,
+        maxSellingPrice: data.max_selling_price,
+        minMargin: data.min_margin,
+      });
+      
+      // Invalidate query to refresh
+      queryClient.invalidateQueries({ queryKey: ['purchase-order-validation-settings'] });
+      
+      setShowValidationSettings(false);
+      toast({
+        title: "✅ Đã lưu cài đặt",
+        description: "Validation settings đã được lưu vào database",
+      });
+    },
+    onError: (error) => {
+      console.error('Error saving validation settings:', error);
+      toast({
+        title: "❌ Lỗi lưu cài đặt",
+        description: "Không thể lưu validation settings. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
@@ -2202,21 +2282,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               <Button
                 type="button"
                 onClick={() => {
-                  // Save to state and localStorage
-                  setValidationSettings(tempValidationSettings);
-                  localStorage.setItem(
-                    'purchaseOrder_validationSettings',
-                    JSON.stringify(tempValidationSettings)
-                  );
-                  setShowValidationSettings(false);
-                  toast({
-                    title: "✅ Đã lưu cài đặt",
-                    description: "Validation settings đã được cập nhật",
-                  });
+                  saveValidationSettingsMutation.mutate(tempValidationSettings);
                 }}
+                disabled={saveValidationSettingsMutation.isPending}
               >
                 <Check className="h-4 w-4 mr-2" />
-                Lưu cài đặt
+                {saveValidationSettingsMutation.isPending ? 'Đang lưu...' : 'Lưu cài đặt'}
               </Button>
             </div>
           </div>

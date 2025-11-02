@@ -1145,6 +1145,42 @@ export type Database = {
           },
         ]
       }
+      purchase_order_validation_settings: {
+        Row: {
+          created_at: string
+          id: string
+          max_purchase_price: number
+          max_selling_price: number
+          min_margin: number
+          min_purchase_price: number
+          min_selling_price: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_purchase_price?: number
+          max_selling_price?: number
+          min_margin?: number
+          min_purchase_price?: number
+          min_selling_price?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_purchase_price?: number
+          max_selling_price?: number
+          min_margin?: number
+          min_purchase_price?: number
+          min_selling_price?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       purchase_orders: {
         Row: {
           created_at: string
