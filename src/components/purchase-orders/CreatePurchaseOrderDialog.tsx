@@ -137,9 +137,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   };
 
   // Helper: Validate prices based on validation settings
-  const validatePriceSettings = (purchasePrice: number, sellingPrice: number, itemNumber: number): string[] => {
+  const validatePriceSettings = (purchasePrice: number, sellingPrice: number, itemNumber: number, settings: ValidationSettings): string[] => {
     const errors: string[] = [];
-    const settings = validationSettings;
     
     // Validate giá mua tối thiểu
     if (settings.minPurchasePrice > 0 && purchasePrice < settings.minPurchasePrice) {
@@ -519,7 +518,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         const priceErrors = validatePriceSettings(
           Number(item.purchase_price),
           Number(item.selling_price),
-          itemNumber
+          itemNumber,
+          validationSettings
         );
         validationErrors.push(...priceErrors);
       });
