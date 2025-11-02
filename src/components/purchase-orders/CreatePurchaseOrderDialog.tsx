@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine, Search } from "lucide-react";
+import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, Pencil, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine, Search, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -100,6 +100,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
   // Polling cleanup ref
   const pollingCleanupRef = useRef<(() => void) | null>(null);
+
+  // State for invoice settings dialog
+  const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
 
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
@@ -1346,6 +1349,25 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   itemIndex={-1}
                 />
               </div>
+              {/* Settings button - Bên phải ô upload, to hơn */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowInvoiceSettings(true)}
+                      className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
+                    >
+                      <Settings className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">Cài đặt ảnh hóa đơn</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 
@@ -1859,6 +1881,33 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
               resetForm();
               onOpenChange(false);
             }}>
+              Đóng
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Invoice Settings Dialog - Placeholder */}
+      <AlertDialog open={showInvoiceSettings} onOpenChange={setShowInvoiceSettings}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" />
+              Cài đặt ảnh hóa đơn
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tính năng này đang trong quá trình phát triển. Bạn sẽ có thể tùy chỉnh:
+              <ul className="list-disc list-inside mt-3 space-y-1.5 text-sm">
+                <li>Tự động crop và resize ảnh</li>
+                <li>Nén ảnh để tiết kiệm dung lượng</li>
+                <li>Chọn định dạng ảnh mặc định (JPG/PNG/WebP)</li>
+                <li>Cài đặt watermark tự động</li>
+                <li>Tự động OCR số tiền từ hóa đơn</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowInvoiceSettings(false)}>
               Đóng
             </AlertDialogAction>
           </AlertDialogFooter>
