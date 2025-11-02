@@ -456,7 +456,6 @@ serve(async (req) => {
         purchase_price: tposData.PurchasePrice,
         stock_quantity: tposData.QtyAvailable || 0,
         virtual_available: tposData.VirtualAvailable || 0,
-        tpos_image_url: tposImageBase64,
         product_images: productImages,
         supplier_name: supplierName
       };
@@ -934,7 +933,6 @@ serve(async (req) => {
       purchase_price: tposData.PurchasePrice,
       stock_quantity: tposData.QtyAvailable || 0,
       virtual_available: tposData.VirtualAvailable || 0,
-      tpos_image_url: tposImageBase64,
       product_images: productImages,
       supplier_name: supplierName
     };
@@ -961,7 +959,6 @@ serve(async (req) => {
         purchase_price: tposData.PurchasePrice,
         stock_quantity: variant.QtyAvailable || 0,
         virtual_available: variant.VirtualAvailable || 0,
-        tpos_image_url: tposImageBase64,
         product_images: productImages,
         supplier_name: supplierName
       };
