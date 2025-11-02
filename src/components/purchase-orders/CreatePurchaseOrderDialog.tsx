@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -97,6 +97,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Polling cleanup ref
+  const pollingCleanupRef = useRef<(() => void) | null>(null);
 
   // Helper function to parse number input from text
   const parseNumberInput = (value: string): number => {
@@ -210,6 +213,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       }
     });
   }, [debouncedProductNames, manualProductCodes, user?.id]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingCleanupRef.current) {
+        pollingCleanupRef.current();
+        pollingCleanupRef.current = null;
+      }
+    };
+  }, []);
 
   // Validation function - check if all items have required fields
   const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
@@ -517,7 +530,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         );
 
         // Start polling
-        pollTPOSProcessingProgress(order.id, totalDraftItems, toastId);
+        const cleanup = await pollTPOSProcessingProgress(order.id, totalDraftItems, toastId);
+        pollingCleanupRef.current = cleanup;
 
         console.log('✅ Background processing initiated (from draft)');
 
@@ -666,7 +680,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       });
 
       // Start polling for progress updates
-      pollTPOSProcessingProgress(order.id, totalItems, toastId);
+      const cleanup = await pollTPOSProcessingProgress(order.id, totalItems, toastId);
+      pollingCleanupRef.current = cleanup;
 
       console.log('✅ Background processing initiated');
 
@@ -773,10 +788,18 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     let pollCount = 0;
     const MAX_POLLS = 60; // 2 phút timeout (60 polls * ~2s average)
     let timeoutId: NodeJS.Timeout;
+    let isCancelled = false; // Cancellation flag
 
     const poll = async () => {
+      // Check if cancelled
+      if (isCancelled) {
+        clearTimeout(timeoutId);
+        return;
+      }
+
       // Timeout check
       if (pollCount++ >= MAX_POLLS) {
+        clearTimeout(timeoutId); // ✅ Clear timeout before return
         sonnerToast.error(
           "⏱️ Timeout: Xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
           { id: toastId, duration: 5000 }
@@ -792,7 +815,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       if (error || !items) {
         console.error('Failed to fetch progress:', error);
-        timeoutId = setTimeout(poll, pollInterval);
+        if (!isCancelled) {
+          timeoutId = setTimeout(poll, pollInterval);
+        }
         return;
       }
 
@@ -809,6 +834,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Check if processing is complete (use >= to handle edge cases)
       if (completedCount >= totalItems) {
+        clearTimeout(timeoutId); // ✅ Clear timeout before return
+        
         // Show final result
         if (failedCount === 0) {
           sonnerToast.success(
@@ -835,11 +862,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Adaptive polling: Increase interval gradually (exponential backoff)
       pollInterval = Math.min(pollInterval * 1.2, 3000); // Max 3s
-      timeoutId = setTimeout(poll, pollInterval);
+      if (!isCancelled) {
+        timeoutId = setTimeout(poll, pollInterval);
+      }
     };
 
     // Start polling
     poll();
+
+    // Return cleanup function
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
   };
 
   const resetForm = () => {
