@@ -26,6 +26,27 @@ Deno.serve(async (req) => {
     
     console.log(`🔄 [Background Process] Starting for order: ${purchase_order_id}`);
 
+    // 🧹 Clean up stuck items (processing > 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: stuckItems } = await supabase
+      .from('purchase_order_items')
+      .select('id, product_code')
+      .eq('purchase_order_id', purchase_order_id)
+      .eq('tpos_sync_status', 'processing')
+      .lt('tpos_sync_started_at', fiveMinutesAgo);
+    
+    if (stuckItems && stuckItems.length > 0) {
+      console.log(`🧹 Cleaning up ${stuckItems.length} stuck items`);
+      await supabase
+        .from('purchase_order_items')
+        .update({ 
+          tpos_sync_status: 'failed',
+          tpos_sync_error: 'Timeout: Xử lý quá lâu (> 5 phút)',
+          tpos_sync_completed_at: new Date().toISOString()
+        })
+        .in('id', stuckItems.map(i => i.id));
+    }
+
     // ✅ CHECK EXISTENCE - Prevent crash if order was deleted
     const { data: order, error: orderError } = await supabase
       .from('purchase_orders')
@@ -50,7 +71,7 @@ Deno.serve(async (req) => {
       .from('purchase_order_items')
       .select('*')
       .eq('purchase_order_id', purchase_order_id)
-      .in('tpos_sync_status', ['pending', 'pending_no_match', 'failed'])
+      .in('tpos_sync_status', ['pending', 'failed'])
       .is('tpos_product_id', null)
       .order('position');
 
@@ -90,22 +111,30 @@ Deno.serve(async (req) => {
 
     console.log(`📦 Grouped ${items.length} items into ${groups.size} unique products`);
 
-    // Step 2: Process each group (upload TPOS once per group)
+    // Step 2: Process groups in parallel (MAX 3 concurrent)
+    const MAX_CONCURRENT = 3;
     let successCount = 0;
     let failedCount = 0;
     const failedItems: Array<{ id: string; error: string }> = [];
 
-    for (const [groupKey, groupItems] of groups.entries()) {
-      const primaryItem = groupItems[0]; // Use first item as representative
+    // Helper function: Process one group with retry
+    async function processGroupWithRetry(
+      groupKey: string, 
+      groupItems: typeof items,
+      maxRetries = 2
+    ): Promise<void> {
+      if (!groupItems || groupItems.length === 0) return;
+      
+      const primaryItem = groupItems[0];
       console.log(`\n🔄 Processing group: ${groupKey} (${groupItems.length} items)`);
 
-      // 🔒 LOCK CHECK: Skip if already processing (check primary item)
+      // 🔒 LOCK CHECK
       if (primaryItem.tpos_sync_status === 'processing') {
         console.log(`⚠️ Group ${groupKey} is already being processed, skipping...`);
-        continue;
+        return;
       }
 
-      // Mark ALL items in group as 'processing' (atomic operation with race condition protection)
+      // Mark as processing (optimistic lock)
       const { error: updateError } = await supabase
         .from('purchase_order_items')
         .update({ 
@@ -113,57 +142,79 @@ Deno.serve(async (req) => {
           tpos_sync_started_at: new Date().toISOString()
         })
         .in('id', groupItems.map(i => i.id))
-        .neq('tpos_sync_status', 'processing'); // ✅ Prevent race condition
+        .neq('tpos_sync_status', 'processing');
 
       if (updateError) {
         console.error(`❌ Failed to lock group ${groupKey}:`, updateError);
-        continue; // Skip this group if can't lock
+        return;
       }
 
-      try {
-        // Call TPOS creation ONCE for this group
-        const { data: tposResult, error: tposError } = await supabase.functions.invoke(
-          'create-tpos-variants-from-order',
-          {
-            body: {
-              baseProductCode: primaryItem.product_code.trim().toUpperCase(),
-              productName: primaryItem.product_name.trim().toUpperCase(),
-              purchasePrice: Number(primaryItem.purchase_price || 0) / 1000, // Convert back from storage format
-              sellingPrice: Number(primaryItem.selling_price || 0) / 1000,
-              selectedAttributeValueIds: primaryItem.selected_attribute_value_ids || [],
-              productImages: Array.isArray(primaryItem.product_images) 
-                ? primaryItem.product_images 
-                : (primaryItem.product_images ? [primaryItem.product_images] : []),
-              supplierName: order.supplier_name?.trim().toUpperCase() || 'UNKNOWN'
+      // Retry logic for TPOS API call
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const { data: tposResult, error: tposError } = await supabase.functions.invoke(
+            'create-tpos-variants-from-order',
+            {
+              body: {
+                baseProductCode: primaryItem.product_code.trim().toUpperCase(),
+                productName: primaryItem.product_name.trim().toUpperCase(),
+                purchasePrice: Number(primaryItem.purchase_price || 0) / 1000,
+                sellingPrice: Number(primaryItem.selling_price || 0) / 1000,
+                selectedAttributeValueIds: primaryItem.selected_attribute_value_ids || [],
+                productImages: Array.isArray(primaryItem.product_images) 
+                  ? primaryItem.product_images 
+                  : (primaryItem.product_images ? [primaryItem.product_images] : []),
+                supplierName: order?.supplier_name?.trim().toUpperCase() || 'UNKNOWN'
+              }
             }
+          );
+
+          if (tposError) throw new Error(`TPOS API error: ${tposError.message}`);
+          if (!tposResult?.success) throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
+
+          // ✅ TPOS sync success for this group
+          successCount += groupItems.length;
+          console.log(`✅ Group success: ${groupKey} (${groupItems.length} items)`);
+          return; // Exit retry loop
+
+        } catch (error: any) {
+          const errorMessage = error.message || 'Unknown error';
+          
+          // Check if it's rate limit error (429)
+          if (errorMessage.includes('429') && attempt < maxRetries) {
+            console.warn(`⚠️ Rate limit hit for ${groupKey}, retrying in ${2000 * attempt}ms...`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+            continue;
           }
-        );
 
-        if (tposError) {
-          throw new Error(`TPOS API error: ${tposError.message}`);
+          // ⚠️ Record error for this group
+          if (attempt === maxRetries) {
+            failedCount += groupItems.length;
+            groupItems.forEach(item => {
+              failedItems.push({ id: item.id, error: errorMessage });
+            });
+            console.error(`❌ Group failed after ${maxRetries} attempts: ${groupKey}`, errorMessage);
+          }
         }
-
-        if (!tposResult?.success) {
-          throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
-        }
-
-        // ✅ TPOS sync success, but keep status = 'processing' until matching completes
-        successCount += groupItems.length;
-        console.log(`✅ Group TPOS sync success: ${groupKey} (${groupItems.length} items) - Status still 'processing'`);
-
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error';
-        
-        // ⚠️ Record error but DON'T update status yet - will update after retry matching completes
-        failedCount += groupItems.length;
-        groupItems.forEach(item => {
-          failedItems.push({ id: item.id, error: errorMessage });
-        });
-        
-        console.error(`❌ Group failed: ${groupKey}`, errorMessage);
-        // Status remains 'processing', will be updated after retry matching
       }
     }
+
+    // Convert Map to Array
+    const groupArray = Array.from(groups.entries());
+    console.log(`\n📦 Processing ${groupArray.length} product groups in batches of ${MAX_CONCURRENT}...`);
+
+    // Process in batches of MAX_CONCURRENT
+    for (let i = 0; i < groupArray.length; i += MAX_CONCURRENT) {
+      const batch = groupArray.slice(i, i + MAX_CONCURRENT);
+      
+      console.log(`\n📦 Processing batch ${Math.floor(i / MAX_CONCURRENT) + 1}/${Math.ceil(groupArray.length / MAX_CONCURRENT)}`);
+      
+      await Promise.allSettled(
+        batch.map(([key, items]) => processGroupWithRetry(key, items))
+      );
+    }
+
+    console.log(`\n✅ All groups processed: ${successCount} succeeded, ${failedCount} failed`);
 
     // Return summary
     const summary = {
@@ -179,21 +230,23 @@ Deno.serve(async (req) => {
     // ✅ FINAL STATUS UPDATE: Set status = 'success' or 'failed' after TPOS processing
     console.log(`\n📝 Updating final status...`);
     
+    // Step 3: Update failed items with individual errors
     if (failedItems.length > 0) {
-      const failedItemIds = failedItems.map(f => f.id);
+      console.log(`❌ Updating ${failedItems.length} failed items with individual errors`);
       
-      // Set failed status for items that had TPOS sync errors
-      await supabase
-        .from('purchase_order_items')
-        .update({ 
-          tpos_sync_status: 'failed',
-          tpos_sync_completed_at: new Date().toISOString(),
-          tpos_sync_error: failedItems[0].error
-        })
-        .in('id', failedItemIds)
-        .eq('tpos_sync_status', 'processing');
+      for (const failedItem of failedItems) {
+        await supabase
+          .from('purchase_order_items')
+          .update({ 
+            tpos_sync_status: 'failed',
+            tpos_sync_completed_at: new Date().toISOString(),
+            tpos_sync_error: failedItem.error
+          })
+          .eq('id', failedItem.id)
+          .eq('tpos_sync_status', 'processing'); // Safety check
+      }
       
-      console.log(`❌ Set ${failedItemIds.length} items to 'failed' status`);
+      console.log(`✅ Updated ${failedItems.length} failed items`);
     }
     
     // Set 'success' for items that completed TPOS sync successfully

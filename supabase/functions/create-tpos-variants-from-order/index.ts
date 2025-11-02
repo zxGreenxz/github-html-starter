@@ -197,6 +197,19 @@ serve(async (req) => {
       converted_selling: sellingPrice
     });
 
+    // 🖼️ CONVERT IMAGE ONCE - Cache for reuse
+    console.log('Converting product image to base64...');
+    let imageBase64: string | null = null;
+    if (productImages && productImages.length > 0) {
+      try {
+        imageBase64 = await imageUrlToBase64WithRetry(productImages[0]);
+        console.log('✅ Image conversion successful');
+      } catch (error) {
+        console.error('⚠️ Image conversion failed:', error);
+        // Continue without image - don't throw error
+      }
+    }
+
     if (!baseProductCode || !productName) {
       throw new Error('Missing required parameters: baseProductCode and productName');
     }
@@ -219,18 +232,7 @@ serve(async (req) => {
     if (!selectedAttributeValueIds || selectedAttributeValueIds.length === 0) {
       console.log('🔹 Creating SIMPLE product WITHOUT variants:', baseProductCode);
       
-      // 1. Convert image to base64 if available
-      let imageBase64: string | null = null;
-      if (productImages && productImages.length > 0) {
-        console.log('Converting product image to base64...');
-        try {
-          imageBase64 = await imageUrlToBase64WithRetry(productImages[0]);
-        } catch (error) {
-          console.error('Image conversion failed:', error);
-        }
-      }
-
-      // 2. Build simple product payload
+      // 1. Build simple product payload
       const simplePayload = {
         Id: 0,
         Name: productName,
@@ -442,12 +444,7 @@ serve(async (req) => {
       console.log('✅ TPOS simple product created, ID:', tposData.Id);
 
       // 5. Save to Supabase (only parent product, no children)
-      let tposImageBase64: string | null = null;
-      try {
-        tposImageBase64 = await imageUrlToBase64WithRetry(tposData.Image || tposData.ImageUrl);
-      } catch (error) {
-        console.error('Warning: Could not convert TPOS image:', error);
-      }
+      const tposImageBase64 = imageBase64; // Reuse cached image
 
       const simpleProduct = {
         product_code: tposData.DefaultCode,
@@ -700,14 +697,7 @@ serve(async (req) => {
       };
     });
 
-    // 7. Convert image to base64 if available
-    let imageBase64: string | null = null;
-    if (productImages && productImages.length > 0) {
-      console.log('Converting product image to base64...');
-      imageBase64 = await imageUrlToBase64(productImages[0]);
-    }
-
-    // 8. Build full payload
+    // 7. Build full payload
     const payload = {
       Id: 0,
       Name: productName,
@@ -926,22 +916,8 @@ serve(async (req) => {
     // ============ SAVE TO SUPABASE ============
     console.log('Starting to save products to Supabase...');
 
-    // 1. Convert image URL to base64 with retry
-    let tposImageBase64: string | null = null;
-    try {
-      tposImageBase64 = await imageUrlToBase64WithRetry(tposData.Image || tposData.ImageUrl);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Critical error: Image conversion failed after retries:', errorMessage);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Failed to process product image: ${errorMessage}`,
-          tpos_product_id: tposData.Id
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
-    }
+    // 1. Reuse cached image
+    const tposImageBase64 = imageBase64; // Reuse cached image
 
     // 2. Parse parent variant
     const parentVariant = parseParentVariant(tposData.ProductVariants || []);

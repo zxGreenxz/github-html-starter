@@ -639,7 +639,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         if (itemsError) throw itemsError;
       }
 
-      // Step 3: Invoke background TPOS processing and matching
+      // Step 3: Invoke background TPOS processing
       console.log('🚀 Starting background TPOS product creation...');
       
       const totalItems = items.filter(i => i.product_name.trim()).length;
@@ -990,33 +990,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   };
 
-  /**
-   * Determine tpos_sync_status based on product metadata
-   * 
-   * Type 1 (Has TPOS ID): tpos_product_id !== null
-   *   → 'success' - Skip all processing (đã có trên TPOS)
-   * 
-   * Type 2 (New Variant): tpos_product_id === null && variant !== ''
-   *   → 'pending' - Needs upload to TPOS + matching với products table
-   * 
-   * Type 3 (Simple Product): tpos_product_id === null && variant === ''
-   *   → 'pending_no_match' - Needs upload to TPOS only, không cần matching
-   */
-  const determineSyncStatus = (
-    tposProductId: number | null, 
-    variant: string
-  ): string => {
-    if (tposProductId !== null) {
-      return 'success'; // ✅ Type 1: Already on TPOS
-    }
-    
-    if (variant && variant.trim() !== '') {
-      return 'pending'; // ⚠️ Type 2: Needs matching after upload
-    }
-    
-    return 'pending_no_match'; // ⚠️ Type 3: Upload only, no matching
-  };
-
   const handleSelectProduct = async (product: any) => {
     if (currentItemIndex !== null) {
       const newItems = [...items];
@@ -1063,6 +1036,17 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       }
     }
     setCurrentItemIndex(null);
+  };
+
+  // Helper function to determine initial sync status
+  const determineSyncStatus = (
+    tposProductId: number | null, 
+    variant: string
+  ): string => {
+    if (tposProductId !== null) {
+      return 'success'; // Already on TPOS
+    }
+    return 'pending'; // Needs TPOS creation
   };
 
   const handleSelectMultipleProducts = async (products: any[]) => {
