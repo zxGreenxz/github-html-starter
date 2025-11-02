@@ -651,38 +651,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         { id: toastId, duration: Infinity }
       );
 
-      // Invoke background function and handle matching results
+      // Invoke background function (fire-and-forget)
       supabase.functions.invoke(
         'process-purchase-order-background',
         { body: { purchase_order_id: order.id } }
-      ).then(({ data, error }) => {
+      ).then(({ error }) => {
         if (error) {
           console.error('Failed to invoke background process:', error);
           sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
-          return;
-        }
-
-        // Handle matching results when available
-        if (data?.matching) {
-          const { matched, unmatched, unmatched_items } = data.matching;
-          
-          if (unmatched > 0) {
-            sonnerToast.warning(
-              `⚠️ Một số variant chưa đồng bộ được`,
-              {
-                description: `${matched} matched, ${unmatched} không tìm thấy trong kho. Xem chi tiết trong đơn hàng.`,
-                duration: 8000
-              }
-            );
-          } else if (matched > 0) {
-            sonnerToast.success(
-              `✅ Đồng bộ hoàn tất`,
-              {
-                description: `Đã match ${matched} sản phẩm từ kho thành công!`,
-                duration: 5000
-              }
-            );
-          }
         }
       }).catch(error => {
         console.error('Failed to invoke background process:', error);
@@ -834,58 +810,30 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       if (completedCount === totalItems) {
         clearInterval(pollInterval);
 
-        // Wait for matching function to complete (runs after TPOS processing)
-        setTimeout(async () => {
-          // Re-fetch items to check matching results
-          const { data: finalItems } = await supabase
-            .from('purchase_order_items')
-            .select('id, product_code, variant, tpos_sync_error')
-            .eq('purchase_order_id', orderId);
+        // Show final result
+        if (failedCount === 0) {
+          // ✅ All succeeded
+          sonnerToast.success(
+            `Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
+            { id: toastId, duration: 5000 }
+          );
+        } else if (successCount === 0) {
+          // ❌ All failed
+          sonnerToast.error(
+            `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
+            { id: toastId, duration: 5000 }
+          );
+        } else {
+          // ⚠️ Partial success
+          sonnerToast.warning(
+            `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
+            { id: toastId, duration: 7000 }
+          );
+        }
 
-          // Count items with matching errors
-          const matchingErrors = finalItems?.filter(item => 
-            item.tpos_sync_error?.includes('Không tìm thấy variant') ||
-            item.tpos_sync_error?.includes('không tìm thấy variant')
-          ) || [];
-
-          if (failedCount === 0) {
-            // ✅ All succeeded
-            if (matchingErrors.length === 0) {
-              sonnerToast.success(
-                `Đã tạo thành công ${successCount} sản phẩm trên TPOS và match với kho!`,
-                { id: toastId, duration: 5000 }
-              );
-            } else {
-              sonnerToast.warning(
-                `Đã tạo ${successCount} sản phẩm trên TPOS, nhưng ${matchingErrors.length} variant không match với kho. Kiểm tra chi tiết đơn hàng.`,
-                { id: toastId, duration: 7000 }
-              );
-            }
-          } else if (successCount === 0) {
-            // ❌ All failed
-            sonnerToast.error(
-              `Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
-              { id: toastId, duration: 5000 }
-            );
-          } else {
-            // ⚠️ Partial success
-            if (matchingErrors.length > 0) {
-              sonnerToast.warning(
-                `${successCount} thành công, ${failedCount} lỗi TPOS, ${matchingErrors.length} lỗi matching. Kiểm tra chi tiết đơn hàng.`,
-                { id: toastId, duration: 8000 }
-              );
-            } else {
-              sonnerToast.warning(
-                `${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry các sản phẩm lỗi trong chi tiết đơn hàng.`,
-                { id: toastId, duration: 7000 }
-              );
-            }
-          }
-
-          // Refresh queries after completion
-          queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-          queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
-        }, 3000); // Wait 3s for matching to complete
+        // Refresh queries after completion
+        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
       }
     }, POLL_INTERVAL);
   };
