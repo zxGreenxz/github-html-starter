@@ -135,11 +135,29 @@ function parseParentVariant(productVariants: any[]): string {
     .join(' ');
 }
 
-// Parse child variant from product name
+// Parse child variant from product name - extract from LAST parenthesis
+// Example: "NTEST (FULLBOX) (35)" → "35"
 // Example: "NTEST (29, S, Trắng)" → "29, S, Trắng"
 function parseChildVariant(productName: string): string {
-  const match = productName?.match(/\(([^)]+)\)/);
-  return match ? match[1] : '';
+  if (!productName) {
+    console.log('⚠️ parseChildVariant: Empty product name');
+    return '';
+  }
+  
+  // Match ALL parentheses and take the LAST one
+  const matches = Array.from(productName.matchAll(/\(([^)]+)\)/g));
+  
+  if (matches.length === 0) {
+    console.log(`⚠️ parseChildVariant: No parentheses found in "${productName}"`);
+    return '';
+  }
+  
+  // Get the last match
+  const result = matches[matches.length - 1][1];
+  
+  console.log(`📦 parseChildVariant: "${productName}" → variant: "${result}" (from ${matches.length} parentheses)`);
+  
+  return result;
 }
 
 // Generate Cartesian product of arrays
