@@ -92,14 +92,15 @@ const PurchaseOrders = () => {
   const variantsMatch = (variant1: string | null, variant2: string | null): boolean => {
     if (!variant1 || !variant2) return false;
     
-    // Normalize each part: uppercase, remove accents, trim
+    // Normalize each part: uppercase, remove accents, trim, remove parentheses
     const normalize = (str: string) => 
       convertVietnameseToUpperCase(str.trim())
-        .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+        .replace(/[()]/g, '')           // Remove parentheses from old format
+        .replace(/\s+/g, ' ');          // Normalize multiple spaces to single space
     
-    // Split by comma and normalize each part
-    const parts1 = variant1.split(',').map(p => normalize(p)).filter(p => p.length > 0).sort();
-    const parts2 = variant2.split(',').map(p => normalize(p)).filter(p => p.length > 0).sort();
+    // Split by both comma and pipe to support old and new formats
+    const parts1 = variant1.split(/[,|]/).map(p => normalize(p)).filter(p => p.length > 0).sort();
+    const parts2 = variant2.split(/[,|]/).map(p => normalize(p)).filter(p => p.length > 0).sort();
     
     // Must have same number of parts
     if (parts1.length !== parts2.length) return false;

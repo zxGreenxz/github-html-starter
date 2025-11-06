@@ -156,8 +156,8 @@ export async function upsertProductFromTPOS(
       ).values()
     );
     
-    // Format parent variant - tổng hợp tất cả
-    const parentVariant = formatVariantFromAttributeValues(uniqueAttributeValues);
+    // Format parent variant - tổng hợp tất cả (keep old format with pipes)
+    const parentVariant = formatVariantFromAttributeValues(uniqueAttributeValues, true);
     
     // 5. INSERT parent product vào local database
     const insertData = {
@@ -193,9 +193,10 @@ export async function upsertProductFromTPOS(
       console.log(`🔄 Processing ${fullProduct.ProductVariants.length} variants...`);
       
       for (const variant of fullProduct.ProductVariants) {
-        // Format variant from AttributeValues
+        // Format variant from AttributeValues (new format with commas for children)
         const formattedVariant = formatVariantFromAttributeValues(
-          variant.AttributeValues || []
+          variant.AttributeValues || [],
+          false
         );
         
         const variantData = {

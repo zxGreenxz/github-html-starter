@@ -66,21 +66,19 @@ export const getVariantCode = (variant: string | null | undefined): string => {
 /**
  * Format variant từ AttributeValues của TPOS theo cấu trúc AttributeLines
  * 
- * Input: [
- *   { AttributeName: "Số lượng", Name: "1" },
- *   { AttributeName: "Số lượng", Name: "2" },
- *   { AttributeName: "Màu sắc", Name: "Nude" },
- *   { AttributeName: "Màu sắc", Name: "Nâu" },
- *   { AttributeName: "Màu sắc", Name: "Hồng" }
- * ]
+ * @param attributeValues - Array of attribute values from TPOS
+ * @param isParent - true for parent variants (keeps old format with pipes and parentheses)
+ *                   false for child variants (new format with commas, no parentheses)
  * 
- * Output: "(1 | 2) (Nude | Nâu | Hồng)"
+ * Parent format: "(1 | 2) (Nude | Nâu | Hồng)"
+ * Child format: "1, 2 Nude, Nâu, Hồng" or "36" (single value without parentheses)
  */
 export function formatVariantFromAttributeValues(
   attributeValues: Array<{
     AttributeName: string;
     Name: string;
-  }>
+  }>,
+  isParent: boolean = false
 ): string {
   if (!attributeValues || attributeValues.length === 0) return '';
   
@@ -93,12 +91,22 @@ export function formatVariantFromAttributeValues(
     return acc;
   }, {} as Record<string, string[]>);
   
-  // Format: Tất cả đều dùng " | " làm separator
-  const groups = Object.values(grouped).map(values => {
-    return `(${values.join(' | ')})`;
-  });
-  
-  return groups.join(' ');
+  if (isParent) {
+    // Parent format: "(VALUE1 | VALUE2)" with pipes and parentheses
+    const groups = Object.values(grouped).map(values => {
+      return `(${values.join(' | ')})`;
+    });
+    return groups.join(' ');
+  } else {
+    // Child format: "VALUE1, VALUE2" or "VALUE" with commas, no parentheses
+    const groups = Object.values(grouped).map(values => {
+      if (values.length === 1) {
+        return values[0]; // Single value: "36"
+      }
+      return values.join(', '); // Multi-value: "35, 36, 37"
+    });
+    return groups.join(' ');
+  }
 }
 
 /**
