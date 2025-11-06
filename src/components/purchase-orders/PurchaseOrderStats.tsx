@@ -28,6 +28,7 @@ interface PurchaseOrder {
   id: string;
   order_date: string;
   status: string;
+  invoice_amount: number;
   total_amount: number;
   final_amount: number;
   discount_amount: number;

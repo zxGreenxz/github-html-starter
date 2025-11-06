@@ -264,7 +264,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     order_date: new Date().toISOString(),
     notes: "",
     invoice_images: [] as string[],
-    invoice_amount: 0,
+    invoice_amount: 0, // Store in thousands VND for user input
     discount_amount: 0,
     shipping_fee: 0
   });
@@ -482,6 +482,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         .insert({
           supplier_name: formData.supplier_name.trim().toUpperCase() || null,
           order_date: formData.order_date,
+          invoice_amount: formData.invoice_amount * 1000,
           total_amount: totalAmount,
           final_amount: finalAmount,
           discount_amount: discountAmount,
@@ -622,6 +623,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           .update({
             supplier_name: formData.supplier_name.trim().toUpperCase(),
             order_date: formData.order_date,
+            invoice_amount: formData.invoice_amount * 1000,
             total_amount: totalAmount,
             final_amount: finalAmount,
             discount_amount: discountAmount,
@@ -765,6 +767,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         .insert({
           supplier_name: formData.supplier_name.trim().toUpperCase(),
           order_date: formData.order_date,
+          invoice_amount: formData.invoice_amount * 1000,
           total_amount: totalAmount,
           final_amount: finalAmount,
           discount_amount: discountAmount,

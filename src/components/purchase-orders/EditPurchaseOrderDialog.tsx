@@ -56,6 +56,7 @@ interface PurchaseOrder {
   id: string;
   order_date: string;
   status: string;
+  invoice_amount: number;
   total_amount: number;
   final_amount: number;
   discount_amount: number;
@@ -87,9 +88,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [orderDate, setOrderDate] = useState(new Date().toISOString());
   const [notes, setNotes] = useState("");
   const [invoiceImages, setInvoiceImages] = useState<string[]>([]);
-  const [invoiceAmount, setInvoiceAmount] = useState<number>(0);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [shippingFee, setShippingFee] = useState<number>(0);
+  const [invoiceAmount, setInvoiceAmount] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [shippingFee, setShippingFee] = useState("");
   const [showShippingFee, setShowShippingFee] = useState(false);
   const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
   const [variantsMap, setVariantsMap] = useState<Record<string, any[]>>({});
@@ -221,10 +222,10 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       setOrderDate(order.order_date || new Date().toISOString());
       setNotes(order.notes || "");
       setInvoiceImages(order.invoice_images || []);
-      setInvoiceAmount(order.total_amount ? order.total_amount / 1000 : 0);
-      setDiscountAmount(order.discount_amount ? order.discount_amount / 1000 : 0);
+      setInvoiceAmount(order.invoice_amount ? String(order.invoice_amount / 1000) : "");
+      setDiscountAmount(order.discount_amount ? String(order.discount_amount / 1000) : "");
       const orderShippingFee = (order as any).shipping_fee ? (order as any).shipping_fee / 1000 : 0;
-      setShippingFee(orderShippingFee);
+      setShippingFee(String(orderShippingFee));
       setShowShippingFee(orderShippingFee > 0);
     }
   }, [order, open]);
@@ -285,9 +286,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     setOrderDate(new Date().toISOString());
     setNotes("");
     setInvoiceImages([]);
-    setInvoiceAmount(0);
-    setDiscountAmount(0);
-    setShippingFee(0);
+    setInvoiceAmount("");
+    setDiscountAmount("");
+    setShippingFee("");
     setShowShippingFee(false);
     setItems([{
       product_code: "",
@@ -670,7 +671,9 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       }
 
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
-      const finalAmount = totalAmount - (discountAmount * 1000) + (shippingFee * 1000);
+      const discountAmountValue = parseNumberInput(discountAmount) * 1000;
+      const shippingFeeValue = parseNumberInput(shippingFee) * 1000;
+      const finalAmount = totalAmount - discountAmountValue + shippingFeeValue;
 
       // Step 1: Update purchase order
       const { error: orderError } = await supabase
@@ -680,9 +683,10 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           supplier_name: supplierName.trim().toUpperCase(),
           notes: notes.trim().toUpperCase() || null,
           invoice_images: invoiceImages.length > 0 ? invoiceImages : null,
+          invoice_amount: parseNumberInput(invoiceAmount) * 1000,
           total_amount: totalAmount,
-          discount_amount: discountAmount * 1000,
-          shipping_fee: shippingFee * 1000,
+          discount_amount: discountAmountValue,
+          shipping_fee: shippingFeeValue,
           final_amount: finalAmount,
         })
         .eq("id", order.id);
@@ -776,7 +780,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   };
 
   const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0);
-  const finalAmount = totalAmount - discountAmount + shippingFee;
+  const finalAmount = totalAmount - parseNumberInput(discountAmount) + parseNumberInput(shippingFee);
 
   // Handle dialog close with confirmation
   const handleClose = async () => {
@@ -878,8 +882,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                 type="text"
                 inputMode="numeric"
                 placeholder="Nhập số tiền VND"
-                value={invoiceAmount || ""}
-                onChange={(e) => setInvoiceAmount(parseNumberInput(e.target.value))}
+                value={invoiceAmount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "" || /^\d*$/.test(value)) {
+                    setInvoiceAmount(value);
+                  }
+                }}
               />
             </div>
 
@@ -1178,8 +1187,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                   inputMode="numeric"
                   className="w-40 text-right"
                   placeholder="0"
-                  value={discountAmount || ""}
-                  onChange={(e) => setDiscountAmount(parseNumberInput(e.target.value))}
+                  value={discountAmount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || /^\d*$/.test(value)) {
+                      setDiscountAmount(value);
+                    }
+                  }}
                 />
               </div>
               
@@ -1208,8 +1222,13 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       inputMode="numeric"
                       className="w-40 text-right"
                       placeholder="0"
-                      value={shippingFee || ""}
-                      onChange={(e) => setShippingFee(parseNumberInput(e.target.value))}
+                      value={shippingFee}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "" || /^\d*$/.test(value)) {
+                          setShippingFee(value);
+                        }
+                      }}
                     />
                     <Button
                       type="button"
@@ -1217,7 +1236,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       size="icon"
                       onClick={() => {
                         setShowShippingFee(false);
-                        setShippingFee(0);
+                        setShippingFee("");
                       }}
                       className="h-8 w-8"
                     >

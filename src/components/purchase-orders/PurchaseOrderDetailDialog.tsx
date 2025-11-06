@@ -17,6 +17,7 @@ interface PurchaseOrder {
   id: string;
   order_date: string;
   status: string;
+  invoice_amount: number;
   total_amount: number;
   final_amount: number;
   discount_amount: number;
@@ -370,7 +371,12 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
             
             <div className="grid grid-cols-1 gap-3 bg-muted/50 p-4 rounded-lg">
               <div className="flex justify-between">
-                <span>Tổng tiền:</span>
+                <span>Số tiền hóa đơn:</span>
+                <span className="font-medium">{formatVND(order.invoice_amount || 0)}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span>Tổng tiền (items):</span>
                 <span className="font-medium">{formatVND(order.total_amount || 0)}</span>
               </div>
               
