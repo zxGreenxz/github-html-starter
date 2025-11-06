@@ -59,7 +59,6 @@ interface PurchaseOrder {
   total_amount: number;
   final_amount: number;
   discount_amount: number;
-  invoice_number: string | null;
   supplier_name: string | null;
   notes: string | null;
   invoice_images: string[] | null;
@@ -86,7 +85,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   const [supplierName, setSupplierName] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString());
-  const [invoiceNumber, setInvoiceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [invoiceImages, setInvoiceImages] = useState<string[]>([]);
   const [invoiceAmount, setInvoiceAmount] = useState<number>(0);
@@ -137,13 +135,12 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     
     const formChanged = 
       supplierName !== (order.supplier_name || "") ||
-      invoiceNumber !== (order.invoice_number || "") ||
       notes !== (order.notes || "");
     
     const itemsChanged = items.some(i => i._tempProductName.trim() || i._tempProductCode.trim());
     
     return formChanged || itemsChanged;
-  }, [supplierName, invoiceNumber, notes, items, order, open]);
+  }, [supplierName, notes, items, order, open]);
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
@@ -222,7 +219,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     if (order && open) {
       setSupplierName(order.supplier_name || "");
       setOrderDate(order.order_date || new Date().toISOString());
-      setInvoiceNumber(order.invoice_number || "");
       setNotes(order.notes || "");
       setInvoiceImages(order.invoice_images || []);
       setInvoiceAmount(order.total_amount ? order.total_amount / 1000 : 0);
@@ -287,7 +283,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const resetForm = () => {
     setSupplierName("");
     setOrderDate(new Date().toISOString());
-    setInvoiceNumber("");
     setNotes("");
     setInvoiceImages([]);
     setInvoiceAmount(0);
@@ -683,7 +678,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         .update({
           order_date: orderDate,
           supplier_name: supplierName.trim().toUpperCase(),
-          invoice_number: invoiceNumber.trim().toUpperCase() || null,
           notes: notes.trim().toUpperCase() || null,
           invoice_images: invoiceImages.length > 0 ? invoiceImages : null,
           total_amount: totalAmount,
@@ -804,7 +798,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     }}>
       <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between pr-10">
-          <DialogTitle>Chỉnh sửa đơn hàng #{order?.invoice_number || order?.id.slice(0, 8)}</DialogTitle>
+          <DialogTitle>Chỉnh sửa đơn hàng #{order?.id.slice(0, 8)}</DialogTitle>
           <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2 border border-destructive/30 hover:border-destructive/50">

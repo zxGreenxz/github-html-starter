@@ -42,11 +42,9 @@ interface PurchaseOrder {
   final_amount: number;
   discount_amount: number;
   shipping_fee: number;
-  invoice_number: string | null;
   supplier_name: string | null;
   supplier_id?: string | null;
   notes: string | null;
-  invoice_date: string | null;
   invoice_images: string[] | null;
   created_at: string;
   updated_at: string;
@@ -359,8 +357,8 @@ const PurchaseOrders = () => {
         .select(`
           id, status, total_amount, final_amount, created_at,
           order_date, discount_amount, shipping_fee,
-          invoice_number, supplier_name, supplier_id,
-          notes, invoice_date, invoice_images, updated_at
+          supplier_name, supplier_id,
+          notes, invoice_images, updated_at
         `)
         .neq("status", "draft")
         .order("created_at", { ascending: false });
@@ -396,7 +394,6 @@ const PurchaseOrders = () => {
       
       const matchesSearch = searchTerm === "" || 
         order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
         format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
         order.items?.some(item => 
@@ -429,7 +426,6 @@ const PurchaseOrders = () => {
       
       const matchesSearch = searchTerm === "" || 
         order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         format(new Date(order.created_at), "dd/MM").includes(searchTerm) ||
         format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTerm) ||
         order.items?.some(item => 
@@ -462,7 +458,6 @@ const PurchaseOrders = () => {
       
       const matchesSearch = searchTermDraft === "" || 
         order.supplier_name?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
-        order.invoice_number?.toLowerCase().includes(searchTermDraft.toLowerCase()) ||
         format(new Date(order.created_at), "dd/MM").includes(searchTermDraft) ||
         format(new Date(order.created_at), "dd/MM/yyyy").includes(searchTermDraft) ||
         order.items?.some(item => 

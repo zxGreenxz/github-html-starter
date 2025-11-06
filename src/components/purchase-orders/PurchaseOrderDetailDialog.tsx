@@ -20,7 +20,6 @@ interface PurchaseOrder {
   total_amount: number;
   final_amount: number;
   discount_amount: number;
-  invoice_number: string | null;
   supplier_name: string | null;
   notes: string | null;
   created_at: string;
@@ -391,20 +390,7 @@ export function PurchaseOrderDetailDialog({ order, open, onOpenChange }: Purchas
             </div>
           </div>
 
-          {/* Invoice Number */}
-          {order.invoice_number && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <span className="text-sm font-medium">Số tiền hóa đơn</span>
-                <p className="text-base font-mono bg-muted/50 p-2 rounded">
-                  {order.invoice_number}
-                </p>
-              </div>
-            </>
-          )}
-
-          {/* Notes */}
+            {/* Notes */}
           {order.notes && (
             <>
               <Separator />

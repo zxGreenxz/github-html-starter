@@ -1187,9 +1187,7 @@ export type Database = {
           discount_amount: number | null
           final_amount: number | null
           id: string
-          invoice_date: string | null
           invoice_images: string[] | null
-          invoice_number: string | null
           notes: string | null
           order_date: string
           shipping_fee: number | null
@@ -1204,9 +1202,7 @@ export type Database = {
           discount_amount?: number | null
           final_amount?: number | null
           id?: string
-          invoice_date?: string | null
           invoice_images?: string[] | null
-          invoice_number?: string | null
           notes?: string | null
           order_date?: string
           shipping_fee?: number | null
@@ -1221,9 +1217,7 @@ export type Database = {
           discount_amount?: number | null
           final_amount?: number | null
           id?: string
-          invoice_date?: string | null
           invoice_images?: string[] | null
-          invoice_number?: string | null
           notes?: string | null
           order_date?: string
           shipping_fee?: number | null

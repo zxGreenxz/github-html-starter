@@ -83,8 +83,6 @@ export function ActivityDetailDialog({
       // Purchase Orders
       purchase_order_id: "ID đơn đặt hàng",
       order_date: "Ngày đặt hàng",
-      invoice_number: "Số hóa đơn",
-      invoice_date: "Ngày hóa đơn",
       invoice_images: "Hình hóa đơn",
       total_amount: "Tổng tiền",
       discount_amount: "Tiền giảm giá",
