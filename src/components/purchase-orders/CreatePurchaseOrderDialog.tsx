@@ -21,7 +21,7 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode, cleanupReservations } from "@/lib/product-code-generator";
+import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -525,12 +525,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: async () => {
-      // Cleanup reservations
-      if (user?.id) {
-        const codes = items.map(i => i.product_code).filter(Boolean);
-        await cleanupReservations(codes, user.id);
-      }
-      
       toast({ title: "Đã lưu nháp!" });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       onOpenChange(false);
@@ -919,12 +913,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       return order;
     },
     onSuccess: async () => {
-      // Cleanup reservations
-      if (user?.id) {
-        const codes = items.map(i => i.product_code).filter(Boolean);
-        await cleanupReservations(codes, user.id);
-      }
-      
       // Don't show success toast here - it's shown by polling function
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
@@ -1075,27 +1063,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       setShowCloseConfirm(true);
     } else {
       // No unsaved changes - close directly
-      if (user?.id) {
-        const codes = items.map(i => i.product_code).filter(Boolean);
-        await cleanupReservations(codes, user.id);
-      }
       onOpenChange(false);
       resetForm();
     }
   };
 
   const updateItem = async (index: number, field: keyof PurchaseOrderItem, value: any) => {
-    // 🧹 Cleanup old reservation when manually changing product_code
-    if (field === 'product_code' && user?.id) {
-      const oldCode = items[index].product_code;
-      const newCode = value as string;
-      
-      if (oldCode && oldCode !== newCode && oldCode.trim()) {
-        await cleanupReservations([oldCode], user.id);
-        console.log(`🧹 Cleaned old code: ${oldCode} → ${newCode}`);
-      }
-    }
-    
     setItems(prevItems => {
       const newItems = [...prevItems];
       newItems[index] = { ...newItems[index], [field]: value };
@@ -1184,12 +1157,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         price_images: [],
         _tempTotalPrice: 0,
       }]);
-    }
-    
-    // 🧹 Cleanup reservation
-    if (user?.id && codeToCleanup?.trim()) {
-      await cleanupReservations([codeToCleanup], user.id);
-      console.log(`🧹 Cleaned reservation: ${codeToCleanup}`);
     }
   };
 
@@ -2052,12 +2019,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
             <AlertDialogAction onClick={async () => {
-              // Cleanup reservations
-              if (user?.id) {
-                const codes = items.map(i => i.product_code).filter(Boolean);
-                await cleanupReservations(codes, user.id);
-              }
-              
               // Clear form and close
               resetForm();
               onOpenChange(false);

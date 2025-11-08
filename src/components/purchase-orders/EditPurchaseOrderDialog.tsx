@@ -19,7 +19,7 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode, cleanupReservations } from "@/lib/product-code-generator";
+import { generateProductCodeFromMax, incrementProductCode } from "@/lib/product-code-generator";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -312,17 +312,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   };
 
   const updateItem = async (index: number, field: keyof PurchaseOrderItem, value: any) => {
-    // 🧹 Cleanup old reservation when manually changing product_code
-    if (field === '_tempProductCode' && user?.id) {
-      const oldCode = items[index]._tempProductCode;
-      const newCode = value as string;
-      
-      if (oldCode && oldCode !== newCode && oldCode.trim()) {
-        await cleanupReservations([oldCode], user.id);
-        console.log(`🧹 Cleaned old code: ${oldCode} → ${newCode}`);
-      }
-    }
-    
     setItems(prevItems => {
       const newItems = [...prevItems];
       newItems[index] = { ...newItems[index], [field]: value };
@@ -469,12 +458,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         _tempProductImages: [],
         _tempPriceImages: []
       }]);
-    }
-    
-    // 🧹 Cleanup reservation
-    if (user?.id && codeToCleanup?.trim()) {
-      await cleanupReservations([codeToCleanup], user.id);
-      console.log(`🧹 Cleaned reservation: ${codeToCleanup}`);
     }
   };
 
@@ -747,12 +730,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       return order.id;
     },
     onSuccess: async () => {
-      // Cleanup reservations
-      if (user?.id) {
-        const codes = items.map(i => i._tempProductCode).filter(Boolean);
-        await cleanupReservations(codes, user.id);
-      }
-      
       // Invalidate queries to refetch fresh data from database
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
@@ -787,10 +764,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     if (hasUnsavedChanges) {
       setShowCloseConfirm(true);
     } else {
-      if (user?.id) {
-        const codes = items.map(i => i._tempProductCode).filter(Boolean);
-        await cleanupReservations(codes, user.id);
-      }
       onOpenChange(false);
     }
   };
@@ -820,12 +793,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
               <AlertDialogFooter>
                 <AlertDialogCancel>Hủy</AlertDialogCancel>
                 <AlertDialogAction onClick={async () => {
-                  // 🧹 Cleanup ALL reservations before clearing
-                  if (user?.id) {
-                    const codes = items.map(i => i._tempProductCode).filter(Boolean);
-                    await cleanupReservations(codes, user.id);
-                    console.log(`🧹 Cleaned ${codes.length} reservations before clear`);
-                  }
                   resetForm();
                   setShowClearConfirm(false);
                 }}>
@@ -1369,10 +1336,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
             <AlertDialogAction onClick={async () => {
-              if (user?.id) {
-                const codes = items.map(i => i._tempProductCode).filter(Boolean);
-                await cleanupReservations(codes, user.id);
-              }
               onOpenChange(false);
             }}>
               Đóng
