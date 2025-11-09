@@ -27,50 +27,55 @@ export function extractBaseProductCode(productCode: string): string {
 }
 
 /**
- * Detect product category based on product name
+ * Detect product category based on product name using sequential token scanning
  * @param productName - Product name to analyze
  * Format: [ddmm] [NCC] [LoaiSP] + mô tả (ddmm is optional)
- * @returns 'N' for clothing, 'P' for accessories, 'Q' for Q supplier
+ * @returns 'N' for clothing, 'P' for accessories, 'Q' for Q supplier, null if insufficient info
  */
-export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' {
+export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' | null {
   const normalized = convertVietnameseToUpperCase(productName);
   const tokens = normalized.split(/\s+/).filter(t => t.length > 0);
   
-  // Early exit: tên quá ngắn
-  if (tokens.length < 2) {
-    // PRIORITY 0: Check Q pattern FIRST
-    if (tokens[0] && /^Q\d+$/i.test(tokens[0])) {
+  if (tokens.length === 0) return null;
+  
+  let currentIndex = 0;
+  
+  // STEP 1: Check if first token is date (ddmm format)
+  if (/^\d{4}$/.test(tokens[0])) {
+    currentIndex++; // Skip date token
+    if (currentIndex >= tokens.length) return null; // Chỉ có date → chưa đủ info
+  }
+  
+  // STEP 2: Check if next token is NCC pattern
+  const nccToken = tokens[currentIndex];
+  if (nccToken) {
+    // Q pattern (Q hoặc Q123) → return Q immediately
+    if (/^Q\d*$/i.test(nccToken)) {
       return 'Q';
     }
-    // Fallback full-text search
-    if (CATEGORY_N_KEYWORDS.some(kw => normalized.includes(kw))) return 'N';
-    if (CATEGORY_P_KEYWORDS.some(kw => normalized.includes(kw))) return 'P';
-    return 'N';
+    
+    // A pattern (A12, B5, etc.) → continue to check loại SP
+    if (/^[A-Z]\d+$/i.test(nccToken)) {
+      currentIndex++; // Move to loại SP token
+    }
   }
   
-  // Detect xem có ngày không (token đầu = ddmm format)
-  const hasDate = /^\d{4}$/.test(tokens[0]);
-  
-  // Dynamic token positions
-  const nccToken = hasDate ? tokens[1] : tokens[0];
-  const loaiSPToken = hasDate ? tokens[2] : tokens[1];
-  
-  // PRIORITY 1: NCC = Qxx → Category Q (Early Exit)
-  if (nccToken && /^Q\d+$/i.test(nccToken)) {
-    return 'Q';
-  }
-  
-  // PRIORITY 2: Loại SP keywords (Early Exit)
+  // STEP 3: Check if next token is loại SP keyword
+  const loaiSPToken = tokens[currentIndex];
   if (loaiSPToken) {
+    // Match exact keywords
     if (CATEGORY_N_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'N';
     if (CATEGORY_P_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'P';
   }
   
-  // PRIORITY 3: Fallback full-text search
-  if (CATEGORY_N_KEYWORDS.some(kw => normalized.includes(kw))) return 'N';
-  if (CATEGORY_P_KEYWORDS.some(kw => normalized.includes(kw))) return 'P';
+  // STEP 4: Fallback - scan all tokens for keywords
+  for (const token of tokens) {
+    if (CATEGORY_N_KEYWORDS.some(kw => token.includes(kw))) return 'N';
+    if (CATEGORY_P_KEYWORDS.some(kw => token.includes(kw))) return 'P';
+  }
   
-  return 'N';
+  // STEP 5: Not enough information
+  return null;
 }
 
 /**
@@ -269,6 +274,11 @@ export async function generateProductCodeFromMax(
   
   const category = detectProductCategory(productName);
   
+  // Handle null case - chưa đủ thông tin để detect category
+  if (category === null) {
+    throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
+  }
+  
   // Get max from all permanent sources
   const maxFromForm = getMaxNumberFromItems(formItems, category);
   const maxFromProducts = await getMaxNumberFromProducts(category);
@@ -359,6 +369,12 @@ export async function generateProductCode(productName: string): Promise<string> 
   }
   
   const category = detectProductCategory(productName);
+  
+  // Handle null case - chưa đủ thông tin để detect category
+  if (category === null) {
+    throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
+  }
+  
   const code = await getNextProductCode(category);
   
   return code;
