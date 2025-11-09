@@ -29,35 +29,52 @@ export function extractBaseProductCode(productCode: string): string {
 /**
  * Detect product category based on product name
  * @param productName - Product name to analyze
- * @returns 'N' for clothing, 'P' for accessories
+ * Format: [ddmm] [NCC] [LoaiSP] + mô tả (ddmm is optional)
+ * @returns 'N' for clothing, 'P' for accessories, 'Q' for Q supplier
  */
-export function detectProductCategory(productName: string): 'N' | 'P' {
+export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' {
   const normalized = convertVietnameseToUpperCase(productName);
+  const tokens = normalized.split(/\s+/).filter(t => t.length > 0);
   
-  // Check for Category N keywords first (priority)
-  const hasNKeyword = CATEGORY_N_KEYWORDS.some(keyword => normalized.includes(keyword));
-  
-  if (hasNKeyword) {
+  // Early exit: tên quá ngắn
+  if (tokens.length < 2) {
+    // Fallback full-text search
+    if (CATEGORY_N_KEYWORDS.some(kw => normalized.includes(kw))) return 'N';
+    if (CATEGORY_P_KEYWORDS.some(kw => normalized.includes(kw))) return 'P';
     return 'N';
   }
   
-  // Check for Category P keywords
-  const hasPKeyword = CATEGORY_P_KEYWORDS.some(keyword => normalized.includes(keyword));
+  // Detect xem có ngày không (token đầu = ddmm format)
+  const hasDate = /^\d{4}$/.test(tokens[0]);
   
-  if (hasPKeyword) {
-    return 'P';
+  // Dynamic token positions
+  const nccToken = hasDate ? tokens[1] : tokens[0];
+  const loaiSPToken = hasDate ? tokens[2] : tokens[1];
+  
+  // PRIORITY 1: NCC = Qxx → Category Q (Early Exit)
+  if (nccToken && /^Q\d+$/i.test(nccToken)) {
+    return 'Q';
   }
   
-  // Default to N if no keywords found
+  // PRIORITY 2: Loại SP keywords (Early Exit)
+  if (loaiSPToken) {
+    if (CATEGORY_N_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'N';
+    if (CATEGORY_P_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'P';
+  }
+  
+  // PRIORITY 3: Fallback full-text search
+  if (CATEGORY_N_KEYWORDS.some(kw => normalized.includes(kw))) return 'N';
+  if (CATEGORY_P_KEYWORDS.some(kw => normalized.includes(kw))) return 'P';
+  
   return 'N';
 }
 
 /**
  * Get the next available product code for a category
- * @param category - 'N' or 'P'
- * @returns Next product code (e.g., 'N126' or 'P45')
+ * @param category - 'N', 'P', or 'Q'
+ * @returns Next product code (e.g., 'N126', 'P45', or 'Q1')
  */
-export async function getNextProductCode(category: 'N' | 'P'): Promise<string> {
+export async function getNextProductCode(category: 'N' | 'P' | 'Q'): Promise<string> {
   try {
     // Query for ALL codes in this category
     const { data, error } = await supabase
@@ -106,7 +123,7 @@ export function incrementProductCode(
   if (!productCode.trim()) return null;
   
   // Extract prefix and number
-  const match = productCode.match(/^([NP])(\d+)$/);
+  const match = productCode.match(/^([NPQ])(\d+)$/);
   if (!match) return null; // Invalid format
   
   const prefix = match[1];
@@ -125,17 +142,17 @@ export function incrementProductCode(
 /**
  * Get max product number from form items for a category
  * @param items - Array of items in the form
- * @param category - 'N' or 'P'
+ * @param category - 'N', 'P', or 'Q'
  * @returns Max number found, or 0 if none
  */
 export function getMaxNumberFromItems(
   items: Array<{ product_code: string }>, 
-  category: 'N' | 'P'
+  category: 'N' | 'P' | 'Q'
 ): number {
   let maxNumber = 0;
   
   items.forEach(item => {
-    const match = item.product_code.match(/^([NP])(\d+)$/);
+    const match = item.product_code.match(/^([NPQ])(\d+)$/);
     if (match && match[1] === category) {
       const num = parseInt(match[2], 10);
       if (num > maxNumber) {
@@ -151,11 +168,11 @@ export function getMaxNumberFromItems(
 
 /**
  * Get max product number from purchase order items for a category
- * @param category - 'N' or 'P'
+ * @param category - 'N', 'P', or 'Q'
  * @returns Max number found, or 0 if none
  */
 export async function getMaxNumberFromPurchaseOrderItems(
-  category: 'N' | 'P'
+  category: 'N' | 'P' | 'Q'
 ): Promise<number> {
   try {
     // Query for ALL codes in this category from purchase_order_items table
@@ -191,11 +208,11 @@ export async function getMaxNumberFromPurchaseOrderItems(
 
 /**
  * Get max product number from products table for a category
- * @param category - 'N' or 'P'
+ * @param category - 'N', 'P', or 'Q'
  * @returns Max number found, or 0 if none
  */
 export async function getMaxNumberFromProducts(
-  category: 'N' | 'P'
+  category: 'N' | 'P' | 'Q'
 ): Promise<number> {
   try {
     // Query for ALL codes in this category from products table
