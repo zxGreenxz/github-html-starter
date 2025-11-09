@@ -42,6 +42,6 @@ export function convertVietnameseToUpperCase(text: string): string {
     result = result.replace(new RegExp(vietnamese, 'g'), latin);
   }
   
-  // Remove spaces and convert to uppercase
-  return result.replace(/\s+/g, '').toUpperCase();
+  // Normalize spaces and convert to uppercase
+  return result.replace(/\s+/g, ' ').trim().toUpperCase();
 }

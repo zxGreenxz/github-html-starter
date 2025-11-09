@@ -38,6 +38,10 @@ export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' {
   
   // Early exit: tên quá ngắn
   if (tokens.length < 2) {
+    // PRIORITY 0: Check Q pattern FIRST
+    if (tokens[0] && /^Q\d+$/i.test(tokens[0])) {
+      return 'Q';
+    }
     // Fallback full-text search
     if (CATEGORY_N_KEYWORDS.some(kw => normalized.includes(kw))) return 'N';
     if (CATEGORY_P_KEYWORDS.some(kw => normalized.includes(kw))) return 'P';
