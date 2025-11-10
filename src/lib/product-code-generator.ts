@@ -4,11 +4,7 @@ import { searchTPOSProduct } from "./tpos-api";
 
 // Keywords for product categories
 const CATEGORY_N_KEYWORDS = ["QUAN", "AO", "DAM", "SET", "JUM", "AOKHOAC"];
-const CATEGORY_P_KEYWORDS = ["TUI", "MAT KINH", "KINH", "MY PHAM", "BANG DO", "GIAYDEP", "GIAY", "DEP", "PHU KIEN", "DONG HO", "DAY CHUYEN", "LAC", "KHAN"];
-
-// Pre-normalized keywords for efficient comparison (spaces removed)
-const CATEGORY_N_KEYWORDS_NORMALIZED = CATEGORY_N_KEYWORDS.map(kw => kw.replace(/\s+/g, ''));
-const CATEGORY_P_KEYWORDS_NORMALIZED = CATEGORY_P_KEYWORDS.map(kw => kw.replace(/\s+/g, ''));
+const CATEGORY_P_KEYWORDS = ["TUI", "MATKINH", "MYPHAM", "BANGDO", "GIAYDEP", "PHUKIEN"];
 
 /**
  * Extract base product code from a variant code
@@ -72,49 +68,13 @@ export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' | nu
     if (CATEGORY_P_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'P';
   }
   
-  // STEP 4: Fallback - scan tokens with priority on first appearance
-  
-  // 4.1: Check 2-word combinations first (ưu tiên token đầu tiên)
-  for (let i = 0; i < tokens.length - 1; i++) {
-    const combined2 = (tokens[i] + tokens[i + 1]).replace(/\s+/g, '');
-    
-    if (CATEGORY_N_KEYWORDS_NORMALIZED.some(kw => combined2.includes(kw))) return 'N';
-    if (CATEGORY_P_KEYWORDS_NORMALIZED.some(kw => combined2.includes(kw))) return 'P';
-  }
-  
-  // 4.2: Check single-word keywords (ưu tiên token đầu tiên)
+  // STEP 4: Fallback - scan all tokens for keywords
   for (const token of tokens) {
-    if (CATEGORY_N_KEYWORDS_NORMALIZED.some(kw => token.includes(kw))) return 'N';
-    if (CATEGORY_P_KEYWORDS_NORMALIZED.some(kw => token.includes(kw))) return 'P';
+    if (CATEGORY_N_KEYWORDS.some(kw => token.includes(kw))) return 'N';
+    if (CATEGORY_P_KEYWORDS.some(kw => token.includes(kw))) return 'P';
   }
   
-  // STEP 5: Default to 'N' if structure is valid (date + non-Q NCC + additional text)
-  // Check if we have: [date?] [NCC (not Q)] [additional text]
-  let hasDate = false;
-  let hasNonQNCC = false;
-  let hasAdditionalText = false;
-  
-  let idx = 0;
-  if (/^\d{4}$/.test(tokens[0])) {
-    hasDate = true;
-    idx++;
-  }
-  
-  if (idx < tokens.length && /^[A-Z]\d+$/i.test(tokens[idx]) && !(/^Q\d*$/i.test(tokens[idx]))) {
-    hasNonQNCC = true;
-    idx++;
-  }
-  
-  if (idx < tokens.length) {
-    hasAdditionalText = true;
-  }
-  
-  // If we have date + non-Q NCC + text, but no keyword match → default to N
-  if (hasDate && hasNonQNCC && hasAdditionalText) {
-    return 'N';
-  }
-  
-  // STEP 6: Not enough information
+  // STEP 5: Not enough information
   return null;
 }
 
