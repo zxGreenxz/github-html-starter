@@ -21,7 +21,16 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode, extractBaseProductCode } from "@/lib/product-code-generator";
+import { 
+  generateProductCodeFromMax, 
+  incrementProductCode, 
+  extractBaseProductCode,
+  getMaxNumberFromProducts,
+  getMaxNumberFromPurchaseOrderItems,
+  getMaxNumberFromItems,
+  detectProductCategory
+} from "@/lib/product-code-generator";
+import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -295,6 +304,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [showDebugColumn, setShowDebugColumn] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
 
+  // Cache MAX numbers from DB (initialized once per dialog open)
+  const [maxNumbersCache, setMaxNumbersCache] = useState<{
+    N: number;
+    P: number;
+    Q: number;
+    initialized: boolean;
+  }>({
+    N: 0,
+    P: 0,
+    Q: 0,
+    initialized: false
+  });
+
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i.product_name).join('|'),
@@ -344,29 +366,114 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   }, [open, initialData]);
 
-  // Auto-generate product code when product name changes (with debounce)
+  // Auto-generate product code when product name changes (with debounce + cache)
   useEffect(() => {
-    items.forEach(async (item, index) => {
-      // Only auto-generate if user hasn't manually focused on the product_code field
-      if (item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)) {
+    // Wait for cache to be initialized
+    if (!maxNumbersCache.initialized) return;
+
+    const generateCodes = async () => {
+      // Check if any item needs code generation
+      const needsGeneration = items.some(
+        (item, index) => item.product_name.trim() && !item.product_code.trim() && !manualProductCodes.has(index)
+      );
+      
+      if (!needsGeneration) return;
+
+      // Sequential generation (avoid race conditions)
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        
+        // Skip if already has code or user edited manually
+        if (!item.product_name.trim() || item.product_code.trim() || manualProductCodes.has(index)) {
+          continue;
+        }
+        
         try {
-          const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
-          const code = await generateProductCodeFromMax(item.product_name, tempItems, user?.id);
-          setItems(prev => {
-            const newItems = [...prev];
-            if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
-              newItems[index] = { ...newItems[index], product_code: code };
+          // Detect category
+          const category = detectProductCategory(item.product_name);
+          if (!category) continue; // Skip if can't detect category
+          
+          // Get max from form items + cache
+          const maxFromForm = getMaxNumberFromItems(items, category);
+          const maxFromCache = maxNumbersCache[category];
+          let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+          let candidateCode = `${category}${nextNumber}`;
+          
+          // Check TPOS (limit to 3 retries to avoid infinite loop)
+          let retries = 0;
+          while (retries < 3) {
+            const tposProduct = await searchTPOSProduct(candidateCode);
+            
+            if (!tposProduct) {
+              // Code available - assign it
+              setItems(prev => {
+                const newItems = [...prev];
+                if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
+                  newItems[index] = { ...newItems[index], product_code: candidateCode };
+                }
+                return newItems;
+              });
+              break;
             }
-            return newItems;
-          });
+            
+            // Code exists on TPOS - try next
+            console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS, thử mã tiếp theo...`);
+            nextNumber++;
+            candidateCode = `${category}${nextNumber}`;
+            retries++;
+          }
         } catch (error) {
-          console.error("Error generating product code:", error);
-          // ⚠️ SILENT FAIL - không toast warning vì auto-generate batch
-          // User vẫn có thể nhập tay
+          console.error(`Error generating code for item ${index}:`, error);
+          // Silent fail - user can input manually
         }
       }
-    });
-  }, [debouncedProductNames, manualProductCodes, user?.id]);
+    };
+    
+    generateCodes();
+  }, [debouncedProductNames, manualProductCodes, maxNumbersCache]);
+
+  // Initialize MAX cache once when dialog opens
+  useEffect(() => {
+    if (!open) {
+      // Reset cache when dialog closes
+      setMaxNumbersCache({ N: 0, P: 0, Q: 0, initialized: false });
+      return;
+    }
+
+    if (maxNumbersCache.initialized) return;
+
+    const initializeCache = async () => {
+      try {
+        // Query MAX from products table (3 queries - optimized with pre-filter)
+        const [maxNProducts, maxPProducts, maxQProducts] = await Promise.all([
+          getMaxNumberFromProducts('N'),
+          getMaxNumberFromProducts('P'),
+          getMaxNumberFromProducts('Q')
+        ]);
+
+        // Query MAX from purchase_order_items table (3 queries)
+        const [maxNItems, maxPItems, maxQItems] = await Promise.all([
+          getMaxNumberFromPurchaseOrderItems('N'),
+          getMaxNumberFromPurchaseOrderItems('P'),
+          getMaxNumberFromPurchaseOrderItems('Q')
+        ]);
+
+        // Set cache with max of both sources
+        setMaxNumbersCache({
+          N: Math.max(maxNProducts, maxNItems),
+          P: Math.max(maxPProducts, maxPItems),
+          Q: Math.max(maxQProducts, maxQItems),
+          initialized: true
+        });
+      } catch (error) {
+        console.error("Error initializing MAX cache:", error);
+        // Set initialized anyway to prevent infinite retry
+        setMaxNumbersCache(prev => ({ ...prev, initialized: true }));
+      }
+    };
+
+    initializeCache();
+  }, [open, maxNumbersCache.initialized]);
 
   // Cleanup polling on unmount
   useEffect(() => {
