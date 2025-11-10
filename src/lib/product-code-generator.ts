@@ -4,7 +4,21 @@ import { searchTPOSProduct } from "./tpos-api";
 
 // Keywords for product categories
 const CATEGORY_N_KEYWORDS = ["QUAN", "AO", "DAM", "SET", "JUM", "AOKHOAC"];
-const CATEGORY_P_KEYWORDS = ["TUI", "MATKINH", "KINH", "MYPHAM", "BANGDO", "GIAYDEP", "GIAY", "DEP", "PHUKIEN", "DONGHO", "DAYCHUYEN", "LAC", "KHAN"];
+const CATEGORY_P_KEYWORDS = [
+  "TUI", 
+  "MATKINH",     // mắt kính → viết liền
+  "KINH",        // kính
+  "MYPHAM",      // mỹ phẩm → viết liền
+  "BANGDO",      // băng đô → viết liền
+  "GIAYDEP",     // giày dép → viết liền
+  "GIAY",        // giày
+  "DEP",         // dép
+  "PHU",         // phụ kiện → viết liền
+  "DONG",        // đồng hồ → viết liền
+  "DAY",         // dây chuyền → viết liền
+  "LAC",         // lắc
+  "KHAN"         // khăn
+];
 
 /**
  * Extract base product code from a variant code
