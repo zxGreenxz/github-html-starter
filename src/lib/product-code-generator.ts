@@ -17,7 +17,13 @@ const CATEGORY_P_KEYWORDS = [
   "DONG",        // đồng hồ → viết liền
   "DAY",         // dây chuyền → viết liền
   "LAC",         // lắc
-  "KHAN"         // khăn
+  "KHAN",        // khăn
+  "NIT",         // nịt
+  "KEM",         // kem
+  "SUA",         // sữa
+  "BANH",        // bánh
+  "SON",         // son
+  "CUSHION"      // cushion
 ];
 
 /**
