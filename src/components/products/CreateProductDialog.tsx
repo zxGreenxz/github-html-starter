@@ -132,6 +132,11 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
       });
     } catch (error) {
       console.error("Error generating product code:", error);
+      toast({
+        title: "⚠️ Chưa thể tạo mã tự động",
+        description: error instanceof Error ? error.message : "Vui lòng nhập đủ thông tin sản phẩm",
+        variant: "destructive",
+      });
     }
   };
 

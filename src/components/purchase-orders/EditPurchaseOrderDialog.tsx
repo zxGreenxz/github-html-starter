@@ -159,6 +159,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           });
         } catch (error) {
           console.error("Error generating product code:", error);
+          // ⚠️ SILENT FAIL - không toast warning vì auto-generate batch
         }
       }
     });
@@ -422,6 +423,10 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
         });
       } catch (error) {
         console.error("Error generating product code:", error);
+        toast({
+          title: "⚠️ Không thể tạo mã tự động",
+          description: error instanceof Error ? error.message : "Vui lòng nhập mã sản phẩm thủ công",
+        });
       }
     }
     
