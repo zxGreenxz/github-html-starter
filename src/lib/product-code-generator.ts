@@ -8,14 +8,15 @@ const CATEGORY_P_KEYWORDS = [
   "TUI", 
   "MATKINH",     // mắt kính → viết liền
   "KINH",        // kính
+  "MAT",         // mặt
   "MYPHAM",      // mỹ phẩm → viết liền
   "BANGDO",      // băng đô → viết liền
   "GIAYDEP",     // giày dép → viết liền
   "GIAY",        // giày
   "DEP",         // dép
-  "PHU",         // phụ kiện → viết liền
-  "DONG",        // đồng hồ → viết liền
-  "DAY",         // dây chuyền → viết liền
+  "PHU",         // phụ kiện
+  "DONG",        // đồng hồ
+  "DAY",         // dây chuyền
   "LAC",         // lắc
   "KHAN",        // khăn
   "NIT",         // nịt
@@ -24,7 +25,18 @@ const CATEGORY_P_KEYWORDS = [
   "BANH",        // bánh
   "SON",         // son
   "CUSHION",     // cushion
-  "MAT"          // mặt
+  "VONG",        // vòng (vòng tay, vòng cổ)
+  "NHAN",        // nhẫn
+  "BONG",        // bông tai
+  "PHAN",        // phấn (phấn nền, phấn phủ)
+  "NA",          // nạ (mặt nạ)
+  "NUOC",        // nước (nước hoa hồng, nước tẩy trang)
+  "XIT",         // xịt (xịt khoáng, xịt dưỡng)
+  "GEL",         // gel
+  "TONER",       // toner
+  "SERUM",       // serum
+  "TINH",        // tinh (tinh chất)
+  "TAY"          // tẩy (tẩy trang, nước tẩy)
 ];
 
 /**
