@@ -4,7 +4,7 @@ import { searchTPOSProduct } from "./tpos-api";
 
 // Keywords for product categories
 const CATEGORY_N_KEYWORDS = ["QUAN", "AO", "DAM", "SET", "JUM", "AOKHOAC"];
-const CATEGORY_P_KEYWORDS = ["TUI", "MATKINH", "MYPHAM", "BANGDO", "GIAYDEP", "PHUKIEN"];
+const CATEGORY_P_KEYWORDS = ["TUI", "MATKINH", "KINH", "MYPHAM", "BANGDO", "GIAYDEP", "GIAY", "DEP", "PHUKIEN", "DONGHO", "DAYCHUYEN", "LAC", "KHAN"];
 
 /**
  * Extract base product code from a variant code
@@ -68,13 +68,39 @@ export function detectProductCategory(productName: string): 'N' | 'P' | 'Q' | nu
     if (CATEGORY_P_KEYWORDS.some(kw => loaiSPToken.includes(kw))) return 'P';
   }
   
-  // STEP 4: Fallback - scan all tokens for keywords
+  // STEP 4: Fallback - scan all tokens for keywords (ưu tiên token đầu tiên)
   for (const token of tokens) {
     if (CATEGORY_N_KEYWORDS.some(kw => token.includes(kw))) return 'N';
     if (CATEGORY_P_KEYWORDS.some(kw => token.includes(kw))) return 'P';
   }
   
-  // STEP 5: Not enough information
+  // STEP 5: Default to 'N' if structure is valid (date + NCC + text)
+  // Check if we have: [date?] [NCC (not Q)] [additional text]
+  let hasDate = /^\d{4}$/.test(tokens[0]);
+  let hasNCC = false;
+  let hasAdditionalText = false;
+  
+  // Determine if we have NCC
+  if (hasDate && tokens.length > 1) {
+    // Check token after date
+    if (/^[A-PR-Z]\d+$/i.test(tokens[1])) { // A-P, R-Z (not Q)
+      hasNCC = true;
+      hasAdditionalText = tokens.length > 2;
+    }
+  } else if (!hasDate && tokens.length > 0) {
+    // Check first token
+    if (/^[A-PR-Z]\d+$/i.test(tokens[0])) { // A-P, R-Z (not Q)
+      hasNCC = true;
+      hasAdditionalText = tokens.length > 1;
+    }
+  }
+  
+  // If structure is valid but no keyword match → default to 'N'
+  if (hasNCC && hasAdditionalText) {
+    return 'N';
+  }
+  
+  // STEP 6: Not enough information
   return null;
 }
 
