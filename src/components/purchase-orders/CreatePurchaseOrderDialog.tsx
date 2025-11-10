@@ -399,13 +399,16 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
           let candidateCode = `${category}${nextNumber}`;
           
-          // Check TPOS (limit to 3 retries to avoid infinite loop)
-          let retries = 0;
-          while (retries < 3) {
+          // Check TPOS liên tục với MAX_ATTEMPTS = 30
+          let attempts = 0;
+          const MAX_ATTEMPTS = 30;
+          let codeFound = false;
+
+          while (attempts < MAX_ATTEMPTS) {
             const tposProduct = await searchTPOSProduct(candidateCode);
             
             if (!tposProduct) {
-              // Code available - assign it
+              // ✅ Code available - assign it
               setItems(prev => {
                 const newItems = [...prev];
                 if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
@@ -413,14 +416,24 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 }
                 return newItems;
               });
+              codeFound = true;
               break;
             }
             
-            // Code exists on TPOS - try next
-            console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS, thử mã tiếp theo...`);
+            // ⚠️ Code exists on TPOS - try next
+            console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
             nextNumber++;
             candidateCode = `${category}${nextNumber}`;
-            retries++;
+            attempts++;
+          }
+
+          // 🔴 Nếu vượt quá 30 lần - thông báo đỏ
+          if (!codeFound && attempts >= MAX_ATTEMPTS) {
+            toast({
+              title: "⚠️ Mã trùng trên TPOS hơn 30 mã",
+              description: "Vào TPOS tìm mã lớn nhất điền tay cho mã sản phẩm đầu tiên",
+              variant: "destructive",
+            });
           }
         } catch (error) {
           console.error(`Error generating code for item ${index}:`, error);
@@ -1225,21 +1238,68 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     itemToCopy.product_images = [...itemToCopy.product_images];
     itemToCopy.price_images = [...itemToCopy.price_images];
     
-    // Generate product code using generateProductCodeFromMax logic
+    // ✅ Generate product code using CACHE + FORM logic (NO DB QUERY)
     if (itemToCopy.product_name.trim()) {
       try {
-        const tempItems = items.map(i => ({ product_name: i.product_name, product_code: i.product_code }));
-        const newCode = await generateProductCodeFromMax(itemToCopy.product_name, tempItems);
-        itemToCopy.product_code = newCode;
-        toast({
-          title: "Đã sao chép và tạo mã SP mới",
-          description: `Mã mới: ${newCode}`,
-        });
+        // Wait for cache initialization
+        if (!maxNumbersCache.initialized) {
+          throw new Error("Cache chưa khởi tạo xong, vui lòng đợi giây lát");
+        }
+        
+        const category = detectProductCategory(itemToCopy.product_name);
+        
+        if (!category) {
+          throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
+        }
+        
+        // Calculate next number from CACHE + FORM (NO DB QUERY!)
+        const maxFromForm = getMaxNumberFromItems(items, category);
+        const maxFromCache = maxNumbersCache[category];
+        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+        let candidateCode = `${category}${nextNumber}`;
+        
+        // 🔥 Check TPOS liên tục với MAX_ATTEMPTS = 30
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30;
+        let codeFound = false;
+        
+        while (attempts < MAX_ATTEMPTS) {
+          const tposProduct = await searchTPOSProduct(candidateCode);
+          
+          if (!tposProduct) {
+            // ✅ Code available - assign it
+            itemToCopy.product_code = candidateCode;
+            toast({
+              title: "Đã sao chép và tạo mã SP mới",
+              description: `Mã mới: ${candidateCode}`,
+            });
+            codeFound = true;
+            break;
+          }
+          
+          // ⚠️ Code exists on TPOS - try next
+          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+          nextNumber++;
+          candidateCode = `${category}${nextNumber}`;
+          attempts++;
+        }
+        
+        // 🔴 Nếu vượt quá 30 lần - thông báo đỏ
+        if (!codeFound && attempts >= MAX_ATTEMPTS) {
+          itemToCopy.product_code = ""; // Clear code để user nhập thủ công
+          toast({
+            title: "⚠️ Mã trùng trên TPOS hơn 30 mã",
+            description: "Vào TPOS tìm mã lớn nhất điền tay cho mã sản phẩm đầu tiên",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
         console.error("Error generating product code:", error);
+        itemToCopy.product_code = ""; // Clear code để user nhập thủ công
         toast({
           title: "⚠️ Không thể tạo mã tự động",
           description: error instanceof Error ? error.message : "Vui lòng nhập mã sản phẩm thủ công",
+          variant: "destructive"
         });
       }
     }
