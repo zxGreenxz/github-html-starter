@@ -19,7 +19,8 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { generateProductCodeFromMax, incrementProductCode } from "@/lib/product-code-generator";
+import { detectProductCategory, getMaxNumberFromItems } from "@/lib/product-code-generator";
+import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -124,6 +125,19 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDebugColumn, setShowDebugColumn] = useState(false);
 
+  // Cache initialization for product codes
+  const [maxNumbersCache, setMaxNumbersCache] = useState<{
+    N: number;
+    P: number;
+    Q: number;
+    initialized: boolean;
+  }>({
+    N: 0,
+    P: 0,
+    Q: 0,
+    initialized: false
+  });
+
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i._tempProductName).join('|'),
@@ -145,25 +159,63 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   // Auto-generate product code when product name changes (with debounce)
   useEffect(() => {
+    if (!maxNumbersCache.initialized) return;
+    
     items.forEach(async (item, index) => {
-      if (item._tempProductName.trim() && !item._tempProductCode.trim()) {
-        try {
-          const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
-          const code = await generateProductCodeFromMax(item._tempProductName, tempItems, user?.id);
-          setItems(prev => {
-            const newItems = [...prev];
-            if (newItems[index] && !newItems[index]._tempProductCode.trim()) {
-              newItems[index] = { ...newItems[index], _tempProductCode: code };
-            }
-            return newItems;
-          });
-        } catch (error) {
-          console.error("Error generating product code:", error);
-          // ⚠️ SILENT FAIL - không toast warning vì auto-generate batch
+      if (item._tempProductCode.trim() || item._manualCodeEdit) {
+        return;
+      }
+      
+      if (!item._tempProductName.trim()) return;
+      
+      try {
+        const category = detectProductCategory(item._tempProductName);
+        
+        if (!category) {
+          return;
         }
+        
+        const maxFromForm = getMaxNumberFromItems(
+          items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode })),
+          category
+        );
+        const maxFromCache = maxNumbersCache[category];
+        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+        let candidateCode = `${category}${nextNumber}`;
+        
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30;
+        let codeFound = false;
+        
+        while (attempts < MAX_ATTEMPTS) {
+          const tposProduct = await searchTPOSProduct(candidateCode);
+          
+          if (!tposProduct) {
+            setItems(prev => {
+              const newItems = [...prev];
+              if (newItems[index] && !newItems[index]._tempProductCode.trim() && !newItems[index]._manualCodeEdit) {
+                newItems[index] = { ...newItems[index], _tempProductCode: candidateCode };
+              }
+              return newItems;
+            });
+            codeFound = true;
+            break;
+          }
+          
+          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+          nextNumber++;
+          candidateCode = `${category}${nextNumber}`;
+          attempts++;
+        }
+        
+        if (!codeFound && attempts >= MAX_ATTEMPTS) {
+          console.warn(`❌ Không tìm được mã khả dụng cho ${item._tempProductName} sau ${MAX_ATTEMPTS} lần thử`);
+        }
+      } catch (error) {
+        console.error("Error generating product code:", error);
       }
     });
-  }, [debouncedProductNames, user?.id]);
+  }, [debouncedProductNames, maxNumbersCache, items]);
 
   // Validation function - check if all items have required fields
   const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
@@ -215,6 +267,70 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     },
     enabled: !!order?.id && open,
   });
+
+  // Initialize max numbers cache once when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    
+    const initializeCache = async () => {
+      try {
+        console.log("🔄 Initializing maxNumbersCache...");
+        
+        const queries = [
+          supabase
+            .from("products")
+            .select("product_code")
+            .like("product_code", "N%")
+            .order("product_code", { ascending: false })
+            .limit(1),
+          supabase
+            .from("products")
+            .select("product_code")
+            .like("product_code", "P%")
+            .order("product_code", { ascending: false })
+            .limit(1),
+          supabase
+            .from("products")
+            .select("product_code")
+            .like("product_code", "Q%")
+            .order("product_code", { ascending: false })
+            .limit(1)
+        ];
+        
+        const results = await Promise.all(queries);
+        
+        const newCache: any = { initialized: true };
+        
+        if (results[0].data?.[0]?.product_code) {
+          const match = results[0].data[0].product_code.match(/^N(\d+)/);
+          newCache.N = match ? parseInt(match[1]) : 0;
+        } else {
+          newCache.N = 0;
+        }
+        
+        if (results[1].data?.[0]?.product_code) {
+          const match = results[1].data[0].product_code.match(/^P(\d+)/);
+          newCache.P = match ? parseInt(match[1]) : 0;
+        } else {
+          newCache.P = 0;
+        }
+        
+        if (results[2].data?.[0]?.product_code) {
+          const match = results[2].data[0].product_code.match(/^Q(\d+)/);
+          newCache.Q = match ? parseInt(match[1]) : 0;
+        } else {
+          newCache.Q = 0;
+        }
+        
+        setMaxNumbersCache(newCache);
+        console.log("✅ maxNumbersCache initialized:", newCache);
+      } catch (error) {
+        console.error("❌ Error initializing cache:", error);
+      }
+    };
+    
+    initializeCache();
+  }, [open]);
 
   // Load order data when dialog opens
   useEffect(() => {
@@ -406,26 +522,68 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
 
   const copyItem = async (index: number) => {
     const itemToCopy = { ...items[index] };
-    delete itemToCopy.id; // Remove id so it will be inserted as new
-    // Deep copy the image arrays
+    delete itemToCopy.id;
     itemToCopy._tempProductImages = [...itemToCopy._tempProductImages];
     itemToCopy._tempPriceImages = [...itemToCopy._tempPriceImages];
     
-    // Generate product code using generateProductCodeFromMax logic
     if (itemToCopy._tempProductName.trim()) {
       try {
-        const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
-        const newCode = await generateProductCodeFromMax(itemToCopy._tempProductName, tempItems);
-        itemToCopy._tempProductCode = newCode;
-        toast({
-          title: "Đã sao chép và tạo mã SP mới",
-          description: `Mã mới: ${newCode}`,
-        });
+        if (!maxNumbersCache.initialized) {
+          throw new Error("Cache chưa khởi tạo xong, vui lòng đợi giây lát");
+        }
+        
+        const category = detectProductCategory(itemToCopy._tempProductName);
+        
+        if (!category) {
+          throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
+        }
+        
+        const maxFromForm = getMaxNumberFromItems(
+          items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode })),
+          category
+        );
+        const maxFromCache = maxNumbersCache[category];
+        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+        let candidateCode = `${category}${nextNumber}`;
+        
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30;
+        let codeFound = false;
+        
+        while (attempts < MAX_ATTEMPTS) {
+          const tposProduct = await searchTPOSProduct(candidateCode);
+          
+          if (!tposProduct) {
+            itemToCopy._tempProductCode = candidateCode;
+            toast({
+              title: "Đã sao chép và tạo mã SP mới",
+              description: `Mã mới: ${candidateCode}`,
+            });
+            codeFound = true;
+            break;
+          }
+          
+          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+          nextNumber++;
+          candidateCode = `${category}${nextNumber}`;
+          attempts++;
+        }
+        
+        if (!codeFound && attempts >= MAX_ATTEMPTS) {
+          itemToCopy._tempProductCode = "";
+          toast({
+            title: "⚠️ Mã trùng trên TPOS hơn 30 mã",
+            description: "Vào TPOS tìm mã lớn nhất điền tay cho mã sản phẩm đầu tiên",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
         console.error("Error generating product code:", error);
+        itemToCopy._tempProductCode = "";
         toast({
           title: "⚠️ Không thể tạo mã tự động",
           description: error instanceof Error ? error.message : "Vui lòng nhập mã sản phẩm thủ công",
+          variant: "destructive"
         });
       }
     }
@@ -948,7 +1106,15 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                             disabled={!!item.id}
                             placeholder="Mã SP"
                             value={item._tempProductCode}
-                            onChange={(e) => updateItem(index, "_tempProductCode", e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              updateItem(index, "_tempProductCode", value);
+                              if (value.trim()) {
+                                const newItems = [...items];
+                                newItems[index]._manualCodeEdit = true;
+                                setItems(newItems);
+                              }
+                            }}
                             className={cn(
                               "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs flex-1",
                               item.id && "bg-muted/50 cursor-not-allowed opacity-70"
