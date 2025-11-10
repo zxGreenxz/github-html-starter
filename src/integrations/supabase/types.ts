@@ -1393,6 +1393,10 @@ export type Database = {
         Args: { product_name: string }
         Returns: string
       }
+      get_max_product_code_number: {
+        Args: { category_prefix: string; table_name?: string }
+        Returns: number
+      }
       get_product_stats: { Args: never; Returns: Json }
       get_supplier_stats: {
         Args: never

@@ -19,7 +19,7 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { detectProductCategory, getMaxNumberFromItems } from "@/lib/product-code-generator";
+import { detectProductCategory, getMaxNumberFromItems, getMaxNumberFromProductsDB, getMaxNumberFromPurchaseOrderItemsDB } from "@/lib/product-code-generator";
 import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
@@ -268,69 +268,55 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     enabled: !!order?.id && open,
   });
 
-  // Initialize max numbers cache once when dialog opens
+  // Initialize MAX cache once when dialog opens
   useEffect(() => {
-    if (!open) return;
-    
+    if (!open) {
+      // Reset cache when dialog closes
+      setMaxNumbersCache({ N: 0, P: 0, Q: 0, initialized: false });
+      return;
+    }
+
+    if (maxNumbersCache.initialized) return;
+
     const initializeCache = async () => {
       try {
-        console.log("🔄 Initializing maxNumbersCache...");
+        console.log("🔄 Initializing maxNumbersCache for EditPurchaseOrderDialog with DB function...");
         
-        const queries = [
-          supabase
-            .from("products")
-            .select("product_code")
-            .like("product_code", "N%")
-            .order("product_code", { ascending: false })
-            .limit(1),
-          supabase
-            .from("products")
-            .select("product_code")
-            .like("product_code", "P%")
-            .order("product_code", { ascending: false })
-            .limit(1),
-          supabase
-            .from("products")
-            .select("product_code")
-            .like("product_code", "Q%")
-            .order("product_code", { ascending: false })
-            .limit(1)
-        ];
+        // ✅ Query MAX using DB function (6 RPC calls - much faster than parsing client-side)
+        const [maxNProducts, maxPProducts, maxQProducts] = await Promise.all([
+          getMaxNumberFromProductsDB('N'),
+          getMaxNumberFromProductsDB('P'),
+          getMaxNumberFromProductsDB('Q')
+        ]);
+
+        const [maxNItems, maxPItems, maxQItems] = await Promise.all([
+          getMaxNumberFromPurchaseOrderItemsDB('N'),
+          getMaxNumberFromPurchaseOrderItemsDB('P'),
+          getMaxNumberFromPurchaseOrderItemsDB('Q')
+        ]);
+
+        // Set cache with max of both sources
+        setMaxNumbersCache({
+          N: Math.max(maxNProducts, maxNItems),
+          P: Math.max(maxPProducts, maxPItems),
+          Q: Math.max(maxQProducts, maxQItems),
+          initialized: true
+        });
         
-        const results = await Promise.all(queries);
-        
-        const newCache: any = { initialized: true };
-        
-        if (results[0].data?.[0]?.product_code) {
-          const match = results[0].data[0].product_code.match(/^N(\d+)/);
-          newCache.N = match ? parseInt(match[1]) : 0;
-        } else {
-          newCache.N = 0;
-        }
-        
-        if (results[1].data?.[0]?.product_code) {
-          const match = results[1].data[0].product_code.match(/^P(\d+)/);
-          newCache.P = match ? parseInt(match[1]) : 0;
-        } else {
-          newCache.P = 0;
-        }
-        
-        if (results[2].data?.[0]?.product_code) {
-          const match = results[2].data[0].product_code.match(/^Q(\d+)/);
-          newCache.Q = match ? parseInt(match[1]) : 0;
-        } else {
-          newCache.Q = 0;
-        }
-        
-        setMaxNumbersCache(newCache);
-        console.log("✅ maxNumbersCache initialized:", newCache);
+        console.log("✅ maxNumbersCache initialized (DB function):", {
+          N: Math.max(maxNProducts, maxNItems),
+          P: Math.max(maxPProducts, maxPItems),
+          Q: Math.max(maxQProducts, maxQItems),
+        });
       } catch (error) {
-        console.error("❌ Error initializing cache:", error);
+        console.error("❌ Error initializing MAX cache:", error);
+        // Set initialized anyway to prevent infinite retry
+        setMaxNumbersCache(prev => ({ ...prev, initialized: true }));
       }
     };
-    
+
     initializeCache();
-  }, [open]);
+  }, [open, maxNumbersCache.initialized]);
 
   // Load order data when dialog opens
   useEffect(() => {

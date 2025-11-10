@@ -25,8 +25,8 @@ import {
   generateProductCodeFromMax, 
   incrementProductCode, 
   extractBaseProductCode,
-  getMaxNumberFromProducts,
-  getMaxNumberFromPurchaseOrderItems,
+  getMaxNumberFromProductsDB,
+  getMaxNumberFromPurchaseOrderItemsDB,
   getMaxNumberFromItems,
   detectProductCategory
 } from "@/lib/product-code-generator";
@@ -457,18 +457,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
     const initializeCache = async () => {
       try {
-        // Query MAX from products table (3 queries - optimized with pre-filter)
+        console.log("🔄 Initializing maxNumbersCache with DB function...");
+        
+        // ✅ Query MAX using DB function (6 RPC calls - much faster than parsing client-side)
         const [maxNProducts, maxPProducts, maxQProducts] = await Promise.all([
-          getMaxNumberFromProducts('N'),
-          getMaxNumberFromProducts('P'),
-          getMaxNumberFromProducts('Q')
+          getMaxNumberFromProductsDB('N'),
+          getMaxNumberFromProductsDB('P'),
+          getMaxNumberFromProductsDB('Q')
         ]);
 
-        // Query MAX from purchase_order_items table (3 queries)
         const [maxNItems, maxPItems, maxQItems] = await Promise.all([
-          getMaxNumberFromPurchaseOrderItems('N'),
-          getMaxNumberFromPurchaseOrderItems('P'),
-          getMaxNumberFromPurchaseOrderItems('Q')
+          getMaxNumberFromPurchaseOrderItemsDB('N'),
+          getMaxNumberFromPurchaseOrderItemsDB('P'),
+          getMaxNumberFromPurchaseOrderItemsDB('Q')
         ]);
 
         // Set cache with max of both sources
@@ -478,8 +479,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           Q: Math.max(maxQProducts, maxQItems),
           initialized: true
         });
+        
+        console.log("✅ maxNumbersCache initialized (DB function):", {
+          N: Math.max(maxNProducts, maxNItems),
+          P: Math.max(maxPProducts, maxPItems),
+          Q: Math.max(maxQProducts, maxQItems),
+        });
       } catch (error) {
-        console.error("Error initializing MAX cache:", error);
+        console.error("❌ Error initializing MAX cache:", error);
         // Set initialized anyway to prevent infinite retry
         setMaxNumbersCache(prev => ({ ...prev, initialized: true }));
       }

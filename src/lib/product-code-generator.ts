@@ -438,3 +438,53 @@ export async function generateProductCode(productName: string): Promise<string> 
   
   return code;
 }
+
+/**
+ * Get max product code number using DB function (optimized)
+ * @param category - 'N', 'P', or 'Q'
+ * @param tableName - 'products' or 'purchase_order_items'
+ * @returns Max number found, or 0 if none
+ */
+export async function getMaxNumberFromDB(
+  category: 'N' | 'P' | 'Q',
+  tableName: 'products' | 'purchase_order_items' = 'products'
+): Promise<number> {
+  try {
+    const { data, error } = await supabase.rpc('get_max_product_code_number', {
+      category_prefix: category,
+      table_name: tableName
+    });
+    
+    if (error) {
+      console.error(`Error calling get_max_product_code_number for ${category} in ${tableName}:`, error);
+      return 0;
+    }
+    
+    return data || 0;
+  } catch (error) {
+    console.error(`Error getting max number from ${tableName} for category ${category}:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Get max product code number from products table (DB function version)
+ * @param category - 'N', 'P', or 'Q'
+ * @returns Max number found, or 0 if none
+ */
+export async function getMaxNumberFromProductsDB(
+  category: 'N' | 'P' | 'Q'
+): Promise<number> {
+  return getMaxNumberFromDB(category, 'products');
+}
+
+/**
+ * Get max product code number from purchase_order_items table (DB function version)
+ * @param category - 'N', 'P', or 'Q'
+ * @returns Max number found, or 0 if none
+ */
+export async function getMaxNumberFromPurchaseOrderItemsDB(
+  category: 'N' | 'P' | 'Q'
+): Promise<number> {
+  return getMaxNumberFromDB(category, 'purchase_order_items');
+}
