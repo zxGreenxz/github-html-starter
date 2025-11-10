@@ -23,7 +23,8 @@ const CATEGORY_P_KEYWORDS = [
   "SUA",         // sữa
   "BANH",        // bánh
   "SON",         // son
-  "CUSHION"      // cushion
+  "CUSHION",     // cushion
+  "MAT"          // mặt
 ];
 
 /**
