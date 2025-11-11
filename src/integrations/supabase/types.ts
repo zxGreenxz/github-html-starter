@@ -1148,6 +1148,13 @@ export type Database = {
       purchase_order_validation_settings: {
         Row: {
           created_at: string
+          enable_require_at_least_one_item: boolean
+          enable_require_positive_purchase_price: boolean
+          enable_require_positive_selling_price: boolean
+          enable_require_product_code: boolean
+          enable_require_product_images: boolean
+          enable_require_product_name: boolean
+          enable_require_selling_greater_than_purchase: boolean
           id: string
           max_purchase_price: number
           max_selling_price: number
@@ -1159,6 +1166,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          enable_require_at_least_one_item?: boolean
+          enable_require_positive_purchase_price?: boolean
+          enable_require_positive_selling_price?: boolean
+          enable_require_product_code?: boolean
+          enable_require_product_images?: boolean
+          enable_require_product_name?: boolean
+          enable_require_selling_greater_than_purchase?: boolean
           id?: string
           max_purchase_price?: number
           max_selling_price?: number
@@ -1170,6 +1184,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          enable_require_at_least_one_item?: boolean
+          enable_require_positive_purchase_price?: boolean
+          enable_require_positive_selling_price?: boolean
+          enable_require_product_code?: boolean
+          enable_require_product_images?: boolean
+          enable_require_product_name?: boolean
+          enable_require_selling_greater_than_purchase?: boolean
           id?: string
           max_purchase_price?: number
           max_selling_price?: number

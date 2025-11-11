@@ -602,7 +602,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   };
 
   // Real-time validation state
-  const { isValid: isItemsValid, invalidFields } = useMemo(() => validateItems(), [items]);
+  const { isValid: isItemsValid, invalidFields } = useMemo(() => validateItems(), [items, validationSettings]);
 
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
@@ -2401,6 +2401,120 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 <p className="text-xs text-muted-foreground italic">
                   Ví dụ: Đặt 50 nghĩa là giá bán phải cao hơn giá mua ít nhất 50.000đ
                 </p>
+              </div>
+            </div>
+
+            {/* NEW: Quy tắc kiểm tra */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="font-semibold text-base flex items-center gap-2">
+                ✅ Quy tắc kiểm tra
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requireProductName" className="text-sm font-normal cursor-pointer">
+                    Bắt buộc nhập tên sản phẩm
+                  </Label>
+                  <input
+                    id="requireProductName"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequireProductName}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequireProductName: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requireProductCode" className="text-sm font-normal cursor-pointer">
+                    Bắt buộc nhập mã sản phẩm
+                  </Label>
+                  <input
+                    id="requireProductCode"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequireProductCode}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequireProductCode: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requireProductImages" className="text-sm font-normal cursor-pointer">
+                    Bắt buộc có ít nhất 1 hình ảnh
+                  </Label>
+                  <input
+                    id="requireProductImages"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequireProductImages}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequireProductImages: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requirePositivePurchasePrice" className="text-sm font-normal cursor-pointer">
+                    Giá mua phải lớn hơn 0
+                  </Label>
+                  <input
+                    id="requirePositivePurchasePrice"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequirePositivePurchasePrice}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequirePositivePurchasePrice: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requirePositiveSellingPrice" className="text-sm font-normal cursor-pointer">
+                    Giá bán phải lớn hơn 0
+                  </Label>
+                  <input
+                    id="requirePositiveSellingPrice"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequirePositiveSellingPrice}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequirePositiveSellingPrice: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requireSellingGreaterThanPurchase" className="text-sm font-normal cursor-pointer">
+                    Giá bán phải lớn hơn giá mua
+                  </Label>
+                  <input
+                    id="requireSellingGreaterThanPurchase"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequireSellingGreaterThanPurchase}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequireSellingGreaterThanPurchase: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requireAtLeastOneItem" className="text-sm font-normal cursor-pointer">
+                    Phải có ít nhất 1 sản phẩm
+                  </Label>
+                  <input
+                    id="requireAtLeastOneItem"
+                    type="checkbox"
+                    checked={tempValidationSettings.enableRequireAtLeastOneItem}
+                    onChange={(e) => 
+                      setTempValidationSettings(prev => ({...prev, enableRequireAtLeastOneItem: e.target.checked}))
+                    }
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
               </div>
             </div>
 
