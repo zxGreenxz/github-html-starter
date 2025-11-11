@@ -28,7 +28,8 @@ import {
   getMaxNumberFromProductsDB,
   getMaxNumberFromPurchaseOrderItemsDB,
   getMaxNumberFromItems,
-  detectProductCategory
+  detectProductCategory,
+  isProductCodeExists
 } from "@/lib/product-code-generator";
 import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -344,19 +345,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [showDebugColumn, setShowDebugColumn] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
 
-  // Cache MAX numbers from DB (initialized once per dialog open)
-  const [maxNumbersCache, setMaxNumbersCache] = useState<{
-    N: number;
-    P: number;
-    Q: number;
-    initialized: boolean;
-  }>({
-    N: 0,
-    P: 0,
-    Q: 0,
-    initialized: false
-  });
-
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i.product_name).join('|'),
@@ -406,11 +394,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     }
   }, [open, initialData]);
 
-  // Auto-generate product code when product name changes (with debounce + cache)
+  // Auto-generate product code when product name changes (with debounce)
+  // ✅ NEW: Query DB mỗi lần (không dùng cache)
   useEffect(() => {
-    // Wait for cache to be initialized
-    if (!maxNumbersCache.initialized) return;
-
     const generateCodes = async () => {
       // Check if any item needs code generation
       const needsGeneration = items.some(
@@ -418,6 +404,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       );
       
       if (!needsGeneration) return;
+
+      // Get current snapshot of form items for duplicate check
+      const currentFormItems = items.map(i => ({ product_code: i.product_code }));
 
       // Sequential generation (avoid race conditions)
       for (let index = 0; index < items.length; index++) {
@@ -433,26 +422,73 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           const category = detectProductCategory(item.product_name);
           if (!category) continue; // Skip if can't detect category
           
-          // Get max from form items + cache
-          const maxFromForm = getMaxNumberFromItems(items, category);
-          const maxFromCache = maxNumbersCache[category];
-          let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+          console.log(`🔄 [Item ${index + 1}] Generating code for category ${category}...`);
+          
+          // ✅ Query DB mỗi lần (RPC function - very fast ~20ms per query)
+          const [maxFromProducts, maxFromPurchaseOrderItems] = await Promise.all([
+            getMaxNumberFromProductsDB(category),
+            getMaxNumberFromPurchaseOrderItemsDB(category)
+          ]);
+          
+          // Get max from form items
+          const maxFromForm = getMaxNumberFromItems(currentFormItems, category);
+          
+          // Calculate next number from ALL 3 sources
+          const maxNumber = Math.max(maxFromProducts, maxFromPurchaseOrderItems, maxFromForm);
+          let nextNumber = maxNumber + 1;
           let candidateCode = `${category}${nextNumber}`;
           
-          // Check TPOS liên tục với MAX_ATTEMPTS = 30
+          console.log(`📊 [Item ${index + 1}] Max numbers: Products=${maxFromProducts}, PO Items=${maxFromPurchaseOrderItems}, Form=${maxFromForm} → Next=${nextNumber}`);
+          
+          // Check liên tục: FORM + DB + TPOS
           let attempts = 0;
           const MAX_ATTEMPTS = 30;
           let codeFound = false;
 
           while (attempts < MAX_ATTEMPTS) {
+            // ✅ STEP 1: Check if exists in FORM + DB
+            const existsInDB = await isProductCodeExists(candidateCode, currentFormItems);
+            
+            if (existsInDB) {
+              // Code exists in form or DB - try next
+              console.log(`⚠️ [Item ${index + 1}] Mã ${candidateCode} đã tồn tại (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+              nextNumber++;
+              candidateCode = `${category}${nextNumber}`;
+              attempts++;
+              continue;
+            }
+            
+            // ✅ STEP 2: Check TPOS
             const tposProduct = await searchTPOSProduct(candidateCode);
             
             if (!tposProduct) {
-              // ✅ Code available - assign it
+              // ✅ Code available everywhere - assign it
+              console.log(`✅ [Item ${index + 1}] Mã ${candidateCode} khả dụng! Assigning...`);
+              
               setItems(prev => {
                 const newItems = [...prev];
-                if (newItems[index] && !newItems[index].product_code.trim() && !manualProductCodes.has(index)) {
-                  newItems[index] = { ...newItems[index], product_code: candidateCode };
+                
+                // Triple-check before assigning:
+                // 1. Code still empty
+                // 2. Not manually edited
+                // 3. Code NOT duplicate in current form
+                if (newItems[index] && 
+                    !newItems[index].product_code.trim() && 
+                    !manualProductCodes.has(index)) {
+                  
+                  // Check if code already assigned to another item in THIS state update
+                  const isDuplicate = newItems.some((item, i) => 
+                    i !== index && item.product_code.trim().toUpperCase() === candidateCode.toUpperCase()
+                  );
+                  
+                  if (!isDuplicate) {
+                    newItems[index] = { ...newItems[index], product_code: candidateCode };
+                    
+                    // Add to currentFormItems snapshot to prevent race condition
+                    currentFormItems.push({ product_code: candidateCode });
+                    
+                    console.log(`✅ [Item ${index + 1}] Đã assign mã ${candidateCode}`);
+                  }
                 }
                 return newItems;
               });
@@ -461,7 +497,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             }
             
             // ⚠️ Code exists on TPOS - try next
-            console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+            console.log(`⚠️ [Item ${index + 1}] Mã ${candidateCode} tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
             nextNumber++;
             candidateCode = `${category}${nextNumber}`;
             attempts++;
@@ -476,64 +512,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
             });
           }
         } catch (error) {
-          console.error(`Error generating code for item ${index}:`, error);
+          console.error(`❌ [Item ${index + 1}] Error generating code:`, error);
           // Silent fail - user can input manually
         }
       }
     };
     
     generateCodes();
-  }, [debouncedProductNames, manualProductCodes, maxNumbersCache]);
+  }, [debouncedProductNames, manualProductCodes]);
 
-  // Initialize MAX cache once when dialog opens
-  useEffect(() => {
-    if (!open) {
-      // Reset cache when dialog closes
-      setMaxNumbersCache({ N: 0, P: 0, Q: 0, initialized: false });
-      return;
-    }
-
-    if (maxNumbersCache.initialized) return;
-
-    const initializeCache = async () => {
-      try {
-        console.log("🔄 Initializing maxNumbersCache with DB function...");
-        
-        // ✅ Query MAX using DB function (6 RPC calls - much faster than parsing client-side)
-        const [maxNProducts, maxPProducts, maxQProducts] = await Promise.all([
-          getMaxNumberFromProductsDB('N'),
-          getMaxNumberFromProductsDB('P'),
-          getMaxNumberFromProductsDB('Q')
-        ]);
-
-        const [maxNItems, maxPItems, maxQItems] = await Promise.all([
-          getMaxNumberFromPurchaseOrderItemsDB('N'),
-          getMaxNumberFromPurchaseOrderItemsDB('P'),
-          getMaxNumberFromPurchaseOrderItemsDB('Q')
-        ]);
-
-        // Set cache with max of both sources
-        setMaxNumbersCache({
-          N: Math.max(maxNProducts, maxNItems),
-          P: Math.max(maxPProducts, maxPItems),
-          Q: Math.max(maxQProducts, maxQItems),
-          initialized: true
-        });
-        
-        console.log("✅ maxNumbersCache initialized (DB function):", {
-          N: Math.max(maxNProducts, maxNItems),
-          P: Math.max(maxPProducts, maxPItems),
-          Q: Math.max(maxQProducts, maxQItems),
-        });
-      } catch (error) {
-        console.error("❌ Error initializing MAX cache:", error);
-        // Set initialized anyway to prevent infinite retry
-        setMaxNumbersCache(prev => ({ ...prev, initialized: true }));
-      }
-    };
-
-    initializeCache();
-  }, [open, maxNumbersCache.initialized]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -1276,37 +1263,58 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     itemToCopy.product_images = [...itemToCopy.product_images];
     itemToCopy.price_images = [...itemToCopy.price_images];
     
-    // ✅ Generate product code using CACHE + FORM logic (NO DB QUERY)
+    // ✅ Generate product code: Query DB mỗi lần (không dùng cache)
     if (itemToCopy.product_name.trim()) {
       try {
-        // Wait for cache initialization
-        if (!maxNumbersCache.initialized) {
-          throw new Error("Cache chưa khởi tạo xong, vui lòng đợi giây lát");
-        }
-        
         const category = detectProductCategory(itemToCopy.product_name);
         
         if (!category) {
           throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
         }
         
-        // Calculate next number from CACHE + FORM (NO DB QUERY!)
-        const maxFromForm = getMaxNumberFromItems(items, category);
-        const maxFromCache = maxNumbersCache[category];
-        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+        console.log(`🔄 [Copy] Generating code for category ${category}...`);
+        
+        // ✅ Query DB mỗi lần (RPC function - very fast!)
+        const currentFormItems = items.map(i => ({ product_code: i.product_code }));
+        const [maxFromProducts, maxFromPurchaseOrderItems] = await Promise.all([
+          getMaxNumberFromProductsDB(category),
+          getMaxNumberFromPurchaseOrderItemsDB(category)
+        ]);
+        
+        // Get max from form items
+        const maxFromForm = getMaxNumberFromItems(currentFormItems, category);
+        
+        // Calculate next number from ALL 3 sources
+        const maxNumber = Math.max(maxFromProducts, maxFromPurchaseOrderItems, maxFromForm);
+        let nextNumber = maxNumber + 1;
         let candidateCode = `${category}${nextNumber}`;
         
-        // 🔥 Check TPOS liên tục với MAX_ATTEMPTS = 30
+        console.log(`📊 [Copy] Max numbers: Products=${maxFromProducts}, PO Items=${maxFromPurchaseOrderItems}, Form=${maxFromForm} → Next=${nextNumber}`);
+        
+        // Check liên tục với MAX_ATTEMPTS = 30
         let attempts = 0;
         const MAX_ATTEMPTS = 30;
         let codeFound = false;
         
         while (attempts < MAX_ATTEMPTS) {
+          // ✅ STEP 1: Check if exists in FORM + DB
+          const existsInDB = await isProductCodeExists(candidateCode, currentFormItems);
+          
+          if (existsInDB) {
+            console.log(`⚠️ [Copy] Mã ${candidateCode} đã tồn tại (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+            nextNumber++;
+            candidateCode = `${category}${nextNumber}`;
+            attempts++;
+            continue;
+          }
+          
+          // ✅ STEP 2: Check TPOS
           const tposProduct = await searchTPOSProduct(candidateCode);
           
           if (!tposProduct) {
             // ✅ Code available - assign it
             itemToCopy.product_code = candidateCode;
+            console.log(`✅ [Copy] Assigned code ${candidateCode}`);
             toast({
               title: "Đã sao chép và tạo mã SP mới",
               description: `Mã mới: ${candidateCode}`,
@@ -1316,7 +1324,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           }
           
           // ⚠️ Code exists on TPOS - try next
-          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+          console.log(`⚠️ [Copy] Mã ${candidateCode} tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
           nextNumber++;
           candidateCode = `${category}${nextNumber}`;
           attempts++;
@@ -1332,7 +1340,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           });
         }
       } catch (error) {
-        console.error("Error generating product code:", error);
+        console.error("❌ [Copy] Error generating product code:", error);
         itemToCopy.product_code = ""; // Clear code để user nhập thủ công
         toast({
           title: "⚠️ Không thể tạo mã tự động",

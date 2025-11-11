@@ -440,6 +440,68 @@ export async function generateProductCode(productName: string): Promise<string> 
 }
 
 /**
+ * Check if product code already exists in:
+ * - Current form items (to avoid duplicates in same form)
+ * - purchase_order_items table (ALL statuses - draft, awaiting_purchase, awaiting_delivery)
+ * - products table
+ * 
+ * @param code - Product code to check (e.g., "N1770")
+ * @param formItems - Current items in the form
+ * @returns true if code exists, false otherwise
+ */
+export async function isProductCodeExists(
+  code: string,
+  formItems: Array<{ product_code: string }> = []
+): Promise<boolean> {
+  const normalizedCode = code.trim().toUpperCase();
+  
+  // 1. CHECK: Current form items
+  const existsInForm = formItems.some(item => 
+    item.product_code.trim().toUpperCase() === normalizedCode
+  );
+  
+  if (existsInForm) {
+    console.log(`❌ Mã ${code} đã tồn tại trong form hiện tại`);
+    return true;
+  }
+  
+  // 2. CHECK: purchase_order_items (ALL statuses - no status filter!)
+  const { data: poItems, error: poError } = await supabase
+    .from('purchase_order_items')
+    .select('product_code')
+    .ilike('product_code', normalizedCode)
+    .limit(1);
+  
+  if (poError) {
+    console.error('❌ Error checking purchase_order_items:', poError);
+  }
+  
+  if (poItems && poItems.length > 0) {
+    console.log(`❌ Mã ${code} đã tồn tại trong purchase_order_items (bất kỳ trạng thái nào)`);
+    return true;
+  }
+  
+  // 3. CHECK: products table
+  const { data: products, error: productsError } = await supabase
+    .from('products')
+    .select('product_code')
+    .ilike('product_code', normalizedCode)
+    .limit(1);
+  
+  if (productsError) {
+    console.error('❌ Error checking products:', productsError);
+  }
+  
+  if (products && products.length > 0) {
+    console.log(`❌ Mã ${code} đã tồn tại trong products`);
+    return true;
+  }
+  
+  console.log(`✅ Mã ${code} khả dụng (không tồn tại ở bất kỳ đâu)`);
+  return false;
+}
+
+/**
  * Get max product code number using DB function (optimized)
  * @param category - 'N', 'P', or 'Q'
  * @param tableName - 'products' or 'purchase_order_items'

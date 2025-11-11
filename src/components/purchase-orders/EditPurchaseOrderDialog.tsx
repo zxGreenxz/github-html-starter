@@ -19,7 +19,7 @@ import { SelectProductDialog } from "@/components/products/SelectProductDialog";
 import { format } from "date-fns";
 import { formatVND } from "@/lib/currency-utils";
 import { cn } from "@/lib/utils";
-import { detectProductCategory, getMaxNumberFromItems, getMaxNumberFromProductsDB, getMaxNumberFromPurchaseOrderItemsDB } from "@/lib/product-code-generator";
+import { detectProductCategory, getMaxNumberFromItems, getMaxNumberFromProductsDB, getMaxNumberFromPurchaseOrderItemsDB, isProductCodeExists } from "@/lib/product-code-generator";
 import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
@@ -191,19 +191,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showDebugColumn, setShowDebugColumn] = useState(false);
 
-  // Cache initialization for product codes
-  const [maxNumbersCache, setMaxNumbersCache] = useState<{
-    N: number;
-    P: number;
-    Q: number;
-    initialized: boolean;
-  }>({
-    N: 0,
-    P: 0,
-    Q: 0,
-    initialized: false
-  });
-
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i._tempProductName).join('|'),
@@ -224,64 +211,117 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
   }, [supplierName, notes, items, order, open]);
 
   // Auto-generate product code when product name changes (with debounce)
+  // ✅ NEW: Query DB mỗi lần (không dùng cache)
   useEffect(() => {
-    if (!maxNumbersCache.initialized) return;
-    
-    items.forEach(async (item, index) => {
-      if (item._tempProductCode.trim() || item._manualCodeEdit) {
-        return;
-      }
-      
-      if (!item._tempProductName.trim()) return;
-      
-      try {
-        const category = detectProductCategory(item._tempProductName);
+    const generateCodes = async () => {
+      // Get current snapshot of form items for duplicate check
+      const currentFormItems = items.map(i => ({ product_code: i._tempProductCode }));
+
+      // Sequential generation (avoid race conditions)
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
         
-        if (!category) {
-          return;
+        // Skip if already has code or user edited manually
+        if (item._tempProductCode.trim() || item._manualCodeEdit) {
+          continue;
         }
         
-        const maxFromForm = getMaxNumberFromItems(
-          items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode })),
-          category
-        );
-        const maxFromCache = maxNumbersCache[category];
-        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
-        let candidateCode = `${category}${nextNumber}`;
+        if (!item._tempProductName.trim()) continue;
         
-        let attempts = 0;
-        const MAX_ATTEMPTS = 30;
-        let codeFound = false;
-        
-        while (attempts < MAX_ATTEMPTS) {
-          const tposProduct = await searchTPOSProduct(candidateCode);
+        try {
+          const category = detectProductCategory(item._tempProductName);
           
-          if (!tposProduct) {
-            setItems(prev => {
-              const newItems = [...prev];
-              if (newItems[index] && !newItems[index]._tempProductCode.trim() && !newItems[index]._manualCodeEdit) {
-                newItems[index] = { ...newItems[index], _tempProductCode: candidateCode };
-              }
-              return newItems;
-            });
-            codeFound = true;
-            break;
+          if (!category) {
+            continue;
           }
           
-          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
-          nextNumber++;
-          candidateCode = `${category}${nextNumber}`;
-          attempts++;
+          console.log(`🔄 [Edit Item ${index + 1}] Generating code for category ${category}...`);
+          
+          // ✅ Query DB mỗi lần (RPC function - very fast!)
+          const [maxFromProducts, maxFromPurchaseOrderItems] = await Promise.all([
+            getMaxNumberFromProductsDB(category),
+            getMaxNumberFromPurchaseOrderItemsDB(category)
+          ]);
+          
+          // Get max from form items
+          const maxFromForm = getMaxNumberFromItems(
+            currentFormItems.map(c => ({ product_code: c.product_code })),
+            category
+          );
+          
+          // Calculate next number from ALL 3 sources
+          const maxNumber = Math.max(maxFromProducts, maxFromPurchaseOrderItems, maxFromForm);
+          let nextNumber = maxNumber + 1;
+          let candidateCode = `${category}${nextNumber}`;
+          
+          console.log(`📊 [Edit Item ${index + 1}] Max numbers: Products=${maxFromProducts}, PO Items=${maxFromPurchaseOrderItems}, Form=${maxFromForm} → Next=${nextNumber}`);
+          
+          let attempts = 0;
+          const MAX_ATTEMPTS = 30;
+          let codeFound = false;
+          
+          while (attempts < MAX_ATTEMPTS) {
+            // ✅ STEP 1: Check if exists in FORM + DB
+            const existsInDB = await isProductCodeExists(
+              candidateCode, 
+              currentFormItems.map(c => ({ product_code: c.product_code }))
+            );
+            
+            if (existsInDB) {
+              console.log(`⚠️ [Edit Item ${index + 1}] Mã ${candidateCode} đã tồn tại (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+              nextNumber++;
+              candidateCode = `${category}${nextNumber}`;
+              attempts++;
+              continue;
+            }
+            
+            // ✅ STEP 2: Check TPOS
+            const tposProduct = await searchTPOSProduct(candidateCode);
+            
+            if (!tposProduct) {
+              setItems(prev => {
+                const newItems = [...prev];
+                if (newItems[index] && 
+                    !newItems[index]._tempProductCode.trim() && 
+                    !newItems[index]._manualCodeEdit) {
+                  
+                  // Check duplicate in current state
+                  const isDuplicate = newItems.some((item, i) => 
+                    i !== index && item._tempProductCode.trim().toUpperCase() === candidateCode.toUpperCase()
+                  );
+                  
+                  if (!isDuplicate) {
+                    newItems[index] = { ...newItems[index], _tempProductCode: candidateCode };
+                    
+                    // Add to snapshot
+                    currentFormItems.push({ product_code: candidateCode });
+                    
+                    console.log(`✅ [Edit Item ${index + 1}] Đã assign mã ${candidateCode}`);
+                  }
+                }
+                return newItems;
+              });
+              codeFound = true;
+              break;
+            }
+            
+            console.log(`⚠️ [Edit Item ${index + 1}] Mã ${candidateCode} tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+            nextNumber++;
+            candidateCode = `${category}${nextNumber}`;
+            attempts++;
+          }
+          
+          if (!codeFound && attempts >= MAX_ATTEMPTS) {
+            console.warn(`❌ [Edit Item ${index + 1}] Không tìm được mã khả dụng sau ${MAX_ATTEMPTS} lần thử`);
+          }
+        } catch (error) {
+          console.error(`❌ [Edit Item ${index + 1}] Error generating product code:`, error);
         }
-        
-        if (!codeFound && attempts >= MAX_ATTEMPTS) {
-          console.warn(`❌ Không tìm được mã khả dụng cho ${item._tempProductName} sau ${MAX_ATTEMPTS} lần thử`);
-        }
-      } catch (error) {
-        console.error("Error generating product code:", error);
       }
-    });
-  }, [debouncedProductNames, maxNumbersCache, items]);
+    };
+    
+    generateCodes();
+  }, [debouncedProductNames, items]);
 
   // Helper: Validate prices based on validation settings
   const validatePriceSettings = (item: PurchaseOrderItem, itemNumber: number): string[] => {
@@ -409,56 +449,6 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     },
     enabled: !!order?.id && open,
   });
-
-  // Initialize MAX cache once when dialog opens
-  useEffect(() => {
-    if (!open) {
-      // Reset cache when dialog closes
-      setMaxNumbersCache({ N: 0, P: 0, Q: 0, initialized: false });
-      return;
-    }
-
-    if (maxNumbersCache.initialized) return;
-
-    const initializeCache = async () => {
-      try {
-        console.log("🔄 Initializing maxNumbersCache for EditPurchaseOrderDialog with DB function...");
-        
-        // ✅ Query MAX using DB function (6 RPC calls - much faster than parsing client-side)
-        const [maxNProducts, maxPProducts, maxQProducts] = await Promise.all([
-          getMaxNumberFromProductsDB('N'),
-          getMaxNumberFromProductsDB('P'),
-          getMaxNumberFromProductsDB('Q')
-        ]);
-
-        const [maxNItems, maxPItems, maxQItems] = await Promise.all([
-          getMaxNumberFromPurchaseOrderItemsDB('N'),
-          getMaxNumberFromPurchaseOrderItemsDB('P'),
-          getMaxNumberFromPurchaseOrderItemsDB('Q')
-        ]);
-
-        // Set cache with max of both sources
-        setMaxNumbersCache({
-          N: Math.max(maxNProducts, maxNItems),
-          P: Math.max(maxPProducts, maxPItems),
-          Q: Math.max(maxQProducts, maxQItems),
-          initialized: true
-        });
-        
-        console.log("✅ maxNumbersCache initialized (DB function):", {
-          N: Math.max(maxNProducts, maxNItems),
-          P: Math.max(maxPProducts, maxPItems),
-          Q: Math.max(maxQProducts, maxQItems),
-        });
-      } catch (error) {
-        console.error("❌ Error initializing MAX cache:", error);
-        // Set initialized anyway to prevent infinite retry
-        setMaxNumbersCache(prev => ({ ...prev, initialized: true }));
-      }
-    };
-
-    initializeCache();
-  }, [open, maxNumbersCache.initialized]);
 
   // Load order data when dialog opens
   useEffect(() => {
@@ -656,33 +646,57 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
     
     if (itemToCopy._tempProductName.trim()) {
       try {
-        if (!maxNumbersCache.initialized) {
-          throw new Error("Cache chưa khởi tạo xong, vui lòng đợi giây lát");
-        }
-        
         const category = detectProductCategory(itemToCopy._tempProductName);
         
         if (!category) {
           throw new Error("⚠️ Chưa đủ thông tin để tạo mã SP. Vui lòng nhập thêm:\n• Loại SP (ÁO, TÚI, QUẦN...)\n• Hoặc NCC (Q5, A12...)");
         }
         
+        console.log(`🔄 [Edit Copy] Generating code for category ${category}...`);
+        
+        // ✅ Query DB mỗi lần
+        const currentFormItems = items.map(i => ({ product_code: i._tempProductCode }));
+        const [maxFromProducts, maxFromPurchaseOrderItems] = await Promise.all([
+          getMaxNumberFromProductsDB(category),
+          getMaxNumberFromPurchaseOrderItemsDB(category)
+        ]);
+        
         const maxFromForm = getMaxNumberFromItems(
-          items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode })),
+          currentFormItems.map(c => ({ product_code: c.product_code })),
           category
         );
-        const maxFromCache = maxNumbersCache[category];
-        let nextNumber = Math.max(maxFromForm, maxFromCache) + 1;
+        
+        const maxNumber = Math.max(maxFromProducts, maxFromPurchaseOrderItems, maxFromForm);
+        let nextNumber = maxNumber + 1;
         let candidateCode = `${category}${nextNumber}`;
+        
+        console.log(`📊 [Edit Copy] Max numbers: Products=${maxFromProducts}, PO Items=${maxFromPurchaseOrderItems}, Form=${maxFromForm} → Next=${nextNumber}`);
         
         let attempts = 0;
         const MAX_ATTEMPTS = 30;
         let codeFound = false;
         
         while (attempts < MAX_ATTEMPTS) {
+          // ✅ STEP 1: Check if exists in FORM + DB
+          const existsInDB = await isProductCodeExists(
+            candidateCode,
+            currentFormItems.map(c => ({ product_code: c.product_code }))
+          );
+          
+          if (existsInDB) {
+            console.log(`⚠️ [Edit Copy] Mã ${candidateCode} đã tồn tại (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+            nextNumber++;
+            candidateCode = `${category}${nextNumber}`;
+            attempts++;
+            continue;
+          }
+          
+          // ✅ STEP 2: Check TPOS
           const tposProduct = await searchTPOSProduct(candidateCode);
           
           if (!tposProduct) {
             itemToCopy._tempProductCode = candidateCode;
+            console.log(`✅ [Edit Copy] Assigned code ${candidateCode}`);
             toast({
               title: "Đã sao chép và tạo mã SP mới",
               description: `Mã mới: ${candidateCode}`,
@@ -691,7 +705,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
             break;
           }
           
-          console.log(`⚠️ Mã ${candidateCode} đã tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
+          console.log(`⚠️ [Edit Copy] Mã ${candidateCode} tồn tại trên TPOS (lần ${attempts + 1}/${MAX_ATTEMPTS}), thử mã tiếp theo...`);
           nextNumber++;
           candidateCode = `${category}${nextNumber}`;
           attempts++;
@@ -706,7 +720,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
           });
         }
       } catch (error) {
-        console.error("Error generating product code:", error);
+        console.error("❌ [Edit Copy] Error generating product code:", error);
         itemToCopy._tempProductCode = "";
         toast({
           title: "⚠️ Không thể tạo mã tự động",
