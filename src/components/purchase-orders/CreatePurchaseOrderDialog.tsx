@@ -1790,8 +1790,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                   <TableRow>
                     <TableHead className="w-16">STT</TableHead>
               <TableHead className="w-[260px]">Tên sản phẩm</TableHead>
-              <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
               <TableHead className="w-[150px]">Biến thể</TableHead>
+              <TableHead className="w-[70px]">Mã sản phẩm</TableHead>
               <TableHead className="w-[60px]">SL</TableHead>
               <TableHead className="w-[90px]">Giá mua (VND)</TableHead>
               <TableHead className="w-[90px]">Giá bán (VND)</TableHead>
@@ -1837,6 +1837,32 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           rows={2}
                         />
                       </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start text-left h-auto py-2 px-3"
+                            onClick={() => {
+                              setVariantGeneratorIndex(index);
+                              setIsVariantGeneratorOpen(true);
+                            }}
+                          >
+                            {item.variant ? (
+                              <span className="font-medium text-xs">{item.variant}</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs italic">
+                                Nhấn để tạo biến thể
+                              </span>
+                            )}
+                          </Button>
+                          {item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              ✓ {item.selectedAttributeValueIds.length} thuộc tính đã chọn
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
             <TableCell>
               <div className="flex gap-1 items-center">
                 <Input
@@ -1877,32 +1903,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                 )}
               </div>
             </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-start text-left h-auto py-2 px-3"
-                            onClick={() => {
-                              setVariantGeneratorIndex(index);
-                              setIsVariantGeneratorOpen(true);
-                            }}
-                          >
-                            {item.variant ? (
-                              <span className="font-medium text-xs">{item.variant}</span>
-                            ) : (
-                              <span className="text-muted-foreground text-xs italic">
-                                Nhấn để tạo biến thể
-                              </span>
-                            )}
-                          </Button>
-                          {item.selectedAttributeValueIds && item.selectedAttributeValueIds.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              ✓ {item.selectedAttributeValueIds.length} thuộc tính đã chọn
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
                       <TableCell>
                         <Input
                           type="number"
