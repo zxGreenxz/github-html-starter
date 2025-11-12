@@ -71,23 +71,39 @@ export function VariantGeneratorDialog({
   // Generate all possible combinations
   const generateCombinations = useMemo(() => {
     const attributeIds = Object.keys(selectedValues).filter(
-      id => selectedValues[id] && selectedValues[id].length > 0
+      (id) => selectedValues[id] && selectedValues[id].length > 0
     );
-    
+
     if (attributeIds.length === 0) return [];
-    
-    const valueArrays = attributeIds.map(id => selectedValues[id]);
-    
-    // Cartesian product
+
+    // Sort values trong từng attribute trước khi tạo cartesian product
+    const valueArrays = attributeIds.map((attrId) => {
+      const attr = attributes.find((a) => a.id === attrId);
+      if (!attr) return selectedValues[attrId];
+      
+      // Enrich với attributeName
+      const enrichedValues = selectedValues[attrId].map((v) => ({
+        value: v,
+        attributeName: attr.name
+      }));
+      
+      // Apply custom sort
+      const sortedValues = sortAttributeValues(enrichedValues, attr.name);
+      
+      // Return chỉ value string
+      return sortedValues.map((v) => v.value);
+    });
+
+    // Cartesian product (giờ đã được sort)
     const cartesian = (...arrays: string[][]): string[][] => {
-      return arrays.reduce((acc, curr) => 
-        acc.flatMap(a => curr.map(b => [...a, b])), 
+      return arrays.reduce(
+        (acc, curr) => acc.flatMap((a) => curr.map((b) => [...a, b])),
         [[]] as string[][]
       );
     };
-    
-    return cartesian(...valueArrays).map(combo => combo.join(", "));
-  }, [selectedValues]);
+
+    return cartesian(...valueArrays).map((combo) => combo.join(", "));
+  }, [selectedValues, attributes, attributeValues]);
 
   // Auto-select all combinations when they change
   useEffect(() => {

@@ -5,12 +5,36 @@ export function sortAttributeValues<T extends { value: string; attributeName: st
   const sorted = [...values];
 
   if (attributeName === "Màu") {
-    // Sort: Màu đơn (1 từ) trước, màu đôi (2+ từ) sau
+    // Danh sách màu cơ bản theo thứ tự ưu tiên
+    const basicColors = [
+      "TRẮNG", "ĐEN", "ĐỎ", "XANH", "XÁM", 
+      "NUDE", "VÀNG", "HỒNG", "NÂU", "RÊU"
+    ];
+    
     return sorted.sort((a, b) => {
+      const aUpper = a.value.toUpperCase().trim();
+      const bUpper = b.value.toUpperCase().trim();
+      
+      // Kiểm tra màu cơ bản
+      const aBasicIndex = basicColors.indexOf(aUpper);
+      const bBasicIndex = basicColors.indexOf(bUpper);
+      
+      // Cả 2 đều là màu cơ bản → so sánh index
+      if (aBasicIndex !== -1 && bBasicIndex !== -1) {
+        return aBasicIndex - bBasicIndex;
+      }
+      
+      // a là màu cơ bản, b không → a lên trước
+      if (aBasicIndex !== -1) return -1;
+      
+      // b là màu cơ bản, a không → b lên trước
+      if (bBasicIndex !== -1) return 1;
+      
+      // Cả 2 đều không phải màu cơ bản → so sánh số từ
       const aWords = a.value.trim().split(/\s+/).length;
       const bWords = b.value.trim().split(/\s+/).length;
       
-      // Khác số từ → sort theo số từ
+      // Khác số từ → sort theo số từ (màu đơn trước màu đôi)
       if (aWords !== bWords) {
         return aWords - bWords;
       }
