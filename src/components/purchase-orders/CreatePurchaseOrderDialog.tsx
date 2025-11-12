@@ -1909,7 +1909,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                          className="border-0 shadow-none focus-visible:ring-0 p-2 text-center"
+                          className="no-spinner border-0 shadow-none focus-visible:ring-0 p-2 text-center"
                         />
                       </TableCell>
                       <TableCell>
