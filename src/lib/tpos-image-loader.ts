@@ -1,58 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getProductDetail } from "./tpos-api";
 
-/**
- * Fetch TPOS image URL for a product and save it to the database
- * Only called once per product, then cached in database
- */
-export async function fetchAndSaveTPOSImage(
-  productId: string,
-  productCode: string,
-  tposProductId?: number | null
-): Promise<string | null> {
-  try {
-    // If no TPOS product ID, can't fetch
-    if (!tposProductId) {
-      console.log(`No TPOS product ID for ${productCode}`);
-      return null;
-    }
-
-    console.log(`Fetching TPOS image for product ${productCode} (TPOS ID: ${tposProductId})`);
-    
-    // Fetch product detail from TPOS
-    const tposProduct = await getProductDetail(tposProductId);
-    
-    if (!tposProduct) {
-      console.log(`No TPOS product found for ID ${tposProductId}`);
-      return null;
-    }
-
-    // Extract ImgUrl from TPOS response
-    const imgUrl = tposProduct.ImgUrl || tposProduct.ImageUrl || tposProduct.Image;
-    
-    if (!imgUrl) {
-      console.log(`No image URL in TPOS response for ${productCode}`);
-      return null;
-    }
-
-    // Save to database
-    const { error } = await supabase
-      .from("products")
-      .update({ tpos_image_url: imgUrl })
-      .eq("id", productId);
-
-    if (error) {
-      console.error("Error saving TPOS image URL:", error);
-      return null;
-    }
-
-    console.log(`Saved TPOS image URL for ${productCode}`);
-    return imgUrl;
-  } catch (error) {
-    console.error("Error fetching TPOS image:", error);
-    return null;
-  }
-}
+// DELETED: fetchAndSaveTPOSImage() was faulty - it relied on getProductDetail() 
+// which queried TPOS incorrectly for variants, causing wrong images to be saved.
+// Images should be manually uploaded via product_images or synced correctly from TPOS.
 
 /**
  * Get parent product's tpos_image_url if this is a child product

@@ -633,7 +633,7 @@ export const SystemDocumentation = () => {
                               Get parent product detail with all variants
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              <strong>Used by:</strong> <code>fetchTPOSProductDetail()</code>, <code>getProductDetail()</code>
+                              <strong>Used by:</strong> <code>getTPOSProductFullDetails()</code>
                             </p>
                           </div>
 

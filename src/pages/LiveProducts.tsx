@@ -25,7 +25,6 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { generateOrderImage } from "@/lib/order-image-generator";
-import { getProductImageUrl } from "@/lib/tpos-image-loader";
 import { formatVariant, getVariantName } from "@/lib/variant-utils";
 import { ZoomableImage } from "@/components/products/ZoomableImage";
 import { ProductImage } from "@/components/products/ProductImage";

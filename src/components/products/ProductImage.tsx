@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
-import { fetchAndSaveTPOSImage, getProductImageUrl, getParentImageUrl } from "@/lib/tpos-image-loader";
+import { getProductImageUrl, getParentImageUrl } from "@/lib/tpos-image-loader";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -51,20 +51,9 @@ export function ProductImage({
     
     if (initialUrl) {
       setImageUrl(initialUrl);
-    } else if (tposProductId && !isLoading) {
-      // No image available, fetch from TPOS (one-time only)
-      setIsLoading(true);
-      fetchAndSaveTPOSImage(productId, productCode, tposProductId)
-        .then((url) => {
-          if (url) {
-            setImageUrl(url);
-          }
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
     }
-  }, [productId, productCode, productImages, tposImageUrl, tposProductId, parentImageUrl]);
+    // No auto-fetch from TPOS anymore - images must be manually uploaded or synced
+  }, [productImages, tposImageUrl, parentImageUrl]);
 
   const handleMouseEnter = () => {
     if (!imgRef.current || !imageUrl) return;
