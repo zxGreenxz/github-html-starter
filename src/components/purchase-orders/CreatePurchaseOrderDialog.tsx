@@ -1874,7 +1874,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                     setManualProductCodes(prev => new Set(prev).add(index));
                   }}
                   className="border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs flex-1"
-                  maxLength={10}
+                  maxLength={20}
                   disabled={!item._manualCodeEdit}
                   readOnly={!item._manualCodeEdit}
                 />

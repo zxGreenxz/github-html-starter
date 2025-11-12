@@ -1290,7 +1290,7 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                               "border-0 shadow-none focus-visible:ring-0 p-2 w-[70px] text-xs flex-1",
                               item.id && "bg-muted/50 cursor-not-allowed opacity-70"
                             )}
-                            maxLength={10}
+                            maxLength={20}
                             readOnly={!item._manualCodeEdit}
                           />
                           {!item.id && (
