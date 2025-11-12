@@ -31,7 +31,6 @@ import {
   detectProductCategory,
   isProductCodeExists
 } from "@/lib/product-code-generator";
-import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import { searchTPOSProduct } from "@/lib/tpos-api";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1830,20 +1829,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                         {displayIndex + 1}
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-2">
-                          <Textarea
-                            placeholder="Nhập tên sản phẩm"
-                            value={item.product_name}
-                            onChange={(e) => updateItem(index, "product_name", e.target.value)}
-                            className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
-                            rows={2}
-                          />
-                          {item.variant && (
-                            <Badge variant="outline" className="text-[10px] px-2 py-0.5">
-                              {formatVariantForDisplay(item.variant)}
-                            </Badge>
-                          )}
-                        </div>
+                        <Textarea
+                          placeholder="Nhập tên sản phẩm"
+                          value={item.product_name}
+                          onChange={(e) => updateItem(index, "product_name", e.target.value)}
+                          className="border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none"
+                          rows={2}
+                        />
                       </TableCell>
             <TableCell>
               <div className="flex gap-1 items-center">

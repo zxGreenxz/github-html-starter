@@ -12,9 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, Copy, Calendar, Warehouse, RotateCcw, Truck, Edit, Check, ChevronLeft, ChevronRight, ArrowDown, ArrowDownToLine } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { formatVariantForDisplay } from "@/lib/variant-display-utils";
 import { ImageUploadCell } from "./ImageUploadCell";
 import { VariantGeneratorDialog } from "./VariantGeneratorDialog";
 import { SelectProductDialog } from "@/components/products/SelectProductDialog";
@@ -1238,24 +1236,17 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                         {index + 1}
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-2">
-                          <Textarea
-                            disabled={!!item.id}
-                            placeholder="Nhập tên sản phẩm"
-                            value={item._tempProductName}
-                            onChange={(e) => updateItem(index, "_tempProductName", e.target.value)}
-                            className={cn(
-                              "border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none",
-                              item.id && "bg-muted/50 cursor-not-allowed opacity-70"
-                            )}
-                            rows={2}
-                          />
-                          {item._tempVariant && (
-                            <Badge variant="outline" className="text-[10px] px-2 py-0.5">
-                              {formatVariantForDisplay(item._tempVariant)}
-                            </Badge>
+                        <Textarea
+                          disabled={!!item.id}
+                          placeholder="Nhập tên sản phẩm"
+                          value={item._tempProductName}
+                          onChange={(e) => updateItem(index, "_tempProductName", e.target.value)}
+                          className={cn(
+                            "border-0 shadow-none focus-visible:ring-0 p-2 min-h-[60px] resize-none",
+                            item.id && "bg-muted/50 cursor-not-allowed opacity-70"
                           )}
-                        </div>
+                          rows={2}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 items-center">
