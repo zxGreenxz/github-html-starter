@@ -10,6 +10,7 @@ import { useProductAttributes } from "@/hooks/use-product-attributes";
 import { toast as oldToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { sortAttributeValues } from "@/lib/attribute-sort-utils";
 
 interface VariantGeneratorDialogProps {
   open: boolean;
@@ -246,8 +247,19 @@ export function VariantGeneratorDialog({
                     const values = attributeValues.filter(
                       (v) => v.attribute_id === attr.id
                     );
+                    
+                    // Enrich values with attributeName
+                    const enrichedValues = values.map(v => ({
+                      ...v,
+                      attributeName: attr.name
+                    }));
+                    
+                    // Apply custom sort based on attribute type
+                    const sortedValues = sortAttributeValues(enrichedValues, attr.name);
+                    
+                    // Apply search filter
                     const searchQuery = searchQueries[attr.id] || "";
-                    const filteredValues = values.filter((v) =>
+                    const filteredValues = sortedValues.filter((v) =>
                       v.value.toLowerCase().includes(searchQuery.toLowerCase())
                     );
 
