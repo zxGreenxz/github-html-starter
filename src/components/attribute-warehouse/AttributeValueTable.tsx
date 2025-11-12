@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { sortAttributeValues } from "@/lib/attribute-sort-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,32 +52,59 @@ export function AttributeValueTable({ values, isLoading, onEdit }: AttributeValu
     }
   };
 
-  const sortedValues = [...values].sort((a, b) => {
-    let aVal: any = a[sortColumn];
-    let bVal: any = b[sortColumn];
+  const sortedValues = useMemo(() => {
+    let sorted = [...values];
 
-    if (sortColumn === 'created_at') {
-      aVal = new Date(aVal).getTime();
-      bVal = new Date(bVal).getTime();
+    // Apply custom sort if user has not sorted manually
+    if (!sortColumn) {
+      // Group by attribute
+      const grouped = sorted.reduce((acc, val) => {
+        const attrName = val.attributeName;
+        if (!acc[attrName]) acc[attrName] = [];
+        acc[attrName].push(val);
+        return acc;
+      }, {} as Record<string, typeof values>);
+
+      // Sort each group with custom logic
+      const result: typeof values = [];
+      Object.entries(grouped).forEach(([attrName, vals]) => {
+        const sortedGroup = sortAttributeValues(vals, attrName);
+        result.push(...sortedGroup);
+      });
+
+      return result;
     }
 
-    if (aVal === null || aVal === undefined) return 1;
-    if (bVal === null || bVal === undefined) return -1;
+    // Manual sort by user clicking column
+    sorted.sort((a, b) => {
+      let aVal: any = a[sortColumn];
+      let bVal: any = b[sortColumn];
 
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return sortDirection === 'asc' 
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
-    }
+      if (sortColumn === 'created_at') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      }
 
-    if (typeof aVal === 'number' && typeof bVal === 'number') {
-      return sortDirection === 'asc' 
-        ? aVal - bVal
-        : bVal - aVal;
-    }
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
 
-    return 0;
-  });
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc' 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' 
+          ? aVal - bVal
+          : bVal - aVal;
+      }
+
+      return 0;
+    });
+
+    return sorted;
+  }, [values, sortColumn, sortDirection]);
 
   const handleDelete = () => {
     if (deleteId) {
