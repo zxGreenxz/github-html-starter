@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Settings2, Edit, ArrowLeftRight } from "lucide-react";
+import { Package, Settings2, Edit, ArrowLeftRight, Download } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
 import type { TPOSProductFullDetails } from "@/lib/tpos-api";
+import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
 
 export default function Products() {
   const isMobile = useIsMobile();
@@ -40,6 +41,7 @@ export default function Products() {
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
+  const [isExportingTPOS, setIsExportingTPOS] = useState(false);
 
   // Query for displayed products (search results or 50 latest)
   const { data: productsRaw = [], isLoading, refetch } = useQuery({
@@ -125,6 +127,60 @@ export default function Products() {
     setIsQuantityTransferOpen(true);
   };
 
+  const handleExportTPOSExcel = async () => {
+    try {
+      setIsExportingTPOS(true);
+      toast.info("Đang xuất Excel từ TPOS...");
+
+      const token = await getActiveTPOSToken();
+      if (!token) {
+        toast.error("Không tìm thấy TPOS Bearer Token. Vui lòng cấu hình trong Settings.");
+        return;
+      }
+
+      const payload = {
+        model: { Active: "true" },
+        ids: ""
+      };
+
+      const response = await fetch("https://tomato.tpos.vn/Product/ExportFileWithStandardPriceV2", {
+        method: "POST",
+        headers: getTPOSHeaders(token),
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Lỗi API TPOS: ${response.status}`);
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      a.download = `TPOS_KhoHang_${timestamp}.xlsx`;
+
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Đã xuất Excel thành công!");
+    } catch (error) {
+      console.error("❌ Error exporting TPOS Excel:", error);
+      toast.error("Lỗi khi xuất Excel: " + (error as Error).message);
+    } finally {
+      setIsExportingTPOS(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className={`${isMobile ? "p-4 space-y-4" : "p-8 space-y-6"}`}>
@@ -194,6 +250,17 @@ export default function Products() {
                     </Badge>
                   )}
                 </div>
+
+                <Button
+                  onClick={handleExportTPOSExcel}
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  className="gap-2"
+                  disabled={isExportingTPOS}
+                >
+                  <Download className="h-4 w-4" />
+                  {isExportingTPOS ? "Đang xuất..." : "Xuất Excel TPOS"}
+                </Button>
 
                 <Button
                   onClick={() => setIsSearchTransferOpen(true)}
