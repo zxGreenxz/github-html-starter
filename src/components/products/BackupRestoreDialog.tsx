@@ -188,6 +188,30 @@ export function BackupRestoreDialog({
             // Remove id field to let database generate new UUID for inserts
             const { id, ...productData } = product;
 
+            // Sanitize array fields to ensure proper format
+            // product_images and price_images are text[] in PostgreSQL
+            if (productData.product_images !== undefined) {
+              if (!Array.isArray(productData.product_images)) {
+                productData.product_images = null;
+              } else {
+                // Filter out invalid items (null, non-string)
+                productData.product_images = productData.product_images.filter(
+                  (url: any) => url && typeof url === 'string'
+                );
+              }
+            }
+
+            if (productData.price_images !== undefined) {
+              if (!Array.isArray(productData.price_images)) {
+                productData.price_images = null;
+              } else {
+                // Filter out invalid items (null, non-string)
+                productData.price_images = productData.price_images.filter(
+                  (url: any) => url && typeof url === 'string'
+                );
+              }
+            }
+
             if (existingCodesSet.has(product.product_code)) {
               // Update existing product
               const { error } = await supabase
@@ -272,8 +296,9 @@ export function BackupRestoreDialog({
             <AlertDescription className="text-sm">
               <strong>Lưu ý quan trọng:</strong>
               <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Backup sẽ lưu toàn bộ dữ liệu dạng JSON</li>
+                <li>Backup toàn bộ dữ liệu (bao gồm hình ảnh URLs)</li>
                 <li>Restore sẽ UPSERT (thêm/cập nhật) theo product_code</li>
+                <li>Arrays hình ảnh sẽ được validate tự động</li>
                 <li>Nên tạo backup trước khi restore</li>
               </ul>
             </AlertDescription>
