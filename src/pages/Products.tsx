@@ -193,10 +193,53 @@ export default function Products() {
       const sheet3 = workbook3.Sheets[workbook3.SheetNames[0]];
       const data3 = XLSX.utils.sheet_to_json(sheet3, { header: 1 }) as any[][];
 
+      // Debug: Log headers to check column structure
+      console.log("📊 File 1 Headers:", data1[0]);
+      console.log("📊 File 1 Sample:", data1[1]);
+      console.log("📊 File 2 Headers:", data2[0]);
+      console.log("📊 File 2 Sample:", data2[1]);
+      console.log("📊 File 3 Headers:", data3[0]);
+      console.log("📊 File 3 Sample:", data3[1]);
+
       // Merge data
       toast.info("Đang xử lý và gộp dữ liệu...");
 
-      // Create maps keyed by product code (column index 1)
+      // Find column indices dynamically based on headers
+      const header1 = data1[0] || [];
+      const header2 = data2[0] || [];
+      const header3 = data3[0] || [];
+
+      // Helper function to find column index (case-insensitive)
+      const findColumnIndex = (headers: any[], searchTerms: string[]): number => {
+        for (let i = 0; i < headers.length; i++) {
+          const header = String(headers[i] || "").toLowerCase();
+          if (searchTerms.some(term => header.includes(term.toLowerCase()))) {
+            return i;
+          }
+        }
+        return -1;
+      };
+
+      // File 1 column indices
+      const f1_idIdx = 0;
+      const f1_codeIdx = findColumnIndex(header1, ["mã", "code"]);
+      const f1_nameIdx = findColumnIndex(header1, ["tên", "name"]);
+      const f1_purchasePriceIdx = findColumnIndex(header1, ["giá mua", "purchase"]);
+
+      // File 2 column indices
+      const f2_codeIdx = findColumnIndex(header2, ["mã", "code"]);
+      const f2_inventoryIdx = findColumnIndex(header2, ["giá trị tồn", "tồn", "inventory", "value"]);
+
+      // File 3 column indices
+      const f3_codeIdx = findColumnIndex(header3, ["mã", "code"]);
+      const f3_variantPriceIdx = findColumnIndex(header3, ["giá", "price", "biến thể", "variant"]);
+
+      console.log("📌 Column Indices:");
+      console.log("File 1 - Code:", f1_codeIdx, "Name:", f1_nameIdx, "Purchase:", f1_purchasePriceIdx);
+      console.log("File 2 - Code:", f2_codeIdx, "Inventory:", f2_inventoryIdx);
+      console.log("File 3 - Code:", f3_codeIdx, "VariantPrice:", f3_variantPriceIdx);
+
+      // Create maps keyed by product code
       const map1 = new Map();
       const map2 = new Map();
       const map3 = new Map();
@@ -204,14 +247,13 @@ export default function Products() {
       // Process File 1 (skip header row)
       for (let i = 1; i < data1.length; i++) {
         const row = data1[i];
-        const productCode = row[1]; // Mã sản phẩm
+        const productCode = row[f1_codeIdx];
         if (productCode) {
           map1.set(productCode, {
-            id: row[0],
-            productCode: row[1],
-            productName: row[2],
-            purchasePrice: row[3], // Giá mua
-            costPrice: row[4] // Giá vốn
+            id: row[f1_idIdx],
+            productCode: row[f1_codeIdx],
+            productName: row[f1_nameIdx],
+            purchasePrice: row[f1_purchasePriceIdx]
           });
         }
       }
@@ -219,10 +261,10 @@ export default function Products() {
       // Process File 2 (skip header row)
       for (let i = 1; i < data2.length; i++) {
         const row = data2[i];
-        const productCode = row[1];
+        const productCode = row[f2_codeIdx];
         if (productCode) {
           map2.set(productCode, {
-            inventoryValue: row[3] // Giá trị tồn
+            inventoryValue: row[f2_inventoryIdx]
           });
         }
       }
@@ -230,10 +272,10 @@ export default function Products() {
       // Process File 3 (skip header row)
       for (let i = 1; i < data3.length; i++) {
         const row = data3[i];
-        const productCode = row[1];
+        const productCode = row[f3_codeIdx];
         if (productCode) {
           map3.set(productCode, {
-            variantPrice: row[3] // Giá biến thể
+            variantPrice: row[f3_variantPriceIdx]
           });
         }
       }
@@ -257,13 +299,16 @@ export default function Products() {
         const item2 = map2.get(productCode) || {};
         const item3 = map3.get(productCode) || {};
 
+        // Helper to get value, preserving 0 but converting null/undefined to ""
+        const getValue = (val: any) => (val !== null && val !== undefined) ? val : "";
+
         mergedData.push([
-          item1.id || "",
+          getValue(item1.id),
           productCode,
-          item1.productName || "",
-          item1.purchasePrice || "",
-          item3.variantPrice || "", // Giá bán = Giá biến thể
-          item2.inventoryValue || "" // Tồn kho = Giá trị tồn
+          getValue(item1.productName),
+          getValue(item1.purchasePrice),
+          getValue(item3.variantPrice), // Giá bán = Giá biến thể
+          getValue(item2.inventoryValue) // Tồn kho = Giá trị tồn (giữ nguyên 0)
         ]);
       });
 
