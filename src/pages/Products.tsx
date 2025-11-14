@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Settings2, Edit, ArrowLeftRight, Download } from "lucide-react";
+import { Package, Settings2, Edit, ArrowLeftRight, Download, Database } from "lucide-react";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { AttributeManagementDialog } from "@/components/products/AttributeManage
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
 import { SearchProductForTransferDialog } from "@/components/products/SearchProductForTransferDialog";
 import { QuantityTransferDialog } from "@/components/products/QuantityTransferDialog";
+import { BackupRestoreDialog } from "@/components/products/BackupRestoreDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -42,6 +43,7 @@ export default function Products() {
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
   const [isExportingTPOS, setIsExportingTPOS] = useState(false);
+  const [isBackupRestoreDialogOpen, setIsBackupRestoreDialogOpen] = useState(false);
 
   // Query for displayed products (search results or 50 latest)
   const { data: productsRaw = [], isLoading, refetch } = useQuery({
@@ -263,6 +265,16 @@ export default function Products() {
                 </Button>
 
                 <Button
+                  onClick={() => setIsBackupRestoreDialogOpen(true)}
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  className="gap-2"
+                >
+                  <Database className="h-4 w-4" />
+                  Backup
+                </Button>
+
+                <Button
                   onClick={() => setIsSearchTransferOpen(true)}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
@@ -361,6 +373,12 @@ export default function Products() {
           open={isFetchTPOSDialogOpen}
           onOpenChange={setIsFetchTPOSDialogOpen}
         />
+
+      <BackupRestoreDialog
+        open={isBackupRestoreDialogOpen}
+        onOpenChange={setIsBackupRestoreDialogOpen}
+        onSuccess={refetch}
+      />
 
       <SearchProductForTransferDialog
         open={isSearchTransferOpen}
