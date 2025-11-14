@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
 import type { TPOSProductFullDetails } from "@/lib/tpos-api";
 import { getActiveTPOSToken, getTPOSHeaders } from "@/lib/tpos-config";
+import * as XLSX from "xlsx";
 
 export default function Products() {
   const isMobile = useIsMobile();
@@ -132,7 +133,7 @@ export default function Products() {
   const handleExportTPOSExcel = async () => {
     try {
       setIsExportingTPOS(true);
-      toast.info("Đang xuất Excel từ TPOS...");
+      toast.info("Đang tải dữ liệu từ TPOS...");
 
       const token = await getActiveTPOSToken();
       if (!token) {
@@ -140,41 +141,145 @@ export default function Products() {
         return;
       }
 
-      const payload = {
-        model: { Active: "true" },
-        ids: ""
-      };
+      const headers = getTPOSHeaders(token);
 
-      const response = await fetch("https://tomato.tpos.vn/Product/ExportFileWithStandardPriceV2", {
+      // Download File 1: ExportFileWithStandardPriceV2 (Giá mua, Giá vốn)
+      toast.info("Đang tải File 1/3...");
+      const response1 = await fetch("https://tomato.tpos.vn/Product/ExportFileWithStandardPriceV2", {
         method: "POST",
-        headers: getTPOSHeaders(token),
-        body: JSON.stringify(payload)
+        headers,
+        body: JSON.stringify({ model: { Active: "true" }, ids: "" })
       });
+      if (!response1.ok) throw new Error(`Lỗi File 1: ${response1.status}`);
+      const blob1 = await response1.blob();
+      const arrayBuffer1 = await blob1.arrayBuffer();
+      const workbook1 = XLSX.read(arrayBuffer1, { type: 'array' });
+      const sheet1 = workbook1.Sheets[workbook1.SheetNames[0]];
+      const data1 = XLSX.utils.sheet_to_json(sheet1, { header: 1 }) as any[][];
 
-      if (!response.ok) {
-        throw new Error(`Lỗi API TPOS: ${response.status}`);
+      // Download File 2: ExportProductV2 (Giá trị tồn)
+      toast.info("Đang tải File 2/3...");
+      const response2 = await fetch("https://tomato.tpos.vn/Product/ExportProductV2?Active=true", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          data: JSON.stringify({
+            Filter: {
+              logic: "and",
+              filters: [{ field: "Active", operator: "eq", value: true, Clear: "Clear" }]
+            }
+          }),
+          ids: []
+        })
+      });
+      if (!response2.ok) throw new Error(`Lỗi File 2: ${response2.status}`);
+      const blob2 = await response2.blob();
+      const arrayBuffer2 = await blob2.arrayBuffer();
+      const workbook2 = XLSX.read(arrayBuffer2, { type: 'array' });
+      const sheet2 = workbook2.Sheets[workbook2.SheetNames[0]];
+      const data2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 }) as any[][];
+
+      // Download File 3: ExportFileWithVariantPrice (Giá biến thể)
+      toast.info("Đang tải File 3/3...");
+      const response3 = await fetch("https://tomato.tpos.vn/Product/ExportFileWithVariantPrice", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model: { Active: "true" }, ids: "" })
+      });
+      if (!response3.ok) throw new Error(`Lỗi File 3: ${response3.status}`);
+      const blob3 = await response3.blob();
+      const arrayBuffer3 = await blob3.arrayBuffer();
+      const workbook3 = XLSX.read(arrayBuffer3, { type: 'array' });
+      const sheet3 = workbook3.Sheets[workbook3.SheetNames[0]];
+      const data3 = XLSX.utils.sheet_to_json(sheet3, { header: 1 }) as any[][];
+
+      // Merge data
+      toast.info("Đang xử lý và gộp dữ liệu...");
+
+      // Create maps keyed by product code (column index 1)
+      const map1 = new Map();
+      const map2 = new Map();
+      const map3 = new Map();
+
+      // Process File 1 (skip header row)
+      for (let i = 1; i < data1.length; i++) {
+        const row = data1[i];
+        const productCode = row[1]; // Mã sản phẩm
+        if (productCode) {
+          map1.set(productCode, {
+            id: row[0],
+            productCode: row[1],
+            productName: row[2],
+            purchasePrice: row[3], // Giá mua
+            costPrice: row[4] // Giá vốn
+          });
+        }
       }
 
-      // Get the blob from response
-      const blob = await response.blob();
+      // Process File 2 (skip header row)
+      for (let i = 1; i < data2.length; i++) {
+        const row = data2[i];
+        const productCode = row[1];
+        if (productCode) {
+          map2.set(productCode, {
+            inventoryValue: row[3] // Giá trị tồn
+          });
+        }
+      }
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      // Process File 3 (skip header row)
+      for (let i = 1; i < data3.length; i++) {
+        const row = data3[i];
+        const productCode = row[1];
+        if (productCode) {
+          map3.set(productCode, {
+            variantPrice: row[3] // Giá biến thể
+          });
+        }
+      }
+
+      // Merge all data
+      const mergedData: any[][] = [];
+      mergedData.push([
+        "Id",
+        "Mã sản phẩm",
+        "Tên sản phẩm",
+        "Giá mua",
+        "Giá bán",
+        "Tồn kho"
+      ]);
+
+      // Get all unique product codes
+      const allProductCodes = new Set([...map1.keys(), ...map2.keys(), ...map3.keys()]);
+
+      allProductCodes.forEach(productCode => {
+        const item1 = map1.get(productCode) || {};
+        const item2 = map2.get(productCode) || {};
+        const item3 = map3.get(productCode) || {};
+
+        mergedData.push([
+          item1.id || "",
+          productCode,
+          item1.productName || "",
+          item1.purchasePrice || "",
+          item3.variantPrice || "", // Giá bán = Giá biến thể
+          item2.inventoryValue || "" // Tồn kho = Giá trị tồn
+        ]);
+      });
+
+      // Create new workbook and export
+      const newWorkbook = XLSX.utils.book_new();
+      const newSheet = XLSX.utils.aoa_to_sheet(mergedData);
+      XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Merged Products");
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      a.download = `TPOS_KhoHang_${timestamp}.xlsx`;
+      const fileName = `TPOS_Merged_${timestamp}.xlsx`;
 
-      document.body.appendChild(a);
-      a.click();
+      // Download the file
+      XLSX.writeFile(newWorkbook, fileName);
 
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success("Đã xuất Excel thành công!");
+      toast.success(`Đã xuất Excel thành công! (${allProductCodes.size} sản phẩm)`);
     } catch (error) {
       console.error("❌ Error exporting TPOS Excel:", error);
       toast.error("Lỗi khi xuất Excel: " + (error as Error).message);
