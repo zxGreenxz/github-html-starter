@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ProductStats } from "@/components/products/ProductStats";
 import { ProductList } from "@/components/products/ProductList";
 import { CreateProductDialog } from "@/components/products/CreateProductDialog";
-import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
+
 import { SupplierStats } from "@/components/products/SupplierStats";
 import { AttributeManagementDialog } from "@/components/products/AttributeManagementDialog";
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
@@ -34,7 +34,7 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  
   const [isAttributeDialogOpen, setIsAttributeDialogOpen] = useState(false);
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
   const [isSearchTransferOpen, setIsSearchTransferOpen] = useState(false);
@@ -427,12 +427,12 @@ export default function Products() {
 
                 {isAdmin && (
                   <Button
-                    onClick={() => setIsImportDialogOpen(true)}
                     variant="outline"
                     size={isMobile ? "sm" : "default"}
                     className={isMobile ? "text-xs" : ""}
+                    disabled
                   >
-                    Import Excel
+                    Đồng Bộ TPOS
                   </Button>
                 )}
               </div>
@@ -479,11 +479,6 @@ export default function Products() {
           onSuccess={refetch}
         />
         
-        <ImportProductsDialog
-          open={isImportDialogOpen}
-          onOpenChange={setIsImportDialogOpen}
-          onSuccess={refetch}
-        />
 
         <AttributeManagementDialog
           open={isAttributeDialogOpen}
