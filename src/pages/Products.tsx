@@ -279,7 +279,7 @@ export default function Products() {
           item1.productName || "",
           item1.purchasePrice || "",
           item3.variantPrice || "", // Giá bán = Giá biến thể
-          item2.inventoryValue || "" // Tồn kho = Giá trị tồn
+          item2.inventoryValue ?? 0 // Tồn kho = Giá trị tồn (hiển thị 0 thay vì trống)
         ]);
       });
 
