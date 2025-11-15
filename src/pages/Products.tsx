@@ -255,13 +255,27 @@ export default function Products() {
       console.log("File 2 - Code:", f2_codeIdx, "Inventory:", f2_inventoryIdx);
       console.log("File 3 - Code:", f3_codeIdx, "VariantPrice:", f3_variantPriceIdx);
 
-      // Validate column indices
+      // Log all headers for debugging if columns not found
       if (f1_codeIdx === -1 || f2_codeIdx === -1 || f3_codeIdx === -1) {
+        console.error("\n❌ MISSING COLUMNS DETECTED!");
+        console.error("Please check the exact header names below:\n");
+
+        if (f1_codeIdx === -1) {
+          console.error("File 1 all headers:", header1);
+        }
+        if (f2_codeIdx === -1) {
+          console.error("File 2 all headers:", header2);
+        }
+        if (f3_codeIdx === -1) {
+          console.error("File 3 all headers:", header3);
+        }
+
         const missing = [];
         if (f1_codeIdx === -1) missing.push("File 1: Mã sản phẩm");
         if (f2_codeIdx === -1) missing.push("File 2: Mã sản phẩm");
         if (f3_codeIdx === -1) missing.push("File 3: Mã sản phẩm");
-        throw new Error(`Không tìm thấy cột: ${missing.join(", ")}. Vui lòng kiểm tra console logs.`);
+
+        throw new Error(`Không tìm thấy cột: ${missing.join(", ")}. Vui lòng kiểm tra console logs để xem tên cột chính xác.`);
       }
 
       // Create maps keyed by product code
