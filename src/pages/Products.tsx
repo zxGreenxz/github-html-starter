@@ -238,17 +238,17 @@ export default function Products() {
 
       console.log("\n🔍 FINDING COLUMNS FOR FILE 1:");
       const f1_idIdx = 0;
-      const f1_codeIdx = findColumnIndex(header1, ["mã sp", "mã sản phẩm", "code"]);
-      const f1_nameIdx = findColumnIndex(header1, ["tên sp", "tên sản phẩm", "name"]);
+      const f1_codeIdx = findColumnIndex(header1, ["mã sp", "mã sản phẩm", "mã", "code", "productcode"]);
+      const f1_nameIdx = findColumnIndex(header1, ["tên sp", "tên sản phẩm", "tên", "name", "productname"]);
       const f1_purchasePriceIdx = findColumnIndex(header1, ["giá mua", "purchase"]);
 
       console.log("\n🔍 FINDING COLUMNS FOR FILE 2:");
-      const f2_codeIdx = findColumnIndex(header2, ["mã sp", "mã sản phẩm", "code"]);
-      const f2_inventoryIdx = findColumnIndex(header2, ["giá trị tồn", "value"]);
+      const f2_codeIdx = findColumnIndex(header2, ["mã sp", "mã sản phẩm", "mã", "code", "productcode"]);
+      const f2_inventoryIdx = findColumnIndex(header2, ["giá trị tồn", "tồn kho", "inventory", "value", "stock"]);
 
       console.log("\n🔍 FINDING COLUMNS FOR FILE 3:");
-      const f3_codeIdx = findColumnIndex(header3, ["mã sp", "mã sản phẩm", "code"]);
-      const f3_variantPriceIdx = findColumnIndex(header3, ["giá bán", "giá", "price"]);
+      const f3_codeIdx = findColumnIndex(header3, ["mã sp", "mã sản phẩm", "mã", "code", "productcode"]);
+      const f3_variantPriceIdx = findColumnIndex(header3, ["giá bán", "selling", "price", "giá"]);
 
       console.log("\n📌 FINAL COLUMN INDICES:");
       console.log("File 1 - ID:", f1_idIdx, "Code:", f1_codeIdx, "Name:", f1_nameIdx, "Purchase:", f1_purchasePriceIdx);
