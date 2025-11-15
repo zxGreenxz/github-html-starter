@@ -228,15 +228,31 @@ export default function Products() {
       }
 
       // Process File 3 (skip header row)
+      // File 3 structure: [Id sản phẩm (*), Tên sản phẩm, Giá biến thể]
       for (let i = 1; i < data3.length; i++) {
         const row = data3[i];
-        const productCode = row[1];
+        
+        // Extract product code from "[LSET1] TH SET..." → "LSET1"
+        const fullName = row[1];
+        const codeMatch = fullName?.match(/\[([^\]]+)\]/);
+        const productCode = codeMatch ? codeMatch[1] : null;
+        
         if (productCode) {
           map3.set(productCode, {
-            variantPrice: row[3] // Giá biến thể
+            variantPrice: row[2] // Giá biến thể ở index 2
           });
         }
       }
+
+      // Debug logging
+      console.log("=== FILE PROCESSING DEBUG ===");
+      console.log("📁 File 1 (map1) size:", map1.size, "sample:", Array.from(map1.entries()).slice(0, 2));
+      console.log("📁 File 2 (map2) size:", map2.size, "sample:", Array.from(map2.entries()).slice(0, 2));
+      console.log("📁 File 3 (map3) size:", map3.size, "sample:", Array.from(map3.entries()).slice(0, 2));
+      console.log("🔍 LSET1 verification:");
+      console.log("  File 1:", map1.get("LSET1"));
+      console.log("  File 2:", map2.get("LSET1"));
+      console.log("  File 3:", map3.get("LSET1"));
 
       // Merge all data
       const mergedData: any[][] = [];
