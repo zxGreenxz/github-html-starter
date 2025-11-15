@@ -194,12 +194,24 @@ export default function Products() {
       const data3 = XLSX.utils.sheet_to_json(sheet3, { header: 1 }) as any[][];
 
       // Debug: Log headers to check column structure
-      console.log("📊 File 1 Headers:", data1[0]);
-      console.log("📊 File 1 Sample:", data1[1]);
-      console.log("📊 File 2 Headers:", data2[0]);
-      console.log("📊 File 2 Sample:", data2[1]);
-      console.log("📊 File 3 Headers:", data3[0]);
-      console.log("📊 File 3 Sample:", data3[1]);
+      console.log("=".repeat(80));
+      console.log("📊 FILE 1 STRUCTURE:");
+      console.log("Headers:", data1[0]);
+      console.log("Sample Row 1:", data1[1]);
+      console.log("Sample Row 2:", data1[2]);
+
+      console.log("=".repeat(80));
+      console.log("📊 FILE 2 STRUCTURE:");
+      console.log("Headers:", data2[0]);
+      console.log("Sample Row 1:", data2[1]);
+      console.log("Sample Row 2:", data2[2]);
+
+      console.log("=".repeat(80));
+      console.log("📊 FILE 3 STRUCTURE:");
+      console.log("Headers:", data3[0]);
+      console.log("Sample Row 1:", data3[1]);
+      console.log("Sample Row 2:", data3[2]);
+      console.log("=".repeat(80));
 
       // Merge data
       toast.info("Đang xử lý và gộp dữ liệu...");
@@ -213,38 +225,60 @@ export default function Products() {
       const findColumnIndex = (headers: any[], searchTerms: string[]): number => {
         for (let i = 0; i < headers.length; i++) {
           const header = String(headers[i] || "").toLowerCase();
-          if (searchTerms.some(term => header.includes(term.toLowerCase()))) {
-            return i;
+          for (const term of searchTerms) {
+            if (header.includes(term.toLowerCase())) {
+              console.log(`✅ Found column "${headers[i]}" at index ${i} using term "${term}"`);
+              return i;
+            }
           }
         }
+        console.log(`❌ Could not find column with terms: ${searchTerms.join(', ')}`);
         return -1;
       };
 
-      // File 1 column indices
+      console.log("\n🔍 FINDING COLUMNS FOR FILE 1:");
       const f1_idIdx = 0;
-      const f1_codeIdx = findColumnIndex(header1, ["mã", "code"]);
-      const f1_nameIdx = findColumnIndex(header1, ["tên", "name"]);
+      const f1_codeIdx = findColumnIndex(header1, ["mã sp", "mã sản phẩm", "code"]);
+      const f1_nameIdx = findColumnIndex(header1, ["tên sp", "tên sản phẩm", "name"]);
       const f1_purchasePriceIdx = findColumnIndex(header1, ["giá mua", "purchase"]);
 
-      // File 2 column indices
-      const f2_codeIdx = findColumnIndex(header2, ["mã", "code"]);
-      const f2_inventoryIdx = findColumnIndex(header2, ["giá trị tồn", "tồn", "inventory", "value"]);
+      console.log("\n🔍 FINDING COLUMNS FOR FILE 2:");
+      const f2_codeIdx = findColumnIndex(header2, ["mã sp", "mã sản phẩm", "code"]);
+      const f2_inventoryIdx = findColumnIndex(header2, ["giá trị tồn", "value"]);
 
-      // File 3 column indices
-      const f3_codeIdx = findColumnIndex(header3, ["mã", "code"]);
-      const f3_variantPriceIdx = findColumnIndex(header3, ["giá", "price", "biến thể", "variant"]);
+      console.log("\n🔍 FINDING COLUMNS FOR FILE 3:");
+      const f3_codeIdx = findColumnIndex(header3, ["mã sp", "mã sản phẩm", "code"]);
+      const f3_variantPriceIdx = findColumnIndex(header3, ["giá bán", "giá", "price"]);
 
-      console.log("📌 Column Indices:");
-      console.log("File 1 - Code:", f1_codeIdx, "Name:", f1_nameIdx, "Purchase:", f1_purchasePriceIdx);
+      console.log("\n📌 FINAL COLUMN INDICES:");
+      console.log("File 1 - ID:", f1_idIdx, "Code:", f1_codeIdx, "Name:", f1_nameIdx, "Purchase:", f1_purchasePriceIdx);
       console.log("File 2 - Code:", f2_codeIdx, "Inventory:", f2_inventoryIdx);
       console.log("File 3 - Code:", f3_codeIdx, "VariantPrice:", f3_variantPriceIdx);
+
+      // Validate column indices
+      if (f1_codeIdx === -1 || f2_codeIdx === -1 || f3_codeIdx === -1) {
+        const missing = [];
+        if (f1_codeIdx === -1) missing.push("File 1: Mã sản phẩm");
+        if (f2_codeIdx === -1) missing.push("File 2: Mã sản phẩm");
+        if (f3_codeIdx === -1) missing.push("File 3: Mã sản phẩm");
+        throw new Error(`Không tìm thấy cột: ${missing.join(", ")}. Vui lòng kiểm tra console logs.`);
+      }
 
       // Create maps keyed by product code
       const map1 = new Map();
       const map2 = new Map();
       const map3 = new Map();
 
+      // Helper to get value, preserving 0 but converting null/undefined to ""
+      const getValue = (val: any) => {
+        if (val === null || val === undefined) return "";
+        // Keep 0, including numeric 0
+        if (val === 0 || val === "0") return val;
+        return val;
+      };
+
       // Process File 1 (skip header row)
+      console.log("\n📥 Processing File 1...");
       for (let i = 1; i < data1.length; i++) {
         const row = data1[i];
         const productCode = row[f1_codeIdx];
@@ -257,30 +291,51 @@ export default function Products() {
           });
         }
       }
+      console.log(`✅ Processed ${map1.size} products from File 1`);
+      // Log first 3 items
+      const firstKeys1 = Array.from(map1.keys()).slice(0, 3);
+      firstKeys1.forEach(key => console.log(`  Sample: ${key} =>`, map1.get(key)));
 
       // Process File 2 (skip header row)
+      console.log("\n📥 Processing File 2...");
       for (let i = 1; i < data2.length; i++) {
         const row = data2[i];
         const productCode = row[f2_codeIdx];
         if (productCode) {
+          const inventoryValue = row[f2_inventoryIdx];
           map2.set(productCode, {
-            inventoryValue: row[f2_inventoryIdx]
+            inventoryValue: inventoryValue
           });
         }
       }
+      console.log(`✅ Processed ${map2.size} products from File 2`);
+      const firstKeys2 = Array.from(map2.keys()).slice(0, 3);
+      firstKeys2.forEach(key => {
+        const item = map2.get(key);
+        console.log(`  Sample: ${key} => inventoryValue:`, item.inventoryValue, `(type: ${typeof item.inventoryValue})`);
+      });
 
       // Process File 3 (skip header row)
+      console.log("\n📥 Processing File 3...");
       for (let i = 1; i < data3.length; i++) {
         const row = data3[i];
         const productCode = row[f3_codeIdx];
         if (productCode) {
+          const variantPrice = row[f3_variantPriceIdx];
           map3.set(productCode, {
-            variantPrice: row[f3_variantPriceIdx]
+            variantPrice: variantPrice
           });
         }
       }
+      console.log(`✅ Processed ${map3.size} products from File 3`);
+      const firstKeys3 = Array.from(map3.keys()).slice(0, 3);
+      firstKeys3.forEach(key => {
+        const item = map3.get(key);
+        console.log(`  Sample: ${key} => variantPrice:`, item.variantPrice, `(type: ${typeof item.variantPrice})`);
+      });
 
       // Merge all data
+      console.log("\n🔀 Merging data...");
       const mergedData: any[][] = [];
       mergedData.push([
         "Id",
@@ -293,36 +348,78 @@ export default function Products() {
 
       // Get all unique product codes
       const allProductCodes = new Set([...map1.keys(), ...map2.keys(), ...map3.keys()]);
+      console.log(`📊 Total unique products: ${allProductCodes.size}`);
 
+      let sampleCount = 0;
       allProductCodes.forEach(productCode => {
         const item1 = map1.get(productCode) || {};
         const item2 = map2.get(productCode) || {};
         const item3 = map3.get(productCode) || {};
 
-        // Helper to get value, preserving 0 but converting null/undefined to ""
-        const getValue = (val: any) => (val !== null && val !== undefined) ? val : "";
-
-        mergedData.push([
+        const row = [
           getValue(item1.id),
           productCode,
           getValue(item1.productName),
           getValue(item1.purchasePrice),
           getValue(item3.variantPrice), // Giá bán = Giá biến thể
           getValue(item2.inventoryValue) // Tồn kho = Giá trị tồn (giữ nguyên 0)
-        ]);
+        ];
+
+        // Log first 3 merged rows for debugging
+        if (sampleCount < 3) {
+          console.log(`\n  Merged row ${sampleCount + 1}:`, {
+            productCode,
+            id: item1.id,
+            name: item1.productName,
+            purchase: item1.purchasePrice,
+            variantPrice: item3.variantPrice,
+            inventory: item2.inventoryValue,
+            finalRow: row
+          });
+          sampleCount++;
+        }
+
+        mergedData.push(row);
       });
 
       // Create new workbook and export
+      console.log("\n📄 Creating Excel file...");
+      console.log(`Total rows (including header): ${mergedData.length}`);
+
       const newWorkbook = XLSX.utils.book_new();
-      const newSheet = XLSX.utils.aoa_to_sheet(mergedData);
+      const newSheet = XLSX.utils.aoa_to_sheet(mergedData, {
+        cellDates: false,
+        dateNF: 'yyyy-mm-dd'
+      });
+
+      // Ensure numbers are preserved (including 0)
+      const range = XLSX.utils.decode_range(newSheet['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          const cell = newSheet[cellAddress];
+          if (cell && cell.v === 0) {
+            // Explicitly mark 0 values as numbers
+            cell.t = 'n';
+            cell.v = 0;
+          }
+        }
+      }
+
       XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Merged Products");
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       const fileName = `TPOS_Merged_${timestamp}.xlsx`;
 
+      console.log(`💾 Saving file: ${fileName}`);
+
       // Download the file
       XLSX.writeFile(newWorkbook, fileName);
+
+      console.log("=".repeat(80));
+      console.log("✅ EXPORT COMPLETED SUCCESSFULLY");
+      console.log("=".repeat(80));
 
       toast.success(`Đã xuất Excel thành công! (${allProductCodes.size} sản phẩm)`);
     } catch (error) {
