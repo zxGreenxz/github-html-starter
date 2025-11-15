@@ -15,7 +15,7 @@ import { AttributeManagementDialog } from "@/components/products/AttributeManage
 import { FetchTPOSProductDialog } from "@/components/products/FetchTPOSProductDialog";
 import { SearchProductForTransferDialog } from "@/components/products/SearchProductForTransferDialog";
 import { QuantityTransferDialog } from "@/components/products/QuantityTransferDialog";
-import { BackupRestoreDialog } from "@/components/products/BackupRestoreDialog";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -44,7 +44,7 @@ export default function Products() {
   const [activeTab, setActiveTab] = useState("products");
   const [productTypeFilter, setProductTypeFilter] = useState<"parent" | "variant" | "all">("parent");
   const [isExportingTPOS, setIsExportingTPOS] = useState(false);
-  const [isBackupRestoreDialogOpen, setIsBackupRestoreDialogOpen] = useState(false);
+  
 
   // Query for displayed products (search results or 50 latest)
   const { data: productsRaw = [], isLoading, refetch } = useQuery({
@@ -386,10 +386,10 @@ export default function Products() {
                 </Button>
 
                 <Button
-                  onClick={() => setIsBackupRestoreDialogOpen(true)}
                   variant="outline"
                   size={isMobile ? "sm" : "default"}
                   className="gap-2"
+                  disabled
                 >
                   <Database className="h-4 w-4" />
                   Backup
@@ -490,11 +490,6 @@ export default function Products() {
           onOpenChange={setIsFetchTPOSDialogOpen}
         />
 
-      <BackupRestoreDialog
-        open={isBackupRestoreDialogOpen}
-        onOpenChange={setIsBackupRestoreDialogOpen}
-        onSuccess={refetch}
-      />
 
       <SearchProductForTransferDialog
         open={isSearchTransferOpen}
