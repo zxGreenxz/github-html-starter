@@ -533,50 +533,70 @@ serve(async (req) => {
     console.log('Prices to send to TPOS:', { purchasePrice, sellingPrice });
     console.log('Selected attribute value IDs:', selectedAttributeValueIds);
 
-    // 1. Query attribute values
-    const { data: attributeValues, error: valuesError } = await supabase
+    // ✅ OPTIMIZED: Single query with JOIN instead of 2 separate queries
+    // Fetch attribute values WITH their parent attributes in one query
+    const { data: attributeValuesWithAttrs, error: valuesError } = await supabase
       .from('product_attribute_values')
-      .select('id, value, code, tpos_id, tpos_attribute_id, sequence, name_get, attribute_id')
+      .select(`
+        id,
+        value,
+        code,
+        tpos_id,
+        tpos_attribute_id,
+        sequence,
+        name_get,
+        attribute_id,
+        product_attributes!attribute_id (
+          id,
+          name,
+          display_order
+        )
+      `)
       .in('id', selectedAttributeValueIds);
 
-    if (valuesError || !attributeValues || attributeValues.length === 0) {
+    if (valuesError || !attributeValuesWithAttrs || attributeValuesWithAttrs.length === 0) {
+      console.error('Failed to fetch attribute values:', valuesError);
       throw new Error('Failed to fetch attribute values');
     }
 
-    console.log('Attribute values found:', attributeValues.length);
+    console.log('✅ Attribute values with attributes fetched in single query:', attributeValuesWithAttrs.length);
 
-    // 2. Query attributes để lấy tên và display_order
-    const attributeIds = [...new Set(attributeValues.map(v => v.attribute_id))];
-    
-    console.log('Attribute IDs to fetch:', attributeIds);
-    console.log('Number of unique attributes:', attributeIds.length);
-    
-    if (attributeIds.length === 0) {
-      throw new Error('No attribute IDs found in selected attribute values');
+    // Extract attributes from JOIN result and deduplicate
+    const attributesMap = new Map();
+    const attributeValues: AttributeValue[] = [];
+
+    for (const item of attributeValuesWithAttrs) {
+      // Add attribute to map (auto-dedup by id)
+      if (item.product_attributes && !attributesMap.has(item.product_attributes.id)) {
+        attributesMap.set(item.product_attributes.id, {
+          id: item.product_attributes.id,
+          name: item.product_attributes.name,
+          display_order: item.product_attributes.display_order
+        });
+      }
+
+      // Build attribute value object
+      attributeValues.push({
+        id: item.id,
+        value: item.value,
+        code: item.code,
+        tpos_id: item.tpos_id,
+        tpos_attribute_id: item.tpos_attribute_id,
+        sequence: item.sequence,
+        name_get: item.name_get,
+        attribute_id: item.attribute_id
+      });
     }
 
-    const { data: attributes, error: attrError } = await supabase
-      .from('product_attributes')
-      .select('id, name, display_order')
-      .in('id', attributeIds)
-      .order('display_order', { ascending: true });
+    // Convert map to array and sort by display_order
+    const attributes = Array.from(attributesMap.values())
+      .sort((a, b) => a.display_order - b.display_order);
 
-    console.log('Fetch attributes result:', {
-      error: attrError,
-      count: attributes?.length,
-      data: attributes
-    });
-
-    if (attrError) {
-      console.error('Supabase error details:', attrError);
-      throw new Error(`Failed to fetch attributes from database: ${attrError.message}`);
+    if (attributes.length === 0) {
+      throw new Error('No attributes found in joined data');
     }
 
-    if (!attributes || attributes.length === 0) {
-      throw new Error(`No attributes found for IDs: ${attributeIds.join(', ')}`);
-    }
-
-    console.log('Attributes successfully fetched:', attributes.length);
+    console.log('✅ Processed attributes:', attributes.length);
 
     // Map attribute names
     const attributeMap = new Map(attributes.map(a => [a.id, a]));
@@ -1005,17 +1025,39 @@ serve(async (req) => {
       });
     }
 
-    // 5. Upsert to Supabase
+    // ✅ OPTIMIZED: Parallel upsert parent & children for better performance
+    // 5. Upsert to Supabase (parent and children in parallel)
     try {
-      // Upsert parent product
-      console.log('Upserting parent product...');
-      const { error: parentError } = await supabase
-        .from('products')
-        .upsert(parentProduct, { 
-          onConflict: 'product_code',
-          ignoreDuplicates: false
-        });
+      console.log('Upserting parent and children products in parallel...');
 
+      // Build array of promises to run in parallel
+      const upsertPromises = [
+        // Always upsert parent
+        supabase
+          .from('products')
+          .upsert(parentProduct, {
+            onConflict: 'product_code',
+            ignoreDuplicates: false
+          })
+      ];
+
+      // Add children upsert if there are children
+      if (childProducts.length > 0) {
+        upsertPromises.push(
+          supabase
+            .from('products')
+            .upsert(childProducts, {
+              onConflict: 'product_code',
+              ignoreDuplicates: false
+            })
+        );
+      }
+
+      // Execute all upserts in parallel
+      const results = await Promise.all(upsertPromises);
+
+      // Check for errors
+      const parentError = results[0].error;
       if (parentError) {
         console.error('Parent product upsert failed:', parentError);
         throw parentError;
@@ -1023,22 +1065,13 @@ serve(async (req) => {
 
       console.log('✓ Parent product saved successfully');
 
-      // Batch upsert child products
       if (childProducts.length > 0) {
-        console.log('Upserting child products...');
-        const { error: childError } = await supabase
-          .from('products')
-          .upsert(childProducts, { 
-            onConflict: 'product_code',
-            ignoreDuplicates: false
-          });
-
+        const childError = results[1].error;
         if (childError) {
           console.error('Child products upsert failed:', childError);
           throw childError;
         }
-
-        console.log(`✓ ${childProducts.length} child products saved successfully`);
+        console.log(`✓ ${childProducts.length} child products saved successfully (parallel)`);
       }
 
     } catch (dbError) {
