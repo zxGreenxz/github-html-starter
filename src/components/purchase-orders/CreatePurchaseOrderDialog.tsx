@@ -69,6 +69,34 @@ const getProductImages = async (product: any): Promise<string[]> => {
   return [];
 };
 
+// Helper: Convert image URL to base64
+const convertUrlToBase64 = async (url: string): Promise<string | null> => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Failed to fetch image: ${url}`);
+      return null;
+    }
+
+    const blob = await response.blob();
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        // Remove the data:image/...;base64, prefix
+        const base64Data = base64.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    return null;
+  }
+};
+
 interface PurchaseOrderItem {
   quantity: number;
   notes: string;
@@ -345,6 +373,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const [showDebugColumn, setShowDebugColumn] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
 
+  // ✅ Image cache state - Map<url, base64>
+  const [imageCache] = useState<Map<string, string>>(new Map());
+
   // Debounce product names for auto-generating codes
   const debouncedProductNames = useDebounce(
     items.map(i => i.product_name).join('|'),
@@ -388,11 +419,38 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           _tempTotalPrice: (item.quantity || 1) * ((item.purchase_price || 0) / 1000),
         }));
         setItems(loadedItems);
+
+        // ✅ Pre-cache all product_images from draft
+        const draftImageUrls = loadedItems
+          .flatMap((item: PurchaseOrderItem) => item.product_images || [])
+          .filter((url: string) => url);
+
+        const uniqueUrls = [...new Set(draftImageUrls)];
+
+        if (uniqueUrls.length > 0) {
+          console.log(`🔄 Pre-caching ${uniqueUrls.length} images from draft...`);
+
+          Promise.all(
+            uniqueUrls.map(async (url: string) => {
+              if (!imageCache.has(url)) {
+                const base64 = await convertUrlToBase64(url);
+                if (base64) {
+                  imageCache.set(url, base64);
+                  console.log(`✅ Cached: ${url.substring(0, 50)}...`);
+                }
+              }
+            })
+          ).then(() => {
+            console.log(`✅ Draft images pre-cached: ${imageCache.size} URLs`);
+          }).catch((error) => {
+            console.error('Error pre-caching draft images:', error);
+          });
+        }
       }
-      
+
       setShowShippingFee((initialData.shipping_fee || 0) > 0);
     }
-  }, [open, initialData]);
+  }, [open, initialData, imageCache]);
 
   // Auto-generate product code when product name changes (with debounce)
   // ✅ NEW: Query DB mỗi lần (không dùng cache)
@@ -752,6 +810,35 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         throw new Error(errorMessage);
       }
 
+      // ✅ PRE-CONVERT: Ensure 100% product_images are cached before creating order
+      const allProductImageUrls = items
+        .flatMap(item => item.product_images || [])
+        .filter(url => url); // Remove empty strings
+
+      const uniqueUrls = [...new Set(allProductImageUrls)];
+      const uncachedUrls = uniqueUrls.filter(url => !imageCache.has(url));
+
+      if (uncachedUrls.length > 0) {
+        console.log(`🔄 Pre-converting ${uncachedUrls.length} remaining images...`);
+
+        // Show progress toast
+        sonnerToast.info(`⏳ Đang chuẩn bị ${uncachedUrls.length} ảnh...`, { duration: 2000 });
+
+        // Convert in parallel
+        await Promise.all(
+          uncachedUrls.map(async url => {
+            const base64 = await convertUrlToBase64(url);
+            if (base64) {
+              imageCache.set(url, base64);
+            }
+          })
+        );
+
+        console.log(`✅ All images cached: ${imageCache.size} total`);
+      } else {
+        console.log(`✅ All images already cached: ${imageCache.size} total`);
+      }
+
       const totalAmount = items.reduce((sum, item) => sum + item._tempTotalPrice, 0) * 1000;
       const discountAmount = formData.discount_amount * 1000;
       const shippingFee = formData.shipping_fee * 1000;
@@ -817,10 +904,19 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
         const totalDraftItems = items.filter(i => i.product_name.trim()).length;
 
+        // ✅ Convert Map to plain object for passing to edge function
+        const cacheObject = Object.fromEntries(imageCache);
+        console.log(`📤 Passing cache with ${Object.keys(cacheObject).length} images to edge function (draft)`);
+
         // Invoke background function without awaiting (fire-and-forget)
         supabase.functions.invoke(
           'process-purchase-order-background',
-          { body: { purchase_order_id: order.id } }
+          {
+            body: {
+              purchase_order_id: order.id,
+              imageCache: cacheObject // ✅ Pass cache
+            }
+          }
         ).catch(error => {
           console.error('Failed to invoke background process:', error);
           sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
@@ -960,9 +1056,13 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
 
       // Step 3: Invoke background TPOS processing
       console.log('🚀 Starting background TPOS product creation...');
-      
+
+      // ✅ Convert Map to plain object for passing to edge function
+      const cacheObject = Object.fromEntries(imageCache);
+      console.log(`📤 Passing cache with ${Object.keys(cacheObject).length} images to edge function`);
+
       const totalItems = items.filter(i => i.product_name.trim()).length;
-      
+
       // Show loading toast immediately (will be updated via polling)
       const toastId = `tpos-processing-${order.id}`;
       sonnerToast.loading(
@@ -973,7 +1073,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       // Invoke background function (fire-and-forget)
       supabase.functions.invoke(
         'process-purchase-order-background',
-        { body: { purchase_order_id: order.id } }
+        {
+          body: {
+            purchase_order_id: order.id,
+            imageCache: cacheObject // ✅ Pass cache
+          }
+        }
       ).then(({ error }) => {
         if (error) {
           console.error('Failed to invoke background process:', error);
@@ -1177,6 +1282,10 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   };
 
   const resetForm = () => {
+    // ✅ Clear image cache
+    imageCache.clear();
+    console.log('🧹 Image cache cleared (resetForm)');
+
     setFormData({
       supplier_name: "",
       order_date: new Date().toISOString(),
@@ -1189,7 +1298,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     setShowShippingFee(false);
     setManualProductCodes(new Set());
     setItems([
-      { 
+      {
         quantity: 1,
         notes: "",
         product_code: "",
@@ -1202,6 +1311,11 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         _tempTotalPrice: 0,
       }
     ]);
+  };
+
+  // ✅ Callback for auto-caching images
+  const handleCacheUpdate = (url: string, base64: string) => {
+    imageCache.set(url, base64);
   };
 
   // Handle dialog close with confirmation
@@ -1349,7 +1463,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         });
       }
     }
-    
+
+    // ✅ Pre-cache product_images from copied item
+    if (itemToCopy.product_images && itemToCopy.product_images.length > 0) {
+      itemToCopy.product_images.forEach(async (url: string) => {
+        if (url && !imageCache.has(url)) {
+          const base64 = await convertUrlToBase64(url);
+          if (base64) {
+            imageCache.set(url, base64);
+            console.log(`✅ Cached (copy): ${url.substring(0, 50)}...`);
+          }
+        }
+      });
+    }
+
     const newItems = [...items];
     newItems.splice(index + 1, 0, itemToCopy);
     setItems(newItems);
@@ -1403,7 +1530,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       const productImages = await getProductImages(product);
       const tposProductId = product.tpos_product_id || product.productid_bienthe || null;
       const variant = product.variant || "";
-      
+
+      // ✅ Pre-cache product_images when selecting from inventory
+      if (productImages && productImages.length > 0) {
+        productImages.forEach(async (url: string) => {
+          if (url && !imageCache.has(url)) {
+            const base64 = await convertUrlToBase64(url);
+            if (base64) {
+              imageCache.set(url, base64);
+              console.log(`✅ Cached (select): ${url.substring(0, 50)}...`);
+            }
+          }
+        });
+      }
+
       newItems[currentItemIndex] = {
         ...newItems[currentItemIndex],
         product_name: product.product_name,
@@ -1471,7 +1611,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     const firstProductImages = await getProductImages(firstProduct);
     const firstTposProductId = firstProduct.tpos_product_id || firstProduct.productid_bienthe || null;
     const firstVariant = firstProduct.variant || "";
-    
+
+    // ✅ Pre-cache first product images
+    if (firstProductImages && firstProductImages.length > 0) {
+      firstProductImages.forEach(async (url: string) => {
+        if (url && !imageCache.has(url)) {
+          const base64 = await convertUrlToBase64(url);
+          if (base64) {
+            imageCache.set(url, base64);
+            console.log(`✅ Cached (multi-select): ${url.substring(0, 50)}...`);
+          }
+        }
+      });
+    }
+
     newItems[currentItemIndex] = {
       ...currentItem,
       product_name: firstProduct.product_name,
@@ -1492,7 +1645,20 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         const productImages = await getProductImages(product);
         const tposProductId = product.tpos_product_id || product.productid_bienthe || null;
         const variant = product.variant || "";
-        
+
+        // ✅ Pre-cache additional product images
+        if (productImages && productImages.length > 0) {
+          productImages.forEach(async (url: string) => {
+            if (url && !imageCache.has(url)) {
+              const base64 = await convertUrlToBase64(url);
+              if (base64) {
+                imageCache.set(url, base64);
+                console.log(`✅ Cached (multi-select): ${url.substring(0, 50)}...`);
+              }
+            }
+          });
+        }
+
         return {
           quantity: 1,
           notes: "",
@@ -1949,6 +2115,8 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
                           images={item.product_images}
                           onImagesChange={(images) => updateItem(index, "product_images", images)}
                           itemIndex={index}
+                          imageCache={imageCache}
+                          onCacheUpdate={handleCacheUpdate}
                         />
                       </TableCell>
                       <TableCell className="border-l-2 border-primary/30">

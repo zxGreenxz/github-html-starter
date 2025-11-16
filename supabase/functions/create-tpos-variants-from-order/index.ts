@@ -75,10 +75,23 @@ async function imageUrlToBase64(url: string): Promise<string | null> {
   }
 }
 
-// Convert image URL to base64 with retry
-async function imageUrlToBase64WithRetry(url: string | null, maxRetries = 2): Promise<string | null> {
+// Convert image URL to base64 with retry (with cache support)
+async function imageUrlToBase64WithRetry(
+  url: string | null,
+  maxRetries = 2,
+  cache: Record<string, string> = {} // ✅ NEW - Cache parameter
+): Promise<string | null> {
   if (!url) return null;
-  
+
+  // ✅ CHECK CACHE FIRST
+  if (cache[url]) {
+    console.log(`✅ Using cached base64 for: ${url.substring(0, 50)}...`);
+    return cache[url];
+  }
+
+  // ⚠️ FALLBACK: Fetch if not in cache
+  console.log(`⚠️ Cache miss, fetching: ${url.substring(0, 50)}...`);
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempting to convert image (attempt ${attempt}/${maxRetries}):`, url);
@@ -194,14 +207,15 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      baseProductCode, 
+    const {
+      baseProductCode,
       productName,
       purchasePrice: rawPurchasePrice,
       sellingPrice: rawSellingPrice,
       productImages,
       supplierName,
-      selectedAttributeValueIds 
+      selectedAttributeValueIds,
+      imageCache = {} // ✅ NEW - URL -> base64 mapping from frontend
     } = await req.json();
 
     // Convert prices (multiply by 1000)
@@ -215,12 +229,12 @@ serve(async (req) => {
       converted_selling: sellingPrice
     });
 
-    // 🖼️ CONVERT IMAGE ONCE - Cache for reuse
-    console.log('Converting product image to base64...');
+    // 🖼️ CONVERT IMAGE ONCE - Use cache or fallback fetch
+    console.log(`Converting product image to base64... (cache has ${Object.keys(imageCache).length} entries)`);
     let imageBase64: string | null = null;
     if (productImages && productImages.length > 0) {
       try {
-        imageBase64 = await imageUrlToBase64WithRetry(productImages[0]);
+        imageBase64 = await imageUrlToBase64WithRetry(productImages[0], 2, imageCache);
         console.log('✅ Image conversion successful');
       } catch (error) {
         console.error('⚠️ Image conversion failed:', error);

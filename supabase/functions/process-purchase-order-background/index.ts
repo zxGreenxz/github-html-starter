@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface RequestBody {
   purchase_order_id: string;
+  imageCache?: Record<string, string>; // ✅ NEW - URL -> base64 mapping
 }
 
 Deno.serve(async (req) => {
@@ -22,9 +23,10 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Parse request body
-    const { purchase_order_id }: RequestBody = await req.json();
-    
+    const { purchase_order_id, imageCache = {} }: RequestBody = await req.json();
+
     console.log(`🔄 [Background Process] Starting for order: ${purchase_order_id}`);
+    console.log(`📦 Received cache with ${Object.keys(imageCache).length} images`);
 
     // 🧹 Clean up stuck items (processing > 5 minutes)
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -161,10 +163,11 @@ Deno.serve(async (req) => {
                 purchasePrice: Number(primaryItem.purchase_price || 0) / 1000,
                 sellingPrice: Number(primaryItem.selling_price || 0) / 1000,
                 selectedAttributeValueIds: primaryItem.selected_attribute_value_ids || [],
-                productImages: Array.isArray(primaryItem.product_images) 
-                  ? primaryItem.product_images 
+                productImages: Array.isArray(primaryItem.product_images)
+                  ? primaryItem.product_images
                   : (primaryItem.product_images ? [primaryItem.product_images] : []),
-                supplierName: order?.supplier_name?.trim().toUpperCase() || 'UNKNOWN'
+                supplierName: order?.supplier_name?.trim().toUpperCase() || 'UNKNOWN',
+                imageCache: imageCache // ✅ NEW - Forward cache
               }
             }
           );
