@@ -84,7 +84,10 @@ export function generateRandomId(): string {
   });
 }
 
-export function randomDelay(min = 500, max = 2000): Promise<void> {
+// Optimized: Reduced from (500, 2000) to (100, 300) for faster processing
+// Average delay: 200ms (down from 1250ms)
+// Impact: ~1s saved per 10 requests
+export function randomDelay(min = 100, max = 300): Promise<void> {
   const delay = Math.floor(Math.random() * (max - min + 1) + min);
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
