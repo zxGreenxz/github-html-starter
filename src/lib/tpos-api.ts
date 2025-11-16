@@ -367,8 +367,9 @@ export async function searchTPOSProductByCode(
     if (!token) {
       throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
     }
-    
-    await randomDelay(200, 600);
+
+    // Optimized: 100-200ms delay (down from 200-600ms)
+    await randomDelay(100, 200);
     
     const url = `https://tomato.tpos.vn/odata/ProductTemplate/OdataService.GetViewV2?Active=true&DefaultCode=${encodeURIComponent(productCode)}&$top=50&$orderby=DateCreated desc&$filter=Active+eq+true&$count=true`;
     
@@ -408,14 +409,15 @@ export async function getTPOSProductFullDetails(
   productId: number
 ): Promise<TPOSProductFullDetails> {
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
+
   return queryWithAutoRefresh(async () => {
     const token = await getActiveTPOSToken();
     if (!token) {
       throw new Error("TPOS Bearer Token not found");
     }
-    
-    await randomDelay(200, 600);
+
+    // Optimized: 100-200ms delay (down from 200-600ms)
+    await randomDelay(100, 200);
     
     const url = `https://tomato.tpos.vn/odata/ProductTemplate(${productId})?$expand=UOM,UOMCateg,Categ,UOMPO,POSCateg,Taxes,SupplierTaxes,Product_Teams,Images,UOMView,Distributor,Importer,Producer,OriginCountry,AttributeLines($expand=Attribute,Values),ProductVariants($expand=UOM,Categ,UOMPO,POSCateg,AttributeValues)`;
     
@@ -447,14 +449,15 @@ export async function updateTPOSProductDetails(
   payload: any
 ): Promise<any> {
   const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
-  
+
   return queryWithAutoRefresh(async () => {
     const token = await getActiveTPOSToken();
     if (!token) {
       throw new Error("TPOS Bearer Token not found");
     }
-    
-    await randomDelay(200, 600);
+
+    // Optimized: 100-200ms delay (down from 200-600ms)
+    await randomDelay(100, 200);
     
     const url = 'https://tomato.tpos.vn/odata/ProductTemplate/ODataService.UpdateV2';
     
