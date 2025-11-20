@@ -114,12 +114,10 @@ Deno.serve(async (req) => {
     console.log(`📦 Grouped ${items.length} items into ${groups.size} unique products`);
 
     // Step 2: Process groups in parallel
-    // ✅ OPTIMIZATION #5: Increased concurrent requests for better throughput
-    // OLD: MAX_CONCURRENT = 8 → 30 items = ~4 batches × 3s = 12s
-    // NEW: MAX_CONCURRENT = 12 → 30 items = ~3 batches × 3s = 9s (25% faster)
+    // Optimized: Increased from 3 to 8 concurrent requests
+    // Impact: 30 items = 4 batches (down from 10 batches) = ~40-50% faster
     // Risk mitigation: Retry logic with exponential backoff handles TPOS rate limits
-    // Note: Can increase to 16 if no rate limit issues observed
-    const MAX_CONCURRENT = 12;
+    const MAX_CONCURRENT = 8;
     let successCount = 0;
     let failedCount = 0;
     const failedItems: Array<{ id: string; error: string }> = [];
