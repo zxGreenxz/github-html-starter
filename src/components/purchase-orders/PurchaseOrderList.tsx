@@ -783,7 +783,7 @@ export function PurchaseOrderList({
                   
                   {/* Actions column - only on first item with rowSpan */}
                   {flatItem.isFirstItem && (
-                    <TableCell rowSpan={flatItem.itemCount}>
+                    <TableCell rowSpan={flatItem.itemCount} className="align-top">
                       <div className="flex flex-col items-center gap-2">
                         {/* Edit button */}
                         {flatItem.status === 'draft' ? (
