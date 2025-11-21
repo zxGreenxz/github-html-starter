@@ -179,9 +179,9 @@ export function useTPOSProcessingProgress({
     console.log('🔄 [Fallback] Activating polling mode...');
     setIsFallbackMode(true);
 
-    let pollInterval = 2000;
+    let pollInterval = 1000; // ✅ FIXED: Reduced from 2000ms to 1000ms for faster updates
     let pollCount = 0;
-    const MAX_POLLS = 60;
+    const MAX_POLLS = 120; // ✅ FIXED: Increased to match new interval (still 2 mins total)
 
     const poll = async () => {
       if (pollCount++ >= MAX_POLLS || isCompleteRef.current || isCleanedUpRef.current) {
@@ -205,15 +205,18 @@ export function useTPOSProcessingProgress({
 
       const timeSinceLastUpdate = Date.now() - lastUpdateTimeRef.current;
 
-      if (timeSinceLastUpdate > 15000 && !isCompleteRef.current && !isFallbackMode) {
-        console.warn('💔 [Realtime] No updates for 15s, falling back to polling...');
+      // ✅ FIXED: Reduced timeout from 15s to 5s for faster fallback
+      if (timeSinceLastUpdate > 5000 && !isCompleteRef.current && !isFallbackMode) {
+        console.warn('💔 [Realtime] No updates for 5s, falling back to polling...');
         activateFallbackPolling();
       } else if (!isCleanedUpRef.current && !isCompleteRef.current) {
-        heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 10000);
+        // ✅ FIXED: Check every 3s instead of 10s
+        heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 3000);
       }
     };
 
-    heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 10000);
+    // ✅ FIXED: Start first check after 3s instead of 10s
+    heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 3000);
   }, [isFallbackMode, activateFallbackPolling]);
 
   const resetHeartbeatTimeout = useCallback(() => {
@@ -233,7 +236,18 @@ export function useTPOSProcessingProgress({
     } else {
       console.log('⏭️ [Realtime] Skipping initial query (new order)');
     }
-  }, [orderId, skipInitialQuery, fetchProgressState]);
+
+    // ✅ FIXED: Start polling immediately after 2s to ensure updates are captured
+    // This ensures UI updates even if realtime connection has issues
+    const immediatePollingTimer = setTimeout(() => {
+      if (!isCompleteRef.current && !isCleanedUpRef.current && !isFallbackMode) {
+        console.log('🔄 [Auto-Polling] Starting immediate polling as backup...');
+        activateFallbackPolling();
+      }
+    }, 2000);
+
+    return () => clearTimeout(immediatePollingTimer);
+  }, [orderId, skipInitialQuery, fetchProgressState, isFallbackMode, activateFallbackPolling]);
 
   // ✅ REALTIME: Subscribe to changes
   useEffect(() => {
@@ -271,6 +285,8 @@ export function useTPOSProcessingProgress({
           console.log('✅ [Realtime] Connected successfully');
           setIsFallbackMode(false);
           resetHeartbeatTimeout();
+          // ✅ FIXED: Poll immediately when subscription is ready to sync state
+          debouncedFetchProgress();
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.warn('⚠️ [Realtime] Connection issue, falling back to polling...');
           activateFallbackPolling();
