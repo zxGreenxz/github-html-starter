@@ -54,6 +54,7 @@ export function useTPOSProcessingProgress({
   const queryDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<number>(Date.now());
   const lastCompletedCountRef = useRef<number>(0);
+  const isCompleteRef = useRef(false); // ✅ Track completion with ref to prevent stale closure
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const isCleanedUpRef = useRef(false);
 
@@ -81,6 +82,11 @@ export function useTPOSProcessingProgress({
           isComplete
         });
 
+        // Update completion ref
+        if (isComplete) {
+          isCompleteRef.current = true;
+        }
+
         // Update toast (throttled to significant changes)
         const progressChange = completedCount - lastCompletedCountRef.current;
         if (progressChange >= 2 || isComplete || lastCompletedCountRef.current === 0) {
@@ -101,7 +107,7 @@ export function useTPOSProcessingProgress({
     } catch (error) {
       console.error('❌ [Realtime] Error fetching progress:', error);
     }
-  }, [orderId, totalItems, toastId]);
+  }, [orderId, totalItems, toastId, handleCompletion]);
 
   // ✅ DEBOUNCED: Re-query to prevent spam (300ms silence window)
   const debouncedFetchProgress = useCallback(() => {
@@ -110,7 +116,9 @@ export function useTPOSProcessingProgress({
     }
 
     queryDebounceTimeoutRef.current = setTimeout(() => {
-      fetchProgressState();
+      if (!isCleanedUpRef.current) {
+        fetchProgressState();
+      }
     }, 300);
   }, [fetchProgressState]);
 
@@ -156,22 +164,22 @@ export function useTPOSProcessingProgress({
   // ✅ HEARTBEAT: Detect stale connections (15s timeout)
   const startHeartbeatCheck = useCallback(() => {
     const checkHeartbeat = () => {
-      if (isCleanedUpRef.current || progressState.isComplete) return;
+      if (isCleanedUpRef.current || isCompleteRef.current) return;
 
       const timeSinceLastUpdate = Date.now() - lastUpdateTimeRef.current;
 
       // No updates for 15 seconds → fallback to polling
-      if (timeSinceLastUpdate > 15000 && !progressState.isComplete && !isFallbackMode) {
+      if (timeSinceLastUpdate > 15000 && !isCompleteRef.current && !isFallbackMode) {
         console.warn('💔 [Realtime] No updates for 15s, falling back to polling...');
         activateFallbackPolling();
-      } else if (!isCleanedUpRef.current && !progressState.isComplete) {
+      } else if (!isCleanedUpRef.current && !isCompleteRef.current) {
         // Check again in 10s
         heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 10000);
       }
     };
 
     heartbeatTimeoutRef.current = setTimeout(checkHeartbeat, 10000);
-  }, [progressState.isComplete, isFallbackMode]);
+  }, [isFallbackMode, activateFallbackPolling]);
 
   const resetHeartbeatTimeout = useCallback(() => {
     if (heartbeatTimeoutRef.current) {
@@ -182,7 +190,7 @@ export function useTPOSProcessingProgress({
 
   // ✅ FALLBACK: Polling mechanism (if Realtime fails)
   const activateFallbackPolling = useCallback(() => {
-    if (isFallbackMode || progressState.isComplete || isCleanedUpRef.current) return;
+    if (isFallbackMode || isCompleteRef.current || isCleanedUpRef.current) return;
 
     console.log('🔄 [Fallback] Activating polling mode...');
     setIsFallbackMode(true);
@@ -192,19 +200,19 @@ export function useTPOSProcessingProgress({
     const MAX_POLLS = 60;
 
     const poll = async () => {
-      if (pollCount++ >= MAX_POLLS || progressState.isComplete || isCleanedUpRef.current) {
+      if (pollCount++ >= MAX_POLLS || isCompleteRef.current || isCleanedUpRef.current) {
         return;
       }
 
       await fetchProgressState();
 
-      if (!progressState.isComplete && !isCleanedUpRef.current) {
+      if (!isCompleteRef.current && !isCleanedUpRef.current) {
         setTimeout(poll, pollInterval);
       }
     };
 
     poll();
-  }, [isFallbackMode, progressState.isComplete, fetchProgressState]);
+  }, [isFallbackMode, fetchProgressState]);
 
   // ✅ CLEANUP: Prevent memory leaks
   const cleanup = useCallback(() => {
@@ -283,7 +291,7 @@ export function useTPOSProcessingProgress({
         if (status === 'SUBSCRIBED') {
           console.log('✅ [Realtime] Connected successfully');
           setIsFallbackMode(false);
-          startHeartbeatCheck();
+          resetHeartbeatTimeout();
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.warn('⚠️ [Realtime] Connection issue, falling back to polling...');
           activateFallbackPolling();

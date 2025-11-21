@@ -6,7 +6,17 @@ ALTER TABLE purchase_order_items REPLICA IDENTITY FULL;
 
 -- Step 2: Add table to Realtime publication (if not already added)
 -- This makes the table available for Realtime subscriptions
-ALTER PUBLICATION supabase_realtime ADD TABLE purchase_order_items;
+-- ✅ Idempotent: Only add if not already in publication
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+    AND tablename = 'purchase_order_items'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE purchase_order_items;
+  END IF;
+END $$;
 
 -- Verify configuration
 -- Run this to check if table is in publication:
