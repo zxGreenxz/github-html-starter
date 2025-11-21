@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useTPOSProcessingProgress, ProgressState } from "@/hooks/use-tpos-processing-progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,8 +171,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Polling cleanup ref
-  const pollingCleanupRef = useRef<(() => void) | null>(null);
+  // ✅ REALTIME: Track active order processing
+  const [activeOrderProcessing, setActiveOrderProcessing] = useState<{
+    orderId: string;
+    totalItems: number;
+    toastId: string;
+  } | null>(null);
 
   // State for validation settings dialog
   const [showValidationSettings, setShowValidationSettings] = useState(false);
@@ -579,16 +584,22 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     generateCodes();
   }, [debouncedProductNames, manualProductCodes]);
 
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollingCleanupRef.current) {
-        pollingCleanupRef.current();
-        pollingCleanupRef.current = null;
-      }
-    };
+  // ✅ REALTIME: Completion handler
+  const handleTPOSProcessingComplete = useCallback((state: ProgressState) => {
+    console.log('✅ [Order Creation] TPOS processing completed:', state);
+    // Clear active processing
+    setActiveOrderProcessing(null);
   }, []);
+
+  // ✅ REALTIME: Use hook to monitor progress
+  // Hook is always called but internally handles null case
+  useTPOSProcessingProgress({
+    orderId: activeOrderProcessing?.orderId || '',
+    totalItems: activeOrderProcessing?.totalItems || 0,
+    toastId: activeOrderProcessing?.toastId || '',
+    onComplete: handleTPOSProcessingComplete,
+    skipInitialQuery: true
+  });
 
   // Validation function - check if all items have required fields
   const validateItems = (): { isValid: boolean; invalidFields: string[] } => {
@@ -929,9 +940,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
           { id: toastId, duration: Infinity }
         );
 
-        // Start polling
-        const cleanup = await pollTPOSProcessingProgress(order.id, totalDraftItems, toastId);
-        pollingCleanupRef.current = cleanup;
+        // ✅ REALTIME: Start monitoring progress
+        setActiveOrderProcessing({
+          orderId: order.id,
+          totalItems: totalDraftItems,
+          toastId
+        });
 
         console.log('✅ Background processing initiated (from draft)');
 
@@ -1094,9 +1108,12 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
         sonnerToast.error("Không thể bắt đầu xử lý. Vui lòng thử lại.");
       });
 
-      // Start polling for progress updates
-      const cleanup = await pollTPOSProcessingProgress(order.id, totalItems, toastId);
-      pollingCleanupRef.current = cleanup;
+      // ✅ REALTIME: Start monitoring progress
+      setActiveOrderProcessing({
+        orderId: order.id,
+        totalItems,
+        toastId
+      });
 
       console.log('✅ Background processing initiated');
 
@@ -1192,117 +1209,6 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
       });
     }
   });
-
-  // Helper function to poll TPOS processing progress
-  const pollTPOSProcessingProgress = async (
-    orderId: string,
-    totalItems: number,
-    toastId: string
-  ) => {
-    let pollInterval = 1000; // Start with 1s (adaptive)
-    let pollCount = 0;
-    const MAX_POLLS = 60; // 2 phút timeout (60 polls * ~2s average)
-    let timeoutId: NodeJS.Timeout;
-    let isCancelled = false; // Cancellation flag
-    // ✅ OPTIMIZATION #10: Throttle toast updates to reduce re-renders
-    let lastCompletedCount = 0; // Track last update to avoid unnecessary toast updates
-
-    const poll = async () => {
-      // Check if cancelled
-      if (isCancelled) {
-        clearTimeout(timeoutId);
-        return;
-      }
-
-      // Timeout check
-      if (pollCount++ >= MAX_POLLS) {
-        clearTimeout(timeoutId); // ✅ Clear timeout before return
-        sonnerToast.error(
-          "⏱️ Timeout: Xử lý quá lâu. Vui lòng kiểm tra chi tiết đơn hàng.",
-          { id: toastId, duration: 5000 }
-        );
-        return;
-      }
-
-      // Query progress from database
-      const { data: items, error } = await supabase
-        .from('purchase_order_items')
-        .select('id, tpos_sync_status, product_code, tpos_sync_error')
-        .eq('purchase_order_id', orderId);
-
-      if (error || !items) {
-        console.error('Failed to fetch progress:', error);
-        if (!isCancelled) {
-          timeoutId = setTimeout(poll, pollInterval);
-        }
-        return;
-      }
-
-      // Count statuses
-      const successCount = items.filter(i => i.tpos_sync_status === 'success').length;
-      const failedCount = items.filter(i => i.tpos_sync_status === 'failed').length;
-      const completedCount = successCount + failedCount;
-
-      // ✅ OPTIMIZATION #10: Only update toast if progress changed significantly
-      // Reduces unnecessary re-renders (was: every 1-3s poll, now: only when >=2 items change)
-      const progressChange = completedCount - lastCompletedCount;
-      const isComplete = completedCount >= totalItems;
-
-      if (progressChange >= 2 || isComplete || pollCount === 1) {
-        sonnerToast.loading(
-          `Đang xử lý ${completedCount}/${totalItems} sản phẩm... (${successCount} ✅, ${failedCount} ❌)`,
-          { id: toastId, duration: Infinity }
-        );
-        lastCompletedCount = completedCount;
-      }
-
-      // Check if processing is complete (use >= to handle edge cases)
-      if (completedCount >= totalItems) {
-        clearTimeout(timeoutId); // ✅ Clear timeout before return
-        
-        // Show final result
-        if (failedCount === 0) {
-          sonnerToast.success(
-            `✅ Đã tạo thành công ${successCount} sản phẩm trên TPOS!`,
-            { id: toastId, duration: 5000 }
-          );
-        } else if (successCount === 0) {
-          sonnerToast.error(
-            `❌ Tất cả ${failedCount} sản phẩm đều lỗi. Vui lòng kiểm tra chi tiết.`,
-            { id: toastId, duration: 5000 }
-          );
-        } else {
-          sonnerToast.warning(
-            `⚠️ ${successCount} thành công, ${failedCount} lỗi. Bạn có thể retry trong chi tiết đơn hàng.`,
-            { id: toastId, duration: 7000 }
-          );
-        }
-
-        // Refresh queries after completion
-        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
-        // ✅ OPTIMIZATION #9: Invalidate products after TPOS sync completes
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        queryClient.invalidateQueries({ queryKey: ["products-select"] });
-        return;
-      }
-
-      // Adaptive polling: Increase interval gradually (exponential backoff)
-      pollInterval = Math.min(pollInterval * 1.2, 3000); // Max 3s
-      if (!isCancelled) {
-        timeoutId = setTimeout(poll, pollInterval);
-      }
-    };
-
-    // Start polling
-    poll();
-
-    // Return cleanup function
-    return () => {
-      isCancelled = true;
-      clearTimeout(timeoutId);
-    };
-  };
 
   const resetForm = () => {
     // ✅ Clear image cache
