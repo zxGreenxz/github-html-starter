@@ -584,6 +584,14 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     generateCodes();
   }, [debouncedProductNames, manualProductCodes]);
 
+  // ✅ CLEANUP: Clear activeOrderProcessing when dialog closes
+  useEffect(() => {
+    if (!open && activeOrderProcessing) {
+      console.log('🧹 [Dialog] Clearing activeOrderProcessing on dialog close');
+      setActiveOrderProcessing(null);
+    }
+  }, [open, activeOrderProcessing]);
+
   // ✅ REALTIME: Completion handler
   const handleTPOSProcessingComplete = useCallback((state: ProgressState) => {
     console.log('✅ [Order Creation] TPOS processing completed:', state);
