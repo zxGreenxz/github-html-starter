@@ -584,13 +584,15 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange, initialData }: C
     generateCodes();
   }, [debouncedProductNames, manualProductCodes]);
 
-  // ✅ CLEANUP: Clear activeOrderProcessing when dialog closes
+  // ✅ CLEANUP: Reset leftover state when dialog opens (not edit mode)
+  // This ensures clean state for new orders if previous processing is still active
   useEffect(() => {
-    if (!open && activeOrderProcessing) {
-      console.log('🧹 [Dialog] Clearing activeOrderProcessing on dialog close');
+    if (open && !initialData && activeOrderProcessing) {
+      // Dialog opened for new order but has leftover state from previous order
+      console.log('🧹 [Dialog] Clearing leftover activeOrderProcessing on open');
       setActiveOrderProcessing(null);
     }
-  }, [open, activeOrderProcessing]);
+  }, [open, initialData, activeOrderProcessing]);
 
   // ✅ REALTIME: Completion handler
   const handleTPOSProcessingComplete = useCallback((state: ProgressState) => {
