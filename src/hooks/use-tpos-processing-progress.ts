@@ -45,6 +45,7 @@ export function useTPOSProcessingProgress({
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const queryDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recurringPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<number>(Date.now());
   const lastCompletedCountRef = useRef<number>(0);
   const isCompleteRef = useRef(false);
@@ -74,6 +75,11 @@ export function useTPOSProcessingProgress({
     if (queryDebounceTimeoutRef.current) {
       clearTimeout(queryDebounceTimeoutRef.current);
       queryDebounceTimeoutRef.current = null;
+    }
+
+    if (recurringPollIntervalRef.current) {
+      clearInterval(recurringPollIntervalRef.current);
+      recurringPollIntervalRef.current = null;
     }
   }, []);
 
@@ -282,6 +288,32 @@ export function useTPOSProcessingProgress({
           console.log('✅ [Realtime] Connected successfully');
           setIsFallbackMode(false);
           resetHeartbeatTimeout();
+
+          // ✅ IMMEDIATE POLL: Query DB right after subscription to catch already-completed items
+          // This handles cases where background completes before subscription is ready
+          console.log('🔍 [Realtime] Polling immediately after subscription...');
+          setTimeout(() => {
+            if (!isCleanedUpRef.current && !isCompleteRef.current) {
+              fetchProgressState();
+            }
+          }, 1000); // 1s delay to allow background to start
+
+          // ✅ RECURRING POLL: Poll every 3s as backup (max 40 times = 2 minutes)
+          // This ensures toast dismisses even if Realtime fails silently
+          let pollCount = 0;
+          const pollInterval = setInterval(() => {
+            pollCount++;
+            if (pollCount >= 40 || isCompleteRef.current || isCleanedUpRef.current) {
+              clearInterval(pollInterval);
+              recurringPollIntervalRef.current = null;
+              return;
+            }
+            console.log(`🔄 [Realtime] Backup poll ${pollCount}/40...`);
+            fetchProgressState();
+          }, 3000);
+
+          // Store interval ref for cleanup
+          recurringPollIntervalRef.current = pollInterval;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.warn('⚠️ [Realtime] Connection issue, falling back to polling...');
           activateFallbackPolling();
