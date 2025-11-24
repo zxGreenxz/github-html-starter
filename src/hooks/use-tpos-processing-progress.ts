@@ -113,7 +113,7 @@ export function useTPOSProcessingProgress({
 
   // ✅ SAFETY: Fetch current state from DB
   const fetchProgressState = useCallback(async () => {
-    if (isCleanedUpRef.current) return;
+    if (isCleanedUpRef.current || isCompleteRef.current) return;
 
     try {
       const { data: items } = await supabase
@@ -121,7 +121,7 @@ export function useTPOSProcessingProgress({
         .select('tpos_sync_status')
         .eq('purchase_order_id', orderId);
 
-      if (items && !isCleanedUpRef.current) {
+      if (items && !isCleanedUpRef.current && !isCompleteRef.current) {
         const successCount = items.filter(i => i.tpos_sync_status === 'success').length;
         const failedCount = items.filter(i => i.tpos_sync_status === 'failed').length;
         const completedCount = successCount + failedCount;
@@ -222,6 +222,17 @@ export function useTPOSProcessingProgress({
     }
     startHeartbeatCheck();
   }, [startHeartbeatCheck]);
+
+  // ✅ RESET: Reset refs when orderId changes
+  useEffect(() => {
+    if (orderId) {
+      console.log('🔄 [Realtime] Resetting refs for new orderId:', orderId);
+      isCompleteRef.current = false;
+      isCleanedUpRef.current = false;
+      lastCompletedCountRef.current = 0;
+      lastUpdateTimeRef.current = Date.now();
+    }
+  }, [orderId]);
 
   // ✅ INITIAL: Fetch initial state on mount
   useEffect(() => {
