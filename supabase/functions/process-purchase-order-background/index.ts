@@ -177,8 +177,23 @@ Deno.serve(async (req) => {
             }
           );
 
-          if (tposError) throw new Error(`TPOS API error: ${tposError.message}`);
-          if (!tposResult?.success) throw new Error(`TPOS creation failed: ${tposResult?.error || 'Unknown error'}`);
+          // ✅ IMPROVED ERROR HANDLING - Extract actual error from response body
+          if (tposError) {
+            // Try to get detailed error from response body if available
+            const detailedError = tposResult?.error || tposError.message || 'Edge Function failed';
+            console.error(`❌ TPOS Edge Function error for ${groupKey}:`, {
+              error: tposError,
+              result: tposResult,
+              detailedError
+            });
+            throw new Error(`TPOS API error: ${detailedError}`);
+          }
+
+          if (!tposResult?.success) {
+            const errorDetail = tposResult?.error || 'Unknown error';
+            console.error(`❌ TPOS creation failed for ${groupKey}:`, errorDetail);
+            throw new Error(`TPOS creation failed: ${errorDetail}`);
+          }
 
           // ✅ TPOS sync success for this group
           successCount += groupItems.length;
@@ -187,7 +202,7 @@ Deno.serve(async (req) => {
 
         } catch (error: any) {
           const errorMessage = error.message || 'Unknown error';
-          
+
           // Check if it's rate limit error (429)
           if (errorMessage.includes('429') && attempt < maxRetries) {
             console.warn(`⚠️ Rate limit hit for ${groupKey}, retrying in ${2000 * attempt}ms...`);
@@ -202,6 +217,11 @@ Deno.serve(async (req) => {
               failedItems.push({ id: item.id, error: errorMessage });
             });
             console.error(`❌ Group failed after ${maxRetries} attempts: ${groupKey}`, errorMessage);
+          } else {
+            // Log retry attempt
+            console.warn(`⚠️ Attempt ${attempt}/${maxRetries} failed for ${groupKey}: ${errorMessage}`);
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
           }
         }
       }

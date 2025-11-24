@@ -447,16 +447,20 @@ serve(async (req) => {
 
       if (!tposResponse.ok) {
         const errorText = await tposResponse.text();
-        console.error('TPOS API Error:', errorText);
-        
+        console.error('❌ TPOS API Error (Simple Product):');
+        console.error('Status:', tposResponse.status);
+        console.error('Status Text:', tposResponse.statusText);
+        console.error('Response:', errorText);
+        console.error('Product Code:', baseProductCode);
+
         // Check if error is due to duplicate product (already exists)
-        const isDuplicateError = errorText.includes('đã tồn tại') || 
+        const isDuplicateError = errorText.includes('đã tồn tại') ||
                                  errorText.includes('already exists') ||
                                  errorText.includes('Đã có sản phẩm với mã vạch');
-        
+
         if (isDuplicateError && tposResponse.status === 400) {
           console.warn(`⚠️ Product ${baseProductCode} already exists on TPOS, treating as success`);
-          
+
           // Return success response (product already exists = success)
           return new Response(
             JSON.stringify({
@@ -468,8 +472,8 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
           );
         }
-        
-        throw new Error(`TPOS API error: ${tposResponse.status} - ${errorText}`);
+
+        throw new Error(`TPOS API error [${tposResponse.status}]: ${errorText.substring(0, 500)}`);
       }
 
       const tposData = await tposResponse.json();
@@ -935,16 +939,21 @@ serve(async (req) => {
 
     if (!tposResponse.ok) {
       const errorText = await tposResponse.text();
-      console.error('TPOS API Error:', errorText);
-      
+      console.error('❌ TPOS API Error (Product with Variants):');
+      console.error('Status:', tposResponse.status);
+      console.error('Status Text:', tposResponse.statusText);
+      console.error('Response:', errorText);
+      console.error('Product Code:', baseProductCode);
+      console.error('Variant Count:', productVariants.length);
+
       // Check if error is due to duplicate product (already exists)
-      const isDuplicateError = errorText.includes('đã tồn tại') || 
+      const isDuplicateError = errorText.includes('đã tồn tại') ||
                                errorText.includes('already exists') ||
                                errorText.includes('Đã có sản phẩm với mã vạch');
-      
+
       if (isDuplicateError && tposResponse.status === 400) {
         console.warn(`⚠️ Product ${baseProductCode} already exists on TPOS, treating as success`);
-        
+
         // Return success response (product already exists = success)
         return new Response(
           JSON.stringify({
@@ -957,8 +966,8 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
-      
-      throw new Error(`TPOS API error: ${tposResponse.status} - ${errorText}`);
+
+      throw new Error(`TPOS API error [${tposResponse.status}]: ${errorText.substring(0, 500)}`);
     }
 
     const tposData = await tposResponse.json();
@@ -1112,15 +1121,28 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in create-tpos-variants-from-order:', error);
+    // ✅ IMPROVED ERROR LOGGING - Provide detailed error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : '';
+
+    console.error('❌ Error in create-tpos-variants-from-order:');
+    console.error('Error message:', errorMessage);
+    console.error('Error stack:', errorStack);
+    console.error('Error object:', error);
+
+    // Include more context in the error response
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        context: {
+          function: 'create-tpos-variants-from-order',
+          timestamp: new Date().toISOString()
+        }
       }),
-      { 
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
