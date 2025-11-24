@@ -1,5 +1,10 @@
 project_id = "xneoovjmwhzzphwlwojc"
 
+[auth]
+site_url = "https://n2store.vercel.app"
+additional_redirect_urls = ["https://n2store.vercel.app/**", "http://localhost:*/**"]
+enable_signup = true
+
 [functions.fetch-tpos-products]
 verify_jwt = false
 
