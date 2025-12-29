@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown } from "lucide-react";
+import { Pencil, Search, Filter, Calendar, Trash2, Check, Loader2, AlertCircle, FileDown, Copy } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import React, { useState, useEffect, useRef } from "react";
@@ -78,6 +78,7 @@ interface PurchaseOrderListProps {
   onToggleSelectAll: () => void;
   onEditDraft?: (order: PurchaseOrder) => void;
   onExportOrder?: (order: PurchaseOrder) => void;
+  onCopyOrder?: (order: PurchaseOrder) => void;
   hideStatusFilter?: boolean;
 }
 
@@ -99,6 +100,7 @@ export function PurchaseOrderList({
   onToggleSelectAll,
   onEditDraft,
   onExportOrder,
+  onCopyOrder,
   hideStatusFilter = false,
 }: PurchaseOrderListProps) {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
@@ -818,7 +820,18 @@ export function PurchaseOrderList({
                         >
                           <FileDown className="w-4 h-4 text-green-600" />
                         </Button>
-                        
+
+                        {/* Copy order button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onCopyOrder?.(flatItem)}
+                          title="Sao chép đơn hàng"
+                          disabled={isOrderProcessing(flatItem.id)}
+                        >
+                          <Copy className="w-4 h-4 text-purple-600" />
+                        </Button>
+
                         {/* Delete order button */}
                         <Button
                           variant="ghost"

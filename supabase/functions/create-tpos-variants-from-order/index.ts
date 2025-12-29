@@ -246,11 +246,11 @@ serve(async (req) => {
       throw new Error('Missing required parameters: baseProductCode and productName');
     }
 
-    if (purchasePrice <= 0 || sellingPrice <= 0) {
+    if (purchasePrice <= 0 || sellingPrice < 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Giá mua và giá bán phải lớn hơn 0' 
+        JSON.stringify({
+          success: false,
+          error: 'Giá mua phải lớn hơn 0 và giá bán không được âm'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
