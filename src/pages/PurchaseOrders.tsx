@@ -476,6 +476,72 @@ const PurchaseOrders = () => {
     setIsCreateDialogOpen(true);
   };
 
+  const handleCopyOrder = async (order: PurchaseOrder) => {
+    try {
+      // 1. Create new draft order with copied data
+      const { data: newOrder, error: orderError } = await supabase
+        .from('purchase_orders')
+        .insert({
+          order_date: new Date().toISOString(),
+          status: 'draft',
+          invoice_amount: order.invoice_amount || 0,
+          total_amount: order.total_amount || 0,
+          final_amount: order.final_amount || 0,
+          discount_amount: order.discount_amount || 0,
+          shipping_fee: order.shipping_fee || 0,
+          supplier_name: order.supplier_name,
+          supplier_id: order.supplier_id,
+          notes: order.notes,
+          invoice_images: order.invoice_images,
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Copy all items from original order
+      if (order.items && order.items.length > 0) {
+        const copiedItems = order.items.map((item, index) => ({
+          purchase_order_id: newOrder.id,
+          quantity: item.quantity,
+          position: index,
+          notes: item.notes,
+          product_code: item.product_code,
+          product_name: item.product_name,
+          variant: item.variant,
+          purchase_price: item.purchase_price,
+          selling_price: item.selling_price,
+          product_images: item.product_images,
+          price_images: item.price_images,
+          selected_attribute_value_ids: item.selected_attribute_value_ids,
+          tpos_sync_status: 'pending',
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('purchase_order_items')
+          .insert(copiedItems);
+
+        if (itemsError) throw itemsError;
+      }
+
+      // 3. Refresh draft orders and switch to draft tab
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders', 'drafts'] });
+      setActiveTab('drafts');
+
+      toast({
+        title: 'Sao chép thành công!',
+        description: `Đã tạo đơn nháp mới từ đơn hàng của ${order.supplier_name || 'Không có NCC'}`,
+      });
+    } catch (error) {
+      console.error('Error copying order:', error);
+      toast({
+        title: 'Lỗi sao chép đơn hàng',
+        description: 'Không thể sao chép đơn hàng. Vui lòng thử lại.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleCloseCreateDialog = (open: boolean) => {
     setIsCreateDialogOpen(open);
     if (!open) {
@@ -1024,6 +1090,7 @@ const PurchaseOrders = () => {
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
               onExportOrder={handleExportPurchaseExcel}
+              onCopyOrder={handleCopyOrder}
               />
             )}
             </CardContent>
@@ -1120,6 +1187,7 @@ const PurchaseOrders = () => {
               onToggleSelectAll={toggleSelectAll}
               onEditDraft={handleEditDraft}
               onExportOrder={handleExportPurchaseExcel}
+              onCopyOrder={handleCopyOrder}
               />
             )}
             </CardContent>
