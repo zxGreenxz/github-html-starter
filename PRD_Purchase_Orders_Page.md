@@ -9,7 +9,7 @@
 
 ## Demo Recording
 
-![Quá trình phân tích trang Purchase Orders](C:/Users/51103/.gemini/antigravity/brain/0ae002d6-479b-4c39-a1e1-bc7c73063b9a/demo_recording.webp)
+![Quá trình phân tích trang Purchase Orders](https://raw.githubusercontent.com/zxGreenxz/github-html-starter/main/docs/images/demo_recording.webp)
 
 ---
 
@@ -129,7 +129,7 @@ Trang này được thiết kế để **quản lý toàn bộ vòng đời củ
 
 ### A. Header & Nút hành động chính
 
-![Screenshot trang chính](C:/Users/51103/.gemini/antigravity/brain/0ae002d6-479b-4c39-a1e1-bc7c73063b9a/screenshot_main.png)
+![Screenshot trang chính](https://raw.githubusercontent.com/zxGreenxz/github-html-starter/main/docs/images/screenshot_main.png)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -204,7 +204,7 @@ Trang này được thiết kế để **quản lý toàn bộ vòng đời củ
 
 ### D. Filter Bar (Bộ lọc)
 
-![Screenshot dropdown filter](C:/Users/51103/.gemini/antigravity/brain/0ae002d6-479b-4c39-a1e1-bc7c73063b9a/screenshot_dropdown.png)
+![Screenshot dropdown filter](https://raw.githubusercontent.com/zxGreenxz/github-html-starter/main/docs/images/screenshot_dropdown.png)
 
 ```
 ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────────────────┐ ┌────────────────┐
