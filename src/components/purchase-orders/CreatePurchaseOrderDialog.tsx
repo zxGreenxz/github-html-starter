@@ -69,7 +69,74 @@ const getProductImages = async (product: any): Promise<string[]> => {
   return [];
 };
 
-// Helper: Convert image URL to base64
+// Helper: Resize image blob to max dimensions (to prevent memory issues)
+const MAX_IMAGE_SIZE = 800; // Max width/height in pixels
+const MAX_IMAGE_BYTES = 500 * 1024; // 500KB max per image
+
+const resizeImageBlob = async (blob: Blob): Promise<Blob> => {
+  // Skip resize if already small enough
+  if (blob.size <= MAX_IMAGE_BYTES) {
+    return blob;
+  }
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      let { width, height } = img;
+
+      // Calculate new dimensions
+      if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
+        if (width > height) {
+          height = Math.round((height * MAX_IMAGE_SIZE) / width);
+          width = MAX_IMAGE_SIZE;
+        } else {
+          width = Math.round((width * MAX_IMAGE_SIZE) / height);
+          height = MAX_IMAGE_SIZE;
+        }
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        resolve(blob); // Fallback to original
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to blob with quality compression
+      canvas.toBlob(
+        (resizedBlob) => {
+          if (resizedBlob) {
+            console.log(`📐 Resized image: ${(blob.size / 1024).toFixed(0)}KB → ${(resizedBlob.size / 1024).toFixed(0)}KB`);
+            resolve(resizedBlob);
+          } else {
+            resolve(blob); // Fallback to original
+          }
+        },
+        'image/jpeg',
+        0.8 // 80% quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(blob); // Fallback to original on error
+    };
+
+    img.src = url;
+  });
+};
+
+// Helper: Convert image URL to base64 (with auto-resize for large images)
 const convertUrlToBase64 = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch(url);
@@ -78,7 +145,13 @@ const convertUrlToBase64 = async (url: string): Promise<string | null> => {
       return null;
     }
 
-    const blob = await response.blob();
+    let blob = await response.blob();
+
+    // Resize if image is too large (prevents memory limit exceeded)
+    if (blob.size > MAX_IMAGE_BYTES) {
+      console.log(`⚠️ Large image detected (${(blob.size / 1024).toFixed(0)}KB), resizing...`);
+      blob = await resizeImageBlob(blob);
+    }
 
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
